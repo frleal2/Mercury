@@ -15,6 +15,7 @@ const getExpiredCount = (drivers, type) => {
   const today = new Date();
   return drivers.filter((driver) => {
     const expirationDate = new Date(driver[type]);
+    if (isNaN(expirationDate)) return false; // Avoid invalid date issues
     return expirationDate < today;
   }).length;
 };
@@ -46,11 +47,12 @@ const ExpirationModal = ({ company, drivers, onClose }) => {
   );
 };
 
-const CompanyPage = () => {
+const ActiveCompanies = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedCompany, setSelectedCompany] = useState(null);
-
-  const companies = ['Company A', 'Company B'];
+  const [isAddCompanyModalOpen, setIsAddCompanyModalOpen] = useState(false);
+  const [newCompanyName, setNewCompanyName] = useState('');
+  const [companies, setCompanies] = useState(['Company A', 'Company B']);
 
   const handleCompanyClick = (companyName) => {
     setSelectedCompany(companyName);
@@ -62,42 +64,103 @@ const CompanyPage = () => {
     setSelectedCompany(null);
   };
 
+  const handleOpenAddCompanyModal = () => {
+    setIsAddCompanyModalOpen(true);
+  };
+
+  const handleCloseAddCompanyModal = () => {
+    setIsAddCompanyModalOpen(false);
+    setNewCompanyName('');
+  };
+
+  const handleAddCompany = () => {
+    if (newCompanyName.trim() !== '') {
+      setCompanies([...companies, newCompanyName.trim()]);
+      setNewCompanyName('');
+      setIsAddCompanyModalOpen(false);
+    }
+  };
+
   return (
     <div className="p-6">
       <h1 className="text-2xl font-semibold mb-6">Active Companies</h1>
-      <table className="min-w-full bg-white border border-gray-300">
-      <thead className="bg-gray-800 text-white">
-          <tr>
-            <th className="px-4 py-2 border">Company Name</th>
-            <th className="px-4 py-2 border">Number of Drivers</th>
-            <th className="px-4 py-2 border">Number of Trucks</th>
-            <th className="px-4 py-2 border">Number of Trailers</th>
-            <th className="px-4 py-2 border">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {companies.map((company) => {
-            const companyDrivers = drivers.filter((driver) => driver.company === company);
-            return (
-              <tr key={company}>
-                <td className="px-4 py-2 border">{company}</td>
-                <td className="px-4 py-2 border">{companyDrivers.length}</td>
-                <td className="px-4 py-2 border">{"12"}</td>
-                <td className="px-4 py-2 border">{"14"}</td>
-                <td className="px-4 py-2 border text-center"> {/* Use text-center to center the button */}
-                    <button
-                        onClick={() => handleCompanyClick(company)}
-                        className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md"
-                    >
-                        View Compliance
-                    </button>
-                    </td>
 
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+      {/* "+" Button to add a company */}
+      <button
+        onClick={handleOpenAddCompanyModal}
+        className="fixed bottom-6 right-6 bg-blue-500 text-white p-4 rounded-full shadow-lg hover:bg-blue-400 transition"
+      >
+        +
+      </button>
+
+      {/* Add Company Modal */}
+      {isAddCompanyModalOpen && (
+        <div className="fixed inset-0 flex justify-center items-center bg-gray-500 bg-opacity-50">
+          <div className="bg-white p-6 rounded-md shadow-lg max-w-md w-full">
+            <h2 className="text-xl font-semibold mb-4">Add New Company</h2>
+            <div className="mb-4">
+              <label htmlFor="companyName" className="block mb-2">Company Name</label>
+              <input
+                type="text"
+                id="companyName"
+                value={newCompanyName}
+                onChange={(e) => setNewCompanyName(e.target.value)}
+                className="border border-gray-300 p-2 w-full rounded-md"
+              />
+            </div>
+            <div className="flex justify-between">
+              <button
+                onClick={handleAddCompany}
+                className="bg-blue-500 text-white px-4 py-2 rounded-md"
+              >
+                Add Company
+              </button>
+              <button
+                onClick={handleCloseAddCompanyModal}
+                className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Scrollable table container for responsiveness */}
+      <div className="overflow-x-auto mt-6">
+        <table className="min-w-full bg-white border border-gray-300 table-auto">
+          <thead className="bg-gray-800 text-white">
+            <tr>
+              <th className="px-4 py-2 border">Company Name</th>
+              <th className="px-4 py-2 border">Number of Drivers</th>
+              <th className="px-4 py-2 border">Number of Trucks</th>
+              <th className="px-4 py-2 border">Number of Trailers</th>
+              <th className="px-4 py-2 border">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {companies.map((company) => {
+              const companyDrivers = drivers.filter((driver) => driver.company === company);
+              return (
+                <tr key={company}>
+                  <td className="px-4 py-2 border">{company}</td>
+                  <td className="px-4 py-2 border">{companyDrivers.length}</td>
+                  <td className="px-4 py-2 border">12</td>
+                  <td className="px-4 py-2 border">14</td>
+                  <td className="px-4 py-2 border text-center">
+                    <button
+                      onClick={() => handleCompanyClick(company)}
+                      className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md"
+                    >
+                      View Compliance
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
 
       {isModalOpen && (
         <ExpirationModal
@@ -110,4 +173,4 @@ const CompanyPage = () => {
   );
 };
 
-export default CompanyPage;
+export default ActiveCompanies;
