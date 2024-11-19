@@ -8,6 +8,8 @@ const navigation = [
     children: [
       { name: 'Active Drivers', href: '/ActiveDrivers' },
       { name: 'Inactive Drivers', href: '/InactiveDrivers' },
+      { name: 'Active Companies', href: '/ActiveCompanies'},
+      { name: 'Inactive Companies', href: '/InactiveCompanies'}
     ],
   },
   {
