@@ -1,18 +1,20 @@
 import './index.css';
-import {useState} from 'react';
-import {v4 as uuidv4} from 'uuid';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import Header from './components/Header';
-import {BrowserRouter, Routes, Route} from 'react-router-dom'
-import Home from './pages/Home';
+import Drivers from './Pages/Drivers';
+import InactiveDrivers from './Pages/InactiveDrivers'
 
 function App() {
   return (
     <BrowserRouter>
-      <Header>
-        <Routes>
-          <Route path ='/' elemnt = {<Home />} />
-        </Routes>
-      </Header>
+      {/* Header is displayed on all pages */}
+      <Header />
+      <Routes>
+        {/* Define routes for the app */}
+        <Route path="/" element={<h1>Welcome to the App</h1>} />
+        <Route path="/ActiveDrivers" element={<Drivers></Drivers>} />
+        <Route path="/InactiveDrivers" element={<InactiveDrivers></InactiveDrivers>} />
+      </Routes>
     </BrowserRouter>
   );
 }
