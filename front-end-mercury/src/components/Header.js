@@ -2,9 +2,10 @@ import { Disclosure, Menu } from '@headlessui/react';
 import { Bars3Icon, BellIcon, XMarkIcon, ChevronDownIcon } from '@heroicons/react/24/outline';
 
 const navigation = [
+
   {
     name: 'Dispatch',
-    current: true,
+    current: false,
     children: [
       { name: 'Active Drivers', href: '/ActiveDrivers' },
       { name: 'Inactive Drivers', href: '/InactiveDrivers' },
@@ -96,12 +97,14 @@ export default function Header() {
 
           {/* Logo */}
           <div className="flex flex-1 items-center justify-center sm:items-stretch sm:justify-start">
-            <div className="flex flex-shrink-0 items-center">
-              <img
+            <div className="flex flex-shrink-0 items-center" href="/">
+            <a href="/" className="flex flex-shrink-0 items-center">
+                <img
                 className="h-8 w-auto"
                 src="https://tailwindui.com/plus/img/logos/mark.svg?color=indigo&shade=500"
                 alt="Your Company"
-              />
+                />
+            </a>
             </div>
             {/* Desktop navigation */}
             <div className="hidden sm:ml-6 sm:block">
