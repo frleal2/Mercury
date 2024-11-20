@@ -41,7 +41,6 @@ const CompanyPage = () => {
         >
           +
         </button>
-  
         <div className="overflow-x-auto mt-6">
           <table className="min-w-full bg-white border border-gray-300 table-auto">
             <thead className="bg-gray-800 text-white">
