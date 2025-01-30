@@ -1,8 +1,7 @@
-# MERCURY - Driver & Fleet Tracking Solution
+# Mercury - Driver & Fleet Tracking Solution
 
 ## Overview
-
-Logistics Management System (LMS) is a comprehensive solution designed to assist logistics companies in efficiently managing and tracking key data related to drivers and vehicles. The system ensures compliance with regulatory requirements, minimizes downtime, and helps manage the overall operational costs associated with fleet management.
+Mercury is a comprehensive solution designed to assist logistics companies in efficiently managing and tracking key data related to drivers and vehicles. The system ensures compliance with regulatory requirements, minimizes downtime, and helps manage the overall operational costs associated with fleet management.
 
 ### Key Features:
 - **Driver Management:**
@@ -31,12 +30,6 @@ Logistics Management System (LMS) is a comprehensive solution designed to assist
 
 4. **Notifications:**
    - The system sends automated email or SMS notifications for important deadlines, such as CDL renewals, insurance expiration, and upcoming truck maintenance.
-
-## Support
-
-For technical support or inquiries, contact our support team at:
-- **Email:** support@logisticslms.com
-- **Phone:** +1 (800) 123-4567
 
 ## License
 
