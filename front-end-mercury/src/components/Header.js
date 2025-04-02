@@ -1,5 +1,7 @@
 import { Disclosure, Menu } from '@headlessui/react';
 import { Bars3Icon, BellIcon, XMarkIcon, ChevronDownIcon } from '@heroicons/react/24/outline';
+import { useNavigate } from 'react-router-dom';
+import { useSession } from '../providers/SessionProvider';
 
 const navigation = [
 
@@ -83,6 +85,14 @@ function classNames(...classes) {
 }
 
 export default function Header() {
+  const navigate = useNavigate();
+  const { setSession } = useSession();
+
+  const handleLogout = () => {
+    setSession({ accessToken: null, refreshToken: null });
+    navigate('/login');
+  };
+
   return (
     <Disclosure as="nav" className="bg-gray-800">
       <div className="mx-auto max-w-7xl px-2 sm:px-6 lg:px-8">
@@ -215,15 +225,15 @@ export default function Header() {
                 </Menu.Item>
                 <Menu.Item>
                   {({ active }) => (
-                    <a
-                      href="#"
+                    <button
+                      onClick={handleLogout}
                       className={classNames(
                         active ? 'bg-gray-100' : '',
-                        'block px-4 py-2 text-sm text-gray-700'
+                        'block w-full text-left px-4 py-2 text-sm text-gray-700'
                       )}
                     >
-                      Sign out
-                    </a>
+                      Logout
+                    </button>
                   )}
                 </Menu.Item>
               </Menu.Items>

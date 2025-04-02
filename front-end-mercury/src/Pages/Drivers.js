@@ -4,8 +4,8 @@ import DriverModal from '../components/DriverModal';
 import DriverRow from '../components/DriverRow';
 
 const drivers = [
-  { id: 1, company: 'Company A', firstName: 'John', lastName: 'Doe', employeeVerification: true, state: 'TX', cdlNumber: '12345', cdlExpirationDate: '2024-01-01', physicalDate: '2023-01-01', annualVMRDate: '2023-05-01', dob: '1990-01-01', ssn: '123-45-6789', hireDate: '2020-06-15', phone: '555-1234' },
-  { id: 2, company: 'Company B', firstName: 'Jane', lastName: 'Smith', employeeVerification: false, state: 'CA', cdlNumber: '67890', cdlExpirationDate: '2024-07-01', physicalDate: '2022-06-01', annualVMRDate: '2023-08-01', dob: '1985-06-15', ssn: '987-65-4321', hireDate: '2021-04-10', phone: '555-5678' },
+  { id: 1, company: 'Company A', firstName: 'John', lastName: 'Doe', employeeVerification: true, state: 'TX', cdlNumber: '12345', cdlExpirationDate: '2025-10-01', physicalDate: '2023-01-01', annualVMRDate: '2023-05-01', dob: '1990-01-01', ssn: '123-45-6789', hireDate: '2020-06-15', phone: '555-1234' },
+  { id: 2, company: 'Company B', firstName: 'Jane', lastName: 'Smith', employeeVerification: false, state: 'CA', cdlNumber: '67890', cdlExpirationDate: '2023-07-01', physicalDate: '2022-06-01', annualVMRDate: '2023-08-01', dob: '1985-06-15', ssn: '987-65-4321', hireDate: '2021-04-10', phone: '555-5678' },
   // More driver data...
 ];
 

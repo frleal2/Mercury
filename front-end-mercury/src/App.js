@@ -1,27 +1,42 @@
-import './index.css';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Header from './components/Header';
 import Drivers from './Pages/Drivers';
-import InactiveDrivers from './Pages/InactiveDrivers'
-import ActiveCompanies from './Pages/ActiveCompanies'
-import React, { useState } from 'react';
+import InactiveDrivers from './Pages/InactiveDrivers';
+import ActiveCompanies from './Pages/ActiveCompanies';
+import React from 'react';
 import Home from './Pages/Home';
+import Login from './Pages/Login';
+import { useSession, SessionProvider } from './providers/SessionProvider';
 
-function App() {
-  return (
+function AppContent() {
+    const { session } = useSession();
+    const isLoggedIn = !!session.accessToken;
 
-    <BrowserRouter>
-      {/* Header is displayed on all pages */}
-      <Header />
-      <Routes>
-        {/* Define routes for the app */}
-        <Route path="/" element={<Home></Home>} />
-        <Route path="/ActiveDrivers" element={<Drivers></Drivers>} />
-        <Route path="/InactiveDrivers" element={<InactiveDrivers></InactiveDrivers>} />
-        <Route path="/ActiveCompanies" element={<ActiveCompanies></ActiveCompanies>}/>
-      </Routes>
-    </BrowserRouter>
-  );
+    return (
+        <Routes>
+            {isLoggedIn ? (
+                <>
+                    <Route path="/" element={<><Header /><Home /></>} />
+                    <Route path="/ActiveDrivers" element={<><Header /><Drivers /></>} />
+                    <Route path="/InactiveDrivers" element={<><Header /><InactiveDrivers /></>} />
+                    <Route path="/ActiveCompanies" element={<><Header /><ActiveCompanies /></>} />
+                </>
+            ) : (
+                <>
+                    <Route path="/login" element={<Login />} />
+                    <Route path="*" element={<Navigate to="/login" />} />
+                </>
+            )}
+        </Routes>
+    );
 }
 
-export default App;
+export default function App() {
+    return (
+        <SessionProvider>
+            <BrowserRouter>
+                <AppContent />
+            </BrowserRouter>
+        </SessionProvider>
+    );
+}
