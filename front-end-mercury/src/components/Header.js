@@ -2,6 +2,7 @@ import { Disclosure, Menu } from '@headlessui/react';
 import { Bars3Icon, BellIcon, XMarkIcon, ChevronDownIcon } from '@heroicons/react/24/outline';
 import { useNavigate } from 'react-router-dom';
 import { useSession } from '../providers/SessionProvider';
+import mercuryLogo from '../images/mercurylogo.png';
 
 const navigation = [
 
@@ -108,70 +109,71 @@ export default function Header() {
           {/* Logo */}
           <div className="flex flex-1 items-center justify-center sm:items-stretch sm:justify-start">
             <div className="flex flex-shrink-0 items-center" href="/">
-            <a href="/" className="flex flex-shrink-0 items-center">
+              <a href="/" className="flex flex-shrink-0 items-center">
                 <img
-                className="h-8 w-auto"
-                src="https://tailwindui.com/plus/img/logos/mark.svg?color=indigo&shade=500"
-                alt="Your Company"
+                  className="h-10 w-auto" // Increased height from h-8 to h-10
+                  src={mercuryLogo}
+                  alt="Mercury Logo"
                 />
-            </a>
+              </a>
             </div>
-            {/* Desktop navigation */}
-            <div className="hidden sm:ml-6 sm:block">
-              <div className="flex space-x-4">
-                {navigation.map((item) => (
-                  <div key={item.name} className="relative">
-                    {item.children?.length > 0 ? (
-                      <Menu as="div" className="relative inline-block text-left">
-                        <div>
-                          <Menu.Button
-                            className={classNames(
-                              item.current
-                                ? 'bg-gray-900 text-white'
-                                : 'text-gray-300 hover:bg-gray-700 hover:text-white',
-                              'inline-flex items-center rounded-md px-3 py-2 text-sm font-medium'
-                            )}
-                          >
-                            {item.name}
-                            <ChevronDownIcon className="ml-1 h-5 w-5" aria-hidden="true" />
-                          </Menu.Button>
-                        </div>
+          </div>
 
-                        <Menu.Items className="absolute left-0 mt-2 w-48 origin-top-left rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
-                          {item.children.map((child) => (
-                            <Menu.Item key={child.name}>
-                              {({ active }) => (
-                                <a
-                                  href={child.href}
-                                  className={classNames(
-                                    active ? 'bg-gray-100' : '',
-                                    'block px-4 py-2 text-sm text-gray-700'
-                                  )}
-                                >
-                                  {child.name}
-                                </a>
-                              )}
-                            </Menu.Item>
-                          ))}
-                        </Menu.Items>
-                      </Menu>
-                    ) : (
-                      <a
-                        href={item.href}
-                        className={classNames(
-                          item.current
-                            ? 'bg-gray-900 text-white'
-                            : 'text-gray-300 hover:bg-gray-700 hover:text-white',
-                          'rounded-md px-3 py-2 text-sm font-medium'
-                        )}
-                        aria-current={item.current ? 'page' : undefined}
-                      >
-                        {item.name}
-                      </a>
-                    )}
-                  </div>
-                ))}
-              </div>
+          {/* Desktop navigation */}
+          <div className="hidden sm:ml-6 sm:block">
+            <div className="flex space-x-4">
+              {navigation.map((item) => (
+                <div key={item.name} className="relative">
+                  {item.children?.length > 0 ? (
+                    <Menu as="div" className="relative inline-block text-left">
+                      <div>
+                        <Menu.Button
+                          className={classNames(
+                            item.current
+                              ? 'bg-gray-900 text-white'
+                              : 'text-gray-300 hover:bg-gray-700 hover:text-white',
+                            'inline-flex items-center rounded-md px-3 py-2 text-sm font-medium'
+                          )}
+                        >
+                          {item.name}
+                          <ChevronDownIcon className="ml-1 h-5 w-5" aria-hidden="true" />
+                        </Menu.Button>
+                      </div>
+
+                      <Menu.Items className="absolute left-0 mt-2 w-48 origin-top-left rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
+                        {item.children.map((child) => (
+                          <Menu.Item key={child.name}>
+                            {({ active }) => (
+                              <a
+                                href={child.href}
+                                className={classNames(
+                                  active ? 'bg-gray-100' : '',
+                                  'block px-4 py-2 text-sm text-gray-700'
+                                )}
+                              >
+                                {child.name}
+                              </a>
+                            )}
+                          </Menu.Item>
+                        ))}
+                      </Menu.Items>
+                    </Menu>
+                  ) : (
+                    <a
+                      href={item.href}
+                      className={classNames(
+                        item.current
+                          ? 'bg-gray-900 text-white'
+                          : 'text-gray-300 hover:bg-gray-700 hover:text-white',
+                        'rounded-md px-3 py-2 text-sm font-medium'
+                      )}
+                      aria-current={item.current ? 'page' : undefined}
+                    >
+                      {item.name}
+                    </a>
+                  )}
+                </div>
+              ))}
             </div>
           </div>
 
