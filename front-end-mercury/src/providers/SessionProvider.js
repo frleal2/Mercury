@@ -1,9 +1,24 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 
 const SessionContext = createContext();
 
 export const SessionProvider = ({ children }) => {
-  const [session, setSession] = useState({ accessToken: '', refreshToken: '' });
+  const [session, setSessionState] = useState(() => {
+    const savedSession = localStorage.getItem('session');
+    return savedSession ? JSON.parse(savedSession) : { accessToken: '', refreshToken: '' };
+  });
+
+  const setSession = (newSession) => {
+    setSessionState(newSession);
+    localStorage.setItem('session', JSON.stringify(newSession));
+  };
+
+  useEffect(() => {
+    const savedSession = localStorage.getItem('session');
+    if (savedSession) {
+      setSessionState(JSON.parse(savedSession));
+    }
+  }, []);
 
   return (
     <SessionContext.Provider value={{ session, setSession }}>
