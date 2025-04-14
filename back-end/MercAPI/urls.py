@@ -17,11 +17,19 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from . import views
+from rest_framework.authtoken.views import obtain_auth_token
+from MercApi import views  # Corrected to match the actual directory name
+from MercApi.views import RegisterUserView
 
 router = DefaultRouter()
+router.register(r'driver', views.DriverViewSet, basename='driver')
+router.register(r'truck', views.TruckViewSet, basename='truck')
+router.register(r'company', views.CompanyViewSet, basename='company')
+router.register(r'trailer', views.TrailerViewSet, basename='trailer')
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/driver/', views.drivers, name='drivers'),
+    path('api/', include(router.urls)),
+    path('api/token/', obtain_auth_token, name='api_token_auth'),
+    path('api/register/', RegisterUserView.as_view(), name='register_user'),
 ]
