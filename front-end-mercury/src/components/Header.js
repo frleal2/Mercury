@@ -1,6 +1,7 @@
 import { Disclosure, DisclosureButton, DisclosurePanel, Menu, MenuButton, MenuItem, MenuItems } from '@headlessui/react'
 import { Bars3Icon, BellIcon, XMarkIcon } from '@heroicons/react/24/outline'
 import logo from '../images/mercurylogo.png';
+import { useSession } from '../providers/SessionProvider'; // Import useSession
 
 const navigation = [
   { name: 'Dispatch', href: '#', current: true, dropdown: true, options: [
@@ -13,7 +14,16 @@ function classNames(...classes) {
   return classes.filter(Boolean).join(' ')
 }
 
+function handleSignOut(setSession) {
+  // Clear user session or token
+  localStorage.removeItem('session'); // Clear session from localStorage
+  setSession({ accessToken: '', refreshToken: '' }); // Clear session state
+  // Redirect to login page
+  window.location.href = '/login';
+}
+
 export default function Example() {
+  const { setSession } = useSession(); // Access setSession from SessionProvider
   return (
     <Disclosure as="nav" className="bg-gray-800">
       <div className="mx-auto max-w-7xl px-2 sm:px-6 lg:px-8">
@@ -120,12 +130,12 @@ export default function Example() {
                   </a>
                 </MenuItem>
                 <MenuItem>
-                  <a
-                    href="#"
-                    className="block px-4 py-2 text-sm text-gray-700 data-focus:bg-gray-100 data-focus:outline-hidden"
+                  <button
+                    onClick={() => handleSignOut(setSession)} // Pass setSession to handleSignOut
+                    className="block w-full text-left px-4 py-2 text-sm text-gray-700 data-focus:bg-gray-100 data-focus:outline-hidden"
                   >
                     Sign out
-                  </a>
+                  </button>
                 </MenuItem>
               </MenuItems>
             </Menu>
