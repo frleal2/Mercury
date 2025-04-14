@@ -7,12 +7,14 @@ const Login = () => {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
+    const [success, setSuccess] = useState(''); // Added success state
     const navigate = useNavigate();
     const { setSession } = useSession();
 
     const handleLogin = async (e) => {
         e.preventDefault();
         setError('');
+        setSuccess(''); // Clear success message
 
         try {
             const response = await axios.post('http://localhost:8000/api/token/', {
@@ -22,6 +24,7 @@ const Login = () => {
 
             const { access, refresh } = response.data;
             setSession({ accessToken: access, refreshToken: refresh });
+            setSuccess('Login was successful!'); // Set success message
             navigate('/ActiveDrivers'); // Redirect to ActiveDrivers page
         } catch (err) {
             setError(err.response?.data?.detail || 'Login failed');
@@ -58,6 +61,7 @@ const Login = () => {
                         />
                     </div>
                     {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
+                    {success && <p className="text-green-500 text-sm mb-4">{success}</p>} {/* Display success message */}
                     <button
                         type="submit"
                         className="w-full bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600 transition duration-200"

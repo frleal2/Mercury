@@ -1,26 +1,7 @@
 from rest_framework import serializers
-from .models import Driver, Truck, Company, Trailer  # Import Company and Trailer models
 from django.contrib.auth.models import User
+from .models import Driver  # Import Driver model
 
-class DriverSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Driver
-        fields = '__all__'
-
-class TruckSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Truck
-        fields = '__all__'  # Include all fields from the Truck model
-
-class CompanySerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Company
-        fields = '__all__'
-
-class TrailerSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Trailer
-        fields = '__all__'
 
 class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
@@ -38,3 +19,9 @@ class UserSerializer(serializers.ModelSerializer):
             last_name=validated_data.get('last_name', '')
         )
         return user
+
+
+class DriverSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Driver
+        fields = '__all__'  # Serialize all fields of the Driver model
