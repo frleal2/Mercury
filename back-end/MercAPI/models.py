@@ -1,8 +1,10 @@
 from django.db import models
 
+# Removed the Company model
+
 class Driver(models.Model):
     id = models.AutoField(primary_key=True)
-    company = models.CharField(max_length=255, null=True, blank=True, default="Unknown Company")  # Default value
+    company = models.CharField(max_length=255, null=True, blank=True, default="Unknown Company")  # Reverted to CharField
     first_name = models.CharField(max_length=255, default="John")  # Default value
     last_name = models.CharField(max_length=255, default="Doe")  # Default value
     employee_verification = models.BooleanField(default=False)  # Default value
@@ -15,3 +17,4 @@ class Driver(models.Model):
     ssn = models.CharField(max_length=11, default="000-00-0000")  # Default value
     hire_date = models.DateField(null=True, blank=True, default='2000-01-01')  # Default value
     phone = models.CharField(max_length=20, null=True, blank=True, default="000-0000")  # Default value
+    active = models.BooleanField(default=True)  # New field to indicate if the driver is active
