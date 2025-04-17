@@ -13,6 +13,7 @@ def main():
     print('DJANGO_SETTINGS_MODULE:', os.environ.get('DJANGO_SETTINGS_MODULE'))  # Debugging line
     try:
         from django.core.management import execute_from_command_line
+        from django.apps import apps  # Import apps to check readiness
     except ImportError as exc:
         raise ImportError(
             "Couldn't import Django. Are you sure it's installed and "
@@ -22,7 +23,7 @@ def main():
 
     # Automatically create a superuser if it doesn't exist
     if 'RENDER_EXTERNAL_HOSTNAME' in os.environ and os.environ.get('CREATE_SUPERUSER') == 'true':
-        try:
+        def create_superuser():
             from django.contrib.auth.models import User
             username = os.environ.get('DJANGO_SUPERUSER_USERNAME')
             email = os.environ.get('DJANGO_SUPERUSER_EMAIL')
@@ -34,21 +35,13 @@ def main():
                     print("Superuser created successfully.")
             else:
                 print("Superuser creation skipped: Missing required environment variables.")
-        except Exception as e:
-            print(f"Error creating superuser: {e}")
 
-    # Force superuser creation for debugging
-    if 'RENDER_EXTERNAL_HOSTNAME' in os.environ:
-        try:
-            from django.contrib.auth.models import User
-            username = os.environ.get('DJANGO_SUPERUSER_USERNAME', 'admin')
-            email = os.environ.get('DJANGO_SUPERUSER_EMAIL', 'admin@example.com')
-            password = os.environ.get('DJANGO_SUPERUSER_PASSWORD', 'admin')
-
-            User.objects.create_superuser(username=username, email=email, password=password)
-            print("Superuser created successfully (forced).")
-        except Exception as e:
-            print(f"Error creating superuser: {e}")
+        # Ensure apps are loaded before creating the superuser
+        if apps.ready:
+            try:
+                create_superuser()
+            except Exception as e:
+                print(f"Error creating superuser: {e}")
 
     execute_from_command_line(sys.argv)
 
