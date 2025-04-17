@@ -23,7 +23,8 @@ class RegisterUserView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class CustomTokenObtainPairView(TokenObtainPairView):
-    permission_classes = [AllowAny]
+    # Optionally, you can override methods or serializers here if needed
+    pass
 
 class DriverViewSet(ModelViewSet):
     queryset = Driver.objects.all()

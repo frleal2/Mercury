@@ -18,11 +18,10 @@ const Login = () => {
         setSuccess(''); // Clear success message
 
         try {
-            const response = await axios.post(`${BASE_URL}/api/token`, { // Ensure no double slash
+            const response = await axios.post(`${BASE_URL}/api/token/`, { // Ensure correct URL and method
                 username,
                 password,
             });
-
             const { access, refresh } = response.data;
             setSession({ accessToken: access, refreshToken: refresh });
             setSuccess('Login was successful!'); // Set success message
