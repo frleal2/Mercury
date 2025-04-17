@@ -21,6 +21,20 @@ def main():
             "forget to activate a virtual environment?"
         ) from exc
 
+    # Automatically run migrations
+    if 'RENDER_EXTERNAL_HOSTNAME' in os.environ:
+        def run_migrations():
+            try:
+                print("Running makemigrations...")
+                execute_from_command_line(['manage.py', 'makemigrations'])
+                print("Running migrate...")
+                execute_from_command_line(['manage.py', 'migrate'])
+                print("Migrations applied successfully.")
+            except Exception as e:
+                print(f"Error during migrations: {e}")
+
+        run_migrations()
+
     # Automatically create a superuser if it doesn't exist
     if 'RENDER_EXTERNAL_HOSTNAME' in os.environ and os.environ.get('CREATE_SUPERUSER') == 'true':
         def create_superuser():
