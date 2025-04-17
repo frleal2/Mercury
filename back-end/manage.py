@@ -3,13 +3,10 @@
 import os
 import sys
 
-
 def main():
     """Run administrative tasks."""
-    sys.path.append(os.path.dirname(os.path.abspath(__file__)))  # Ensure the back-end directory is in sys.path
-    sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'MercApi'))  # Add MercApi explicitly
     settings_module = 'MercApi.deployment_settings' if 'RENDER_EXTERNAL_HOSTNAME' in os.environ else 'MercApi.settings'
-    os.environ.setdefault('DJANGO_SETTINGS_MODULE', settings_module)
+    os.environ.setdefault('DJANGO_SETTINGS_MODULE',settings_module )
     try:
         from django.core.management import execute_from_command_line
     except ImportError as exc:
