@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import { useSession } from '../providers/SessionProvider'; // Import useSession
+import BASE_URL from '../config'; // Import BASE_URL
 
 function EditDriver({ driver, onClose }) {
   const { session, refreshAccessToken } = useSession(); // Access session and refreshAccessToken
@@ -17,7 +18,7 @@ function EditDriver({ driver, onClose }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await axios.put(`http://localhost:8000/api/drivers/${driver.id}/`, formData, {
+      await axios.put(`${BASE_URL}/api/drivers/${driver.id}/`, formData, {
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session.accessToken}`, // Add Authorization header
@@ -31,7 +32,7 @@ function EditDriver({ driver, onClose }) {
         if (newAccessToken) {
           try {
             // Retry the request with the new access token
-            await axios.put(`http://localhost:8000/api/drivers/${driver.id}/`, formData, {
+            await axios.put(`${BASE_URL}/api/drivers/${driver.id}/`, formData, {
               headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${newAccessToken}`,

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useSession } from '../providers/SessionProvider';
+import BASE_URL from '../config'; // Import BASE_URL
 
 function EditTruck({ truck, onClose }) {
   const { session, refreshAccessToken } = useSession();
@@ -12,10 +13,10 @@ function EditTruck({ truck, onClose }) {
     const fetchData = async () => {
       try {
         const [companiesResponse, driversResponse] = await Promise.all([
-          axios.get('http://localhost:8000/api/companies/', {
+          axios.get(`${BASE_URL}/api/companies/`, {
             headers: { Authorization: `Bearer ${session.accessToken}` },
           }),
-          axios.get('http://localhost:8000/api/drivers/', {
+          axios.get(`${BASE_URL}/api/drivers/`, {
             headers: { Authorization: `Bearer ${session.accessToken}` },
           }),
         ]);
@@ -37,7 +38,7 @@ function EditTruck({ truck, onClose }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await axios.put(`http://localhost:8000/api/trucks/${truck.id}/`, formData, {
+      await axios.put(`${BASE_URL}/api/trucks/${truck.id}/`, formData, {
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${session.accessToken}`,
@@ -50,7 +51,7 @@ function EditTruck({ truck, onClose }) {
         const newAccessToken = await refreshAccessToken();
         if (newAccessToken) {
           try {
-            await axios.put(`http://localhost:8000/api/trucks/${truck.id}/`, formData, {
+            await axios.put(`${BASE_URL}/api/trucks/${truck.id}/`, formData, {
               headers: {
                 'Content-Type': 'application/json',
                 Authorization: `Bearer ${newAccessToken}`,

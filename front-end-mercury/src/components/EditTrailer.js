@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSession } from '../providers/SessionProvider';
 import axios from 'axios';
+import BASE_URL from '../config'; // Import BASE_URL
 
 function EditTrailer({ trailer, onClose }) {
   const { session, refreshAccessToken } = useSession();
@@ -12,10 +13,10 @@ function EditTrailer({ trailer, onClose }) {
     const fetchData = async () => {
       try {
         const [companiesResponse, trucksResponse] = await Promise.all([
-          axios.get('http://localhost:8000/api/companies/', {
+          axios.get(`${BASE_URL}/api/companies/`, {
             headers: { Authorization: `Bearer ${session.accessToken}` },
           }),
-          axios.get('http://localhost:8000/api/trucks/', {
+          axios.get(`${BASE_URL}/api/trucks/`, {
             headers: { Authorization: `Bearer ${session.accessToken}` },
           }),
         ]);
@@ -38,7 +39,7 @@ function EditTrailer({ trailer, onClose }) {
     e.preventDefault();
     try {
       await axios.put(
-        `http://localhost:8000/api/trailers/${trailer.id}/`,
+        `${BASE_URL}/api/trailers/${trailer.id}/`,
         formData,
         {
           headers: {
@@ -55,7 +56,7 @@ function EditTrailer({ trailer, onClose }) {
         if (newAccessToken) {
           try {
             await axios.put(
-              `http://localhost:8000/api/trailers/${trailer.id}/`,
+              `${BASE_URL}/api/trailers/${trailer.id}/`,
               formData,
               {
                 headers: {

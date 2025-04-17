@@ -55,7 +55,7 @@ function AddDriver({ onClose }) {
 
     try {
       const response = await axios.post(
-        'http://localhost:8000/api/drivers/', // Updated endpoint
+        `${BASE_URL}/api/drivers/`, // Updated endpoint
         formData,
         {
           headers: {

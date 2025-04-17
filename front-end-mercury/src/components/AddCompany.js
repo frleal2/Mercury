@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useSession } from '../providers/SessionProvider';
 import axios from 'axios';
+import BASE_URL from '../config'; // Import BASE_URL
 
 function AddCompany({ onClose }) {
   const { session } = useSession();
@@ -24,7 +25,7 @@ function AddCompany({ onClose }) {
     e.preventDefault();
     try {
       const response = await axios.post(
-        'http://localhost:8000/api/companies/',
+        `${BASE_URL}/api/companies/`,
         formData,
         {
           headers: {

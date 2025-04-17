@@ -3,9 +3,6 @@
 import os
 import sys
 
-print('PYTHONPATH:', sys.path)  # Debugging line to check PYTHONPATH    
-print("Files in back-end:", os.listdir('/opt/render/project/src/back-end'))  # Debugging line
-
 def main():
     """Run administrative tasks."""
     settings_module = 'MercAPI.deployment_settings' if 'RENDER_EXTERNAL_HOSTNAME' in os.environ else 'MercAPI.settings'

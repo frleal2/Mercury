@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSession } from '../providers/SessionProvider';
 import axios from 'axios';
+import BASE_URL from '../config'; // Import BASE_URL
 
 function AddTrailer({ onClose }) {
   const { session } = useSession();
@@ -18,10 +19,10 @@ function AddTrailer({ onClose }) {
     const fetchData = async () => {
       try {
         const [companiesResponse, trucksResponse] = await Promise.all([
-          axios.get('http://localhost:8000/api/companies/', {
+          axios.get(`${BASE_URL}/api/companies/`, {
             headers: { Authorization: `Bearer ${session.accessToken}` },
           }),
-          axios.get('http://localhost:8000/api/trucks/', {
+          axios.get(`${BASE_URL}/api/trucks/`, {
             headers: { Authorization: `Bearer ${session.accessToken}` },
           }),
         ]);
@@ -44,7 +45,7 @@ function AddTrailer({ onClose }) {
     e.preventDefault();
     try {
       const response = await axios.post(
-        'http://localhost:8000/api/trailers/',
+        `${BASE_URL}/api/trailers/`,
         formData,
         {
           headers: {

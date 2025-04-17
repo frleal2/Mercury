@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSession } from '../providers/SessionProvider';
 import axios from 'axios';
+import BASE_URL from '../config'; // Import BASE_URL
 
 function AddTruck({ onClose }) {
   const { session } = useSession();
@@ -18,10 +19,10 @@ function AddTruck({ onClose }) {
     const fetchData = async () => {
       try {
         const [companiesResponse, driversResponse] = await Promise.all([
-          axios.get('http://localhost:8000/api/companies/', {
+          axios.get(`${BASE_URL}/api/companies/`, {
             headers: { Authorization: `Bearer ${session.accessToken}` },
           }),
-          axios.get('http://localhost:8000/api/drivers/', {
+          axios.get(`${BASE_URL}/api/drivers/`, {
             headers: { Authorization: `Bearer ${session.accessToken}` },
           }),
         ]);
@@ -43,7 +44,7 @@ function AddTruck({ onClose }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const response = await axios.post('http://localhost:8000/api/trucks/', formData, {
+      const response = await axios.post(`${BASE_URL}/api/trucks/`, formData, {
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${session.accessToken}`,

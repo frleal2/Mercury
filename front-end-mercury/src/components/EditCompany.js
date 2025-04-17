@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import { useSession } from '../providers/SessionProvider';
+import BASE_URL from '../config'; // Import BASE_URL
 
 function EditCompany({ company, onClose }) {
   const { session, refreshAccessToken } = useSession();
@@ -17,7 +18,7 @@ function EditCompany({ company, onClose }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await axios.put(`http://localhost:8000/api/companies/${company.id}/`, formData, {
+      await axios.put(`${BASE_URL}/api/companies/${company.id}/`, formData, {
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session.accessToken}`,
@@ -30,7 +31,7 @@ function EditCompany({ company, onClose }) {
         const newAccessToken = await refreshAccessToken();
         if (newAccessToken) {
           try {
-            await axios.put(`http://localhost:8000/api/companies/${company.id}/`, formData, {
+            await axios.put(`${BASE_URL}/api/companies/${company.id}/`, formData, {
               headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${newAccessToken}`,
