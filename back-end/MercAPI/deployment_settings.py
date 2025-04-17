@@ -3,11 +3,10 @@ import dj_database_url
 from .settings import *
 from .settings import BASE_DIR
 
-ALLOWED_HOSTS = [os.environ.get['RENDER_EXTERNAL_HOSTNAME']]
-CSRF_TRUSTED_ORIGINS = ['https://' + os.environ.get['RENDER_EXTERNAL_HOSTNAME']]
+ALLOWED_HOSTS = [os.environ.get('RENDER_EXTERNAL_HOSTNAME')]  # Fixed to use os.environ.get as a function
+CSRF_TRUSTED_ORIGINS = ['https://' + os.environ.get('RENDER_EXTERNAL_HOSTNAME')]  # Fixed to use os.environ.get as a function
 DEBUG = False
-SECRET_KEY = os.environ.get['SECRET_KEY']
-
+SECRET_KEY = os.environ.get('SECRET_KEY')  # Fixed to use os.environ.get as a function
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',  # Add CorsMiddleware at the top
@@ -20,10 +19,6 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
-
-#CORS_ALLOWED_ORIGINS = [
-#    'https://mercadito-frontend.onrender.com',
-#]
 
 STORAGES = {
     'default': {
