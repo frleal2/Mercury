@@ -30,18 +30,25 @@ def main():
             password = os.environ.get('DJANGO_SUPERUSER_PASSWORD')
 
             if username and email and password:
-                if not User.objects.filter(is_superuser=True).exists():
-                    User.objects.create_superuser(username=username, email=email, password=password)
-                    print("Superuser created successfully.")
+                if not User.objects.filter(username=username).exists():
+                    try:
+                        User.objects.create_superuser(username=username, email=email, password=password)
+                        print("Superuser created successfully.")
+                    except Exception as e:
+                        print(f"Error creating superuser: {e}")
+                else:
+                    print("Superuser already exists.")
+                    print(f"Username: {username}")
+                    print(f"Password: {password}")
             else:
                 print("Superuser creation skipped: Missing required environment variables.")
+                print(f"DJANGO_SUPERUSER_USERNAME: {username}")
+                print(f"DJANGO_SUPERUSER_EMAIL: {email}")
+                print(f"DJANGO_SUPERUSER_PASSWORD: {'set' if password else 'not set'}")
 
         # Ensure apps are loaded before creating the superuser
         if apps.ready:
-            try:
-                create_superuser()
-            except Exception as e:
-                print(f"Error creating superuser: {e}")
+            create_superuser()
 
     execute_from_command_line(sys.argv)
 
