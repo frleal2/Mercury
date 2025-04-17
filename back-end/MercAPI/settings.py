@@ -15,7 +15,7 @@ import dj_database_url  # Add this import
 import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
-BASE_DIR = Path(__file__).resolve().parent.parent
+BASE_DIR = Path(__file__).resolve().parent.parent  # Ensure this points to the correct base directory
 
 
 # Quick-start development settings - unsuitable for production
@@ -38,8 +38,8 @@ INSTALLED_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
-    'django.contrib.staticfiles',
-    'MercApi',  # Corrected to match the actual directory name
+    'django.contrib.staticfiles',  # Ensure this is included
+    'MercApi',  # Ensure this matches the actual app directory name
     'rest_framework',
     'rest_framework.authtoken',
     'rest_framework_simplejwt',
