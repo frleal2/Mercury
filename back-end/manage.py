@@ -3,6 +3,8 @@
 import os
 import sys
 
+print('PYTHONPATH:', sys.path)  # Debugging line to check PYTHONPATH    
+
 def main():
     """Run administrative tasks."""
     settings_module = 'MercApi.deployment_settings' if 'RENDER_EXTERNAL_HOSTNAME' in os.environ else 'MercApi.settings'
