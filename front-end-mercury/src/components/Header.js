@@ -5,7 +5,10 @@ import { useSession } from '../providers/SessionProvider'; // Import useSession
 
 const navigation = [
   { name: 'Dispatch', href: '#', current: true, dropdown: true, options: [
-      { name: 'Drivers', href: '/ActiveDrivers' }, // Updated href to redirect to the drivers page
+      { name: 'Companies', href: '/ActiveCompanies' },
+      { name: 'Drivers', href: '/ActiveDrivers' },
+      { name: 'Trucks', href: '/ActiveTrucks' },
+      { name: 'Trailers', href: '/ActiveTrailers' },
     ] 
   },
 ]

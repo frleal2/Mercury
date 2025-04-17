@@ -3,6 +3,7 @@ import AddDriver from '../components/AddDriver';
 import EditDriver from '../components/EditDriver'; // Corrected import path
 import { useSession } from '../providers/SessionProvider'; // Import useSession
 import axios from 'axios';
+import BASE_URL from '../config';
 
 function Drivers() {
   const { session, refreshAccessToken } = useSession(); // Access session and refreshAccessToken
@@ -19,7 +20,7 @@ function Drivers() {
 
   const handleCloseAddDriver = () => {
     setIsAddDriverOpen(false);
-    fetchDrivers(); // Refresh the drivers list after adding a driver
+    fetchDrivers(); // Ensure drivers are refreshed after adding
   };
 
   const handleEditDriverClick = (driver) => {
@@ -35,7 +36,7 @@ function Drivers() {
 
   const fetchDrivers = async () => {
     try {
-      const response = await axios.get('http://localhost:8000/api/drivers/', {
+      const response = await axios.get(`${BASE_URL}/api/drivers/`, {
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session.accessToken}`, // Add Authorization header
@@ -95,7 +96,12 @@ function Drivers() {
           </button>
         </div>
       </div>
-      {isAddDriverOpen && <AddDriver onClose={handleCloseAddDriver} />}
+      {isAddDriverOpen && (
+        <AddDriver
+          onClose={handleCloseAddDriver}
+          onDriverAdded={fetchDrivers} // Ensure drivers are refreshed after adding
+        />
+      )}
       {loading ? (
         <p>Loading drivers...</p>
       ) : (
@@ -131,7 +137,7 @@ function Drivers() {
                   </td>
                   <td className="border border-gray-300 px-4 py-2">{driver.first_name}</td>
                   <td className="border border-gray-300 px-4 py-2">{driver.last_name}</td>
-                  <td className="border border-gray-300 px-4 py-2">{driver.company}</td>
+                  <td className="border border-gray-300 px-4 py-2">{driver.company_name}</td>
                   <td className="border border-gray-300 px-4 py-2">{driver.state}</td>
                   <td className="border border-gray-300 px-4 py-2">{driver.phone}</td>
                   <td className="border border-gray-300 px-4 py-2">{driver.employee_verification ? 'Yes' : 'No'}</td>

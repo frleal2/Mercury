@@ -1,13 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSession } from '../providers/SessionProvider';
 import axios from 'axios';
+import BASE_URL from '../config';
 
 function AddDriver({ onClose }) {
   const { session } = useSession();
+  const [companies, setCompanies] = useState([]); // State for companies
   const [formData, setFormData] = useState({
     first_name: '',
     last_name: '',
-    company: '',
+    company: '', // Should hold a valid company ID
     employee_verification: false,
     state: '',
     cdl_number: '',
@@ -19,6 +21,24 @@ function AddDriver({ onClose }) {
     hire_date: '',
     phone: '',
   });
+
+  useEffect(() => {
+    // Fetch companies from the backend
+    const fetchCompanies = async () => {
+      try {
+        const response = await axios.get(`${BASE_URL}/api/companies/`, {
+          headers: {
+            'Authorization': `Bearer ${session.accessToken}`,
+          },
+        });
+        setCompanies(response.data);
+      } catch (error) {
+        console.error('Error fetching companies:', error);
+        alert('Failed to load companies.');
+      }
+    };
+    fetchCompanies();
+  }, [session]);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -88,13 +108,20 @@ function AddDriver({ onClose }) {
           {/* Company */}
           <div className="mb-4">
             <label className="block text-sm font-medium mb-1">Company</label>
-            <input
-              type="text"
+            <select
               name="company"
               value={formData.company}
               onChange={handleChange}
               className="w-full border border-gray-300 p-2 rounded"
-            />
+              required
+            >
+              <option value="">Select a company</option>
+              {companies.map((company) => (
+                <option key={company.id} value={company.id}>
+                  {company.name}
+                </option>
+              ))}
+            </select>
           </div>
           {/* Employee Verification */}
           <div className="mb-4">

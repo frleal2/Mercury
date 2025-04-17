@@ -4,6 +4,9 @@ import Drivers from './Pages/Drivers';
 import React from 'react';
 import Login from './Pages/Login';
 import { useSession, SessionProvider } from './providers/SessionProvider';
+import Companies from './Pages/Companies';
+import Trailers from './Pages/Trailers';
+import Trucks from './Pages/Trucks';
 
 function AppContent() {
     const { session } = useSession();
@@ -15,6 +18,9 @@ function AppContent() {
                 <>
                     <Route path="/" element={<><Header /><Drivers /></>} />
                     <Route path="/ActiveDrivers" element={<><Header /><Drivers /></>} />
+                    <Route path="/ActiveCompanies" element={<><Header /><Companies /></>} />
+                    <Route path="/ActiveTrailers" element={<><Header /><Trailers /></>} />
+                    <Route path="/ActiveTrucks" element={<><Header /><Trucks /></>} />
                 </>
             ) : (
                 <>

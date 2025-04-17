@@ -19,10 +19,13 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from rest_framework.authtoken.views import obtain_auth_token
 from MercApi import views  # Corrected to match the actual directory name
-from MercApi.views import RegisterUserView, CustomTokenObtainPairView, DriverViewSet  # Import DriverViewSet
+from MercApi.views import RegisterUserView, CustomTokenObtainPairView, DriverViewSet, TruckViewSet, CompanyViewSet, TrailerViewSet  # Import DriverViewSet
 
 router = DefaultRouter()
 router.register(r'drivers', DriverViewSet, basename='driver')  # Register DriverViewSet
+router.register(r'trucks', TruckViewSet, basename='truck')  # Register TruckViewSet
+router.register(r'companies', CompanyViewSet, basename='company')  # Register CompanyViewSet
+router.register(r'trailers', TrailerViewSet, basename='trailer')  # Register TrailerViewSet
 
 urlpatterns = [
     path('admin/', admin.site.urls),

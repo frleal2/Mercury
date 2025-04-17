@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import BASE_URL from '../config';
 
 const SessionContext = createContext();
 
@@ -15,7 +16,7 @@ export const SessionProvider = ({ children }) => {
 
   const refreshAccessToken = async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/token/refresh/', {
+      const response = await fetch(`${BASE_URL}/api/token/refresh/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

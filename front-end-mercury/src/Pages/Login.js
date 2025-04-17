@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useSession } from '../providers/SessionProvider';
+import BASE_URL from '../config';
 
 const Login = () => {
     const [username, setUsername] = useState('');
@@ -17,7 +18,7 @@ const Login = () => {
         setSuccess(''); // Clear success message
 
         try {
-            const response = await axios.post('http://localhost:8000/api/token/', {
+            const response = await axios.post(`${BASE_URL}/api/token/`, {
                 username,
                 password,
             });
