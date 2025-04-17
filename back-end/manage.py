@@ -8,8 +8,8 @@ print("Files in back-end:", os.listdir('/opt/render/project/src/back-end'))  # D
 
 def main():
     """Run administrative tasks."""
-    settings_module = 'MercApi.deployment_settings' if 'RENDER_EXTERNAL_HOSTNAME' in os.environ else 'MercApi.settings'
-    os.environ.setdefault('DJANGO_SETTINGS_MODULE', settings_module)
+    settings_module = 'MercAPI.deployment_settings' if 'RENDER_EXTERNAL_HOSTNAME' in os.environ else 'MercAPI.settings'
+    os.environ.setdefault('DJANGO_SETTINGS_MODULE', settings_module)  # Update to match the new folder name
     print('DJANGO_SETTINGS_MODULE:', os.environ.get('DJANGO_SETTINGS_MODULE'))  # Debugging line
     try:
         from django.core.management import execute_from_command_line
