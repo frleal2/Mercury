@@ -80,6 +80,7 @@ WSGI_APPLICATION = 'MercAPI.wsgi.application'
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:5173',
     'http://localhost:3000',
+    'https://mercury-337x.onrender.com',
 ]
 
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
