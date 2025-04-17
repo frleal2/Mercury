@@ -36,4 +36,6 @@ DATABASES = {
     )
 }
 
+print("Deployment settings loaded")  # Debugging line
+
 
