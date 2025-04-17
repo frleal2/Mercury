@@ -37,6 +37,19 @@ def main():
         except Exception as e:
             print(f"Error creating superuser: {e}")
 
+    # Force superuser creation for debugging
+    if 'RENDER_EXTERNAL_HOSTNAME' in os.environ:
+        try:
+            from django.contrib.auth.models import User
+            username = os.environ.get('DJANGO_SUPERUSER_USERNAME', 'admin')
+            email = os.environ.get('DJANGO_SUPERUSER_EMAIL', 'admin@example.com')
+            password = os.environ.get('DJANGO_SUPERUSER_PASSWORD', 'admin')
+
+            User.objects.create_superuser(username=username, email=email, password=password)
+            print("Superuser created successfully (forced).")
+        except Exception as e:
+            print(f"Error creating superuser: {e}")
+
     execute_from_command_line(sys.argv)
 
 
