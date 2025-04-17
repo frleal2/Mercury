@@ -5,7 +5,7 @@ import sys
 
 def main():
     """Run administrative tasks."""
-    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'MercApi.settings')  # Explicitly set the settings module
+    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'MercApi.settings')  # Ensure this is set
     settings_module = 'MercApi.deployment_settings' if 'RENDER_EXTERNAL_HOSTNAME' in os.environ else 'MercApi.settings'
     os.environ.setdefault('DJANGO_SETTINGS_MODULE',settings_module )
     try:
