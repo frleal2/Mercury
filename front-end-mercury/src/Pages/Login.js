@@ -26,9 +26,9 @@ const Login = () => {
             const { access, refresh } = response.data;
             setSession({ accessToken: access, refreshToken: refresh });
             setSuccess('Login was successful!'); // Set success message
-            console.log('Login successful:', { username }); // Log successful login
             navigate('/ActiveDrivers'); // Redirect to ActiveDrivers page
         } catch (err) {
+            console.log('Login error:', err.response || err); // Log the error
             setError(err.response?.data?.detail || 'Login failed');
         }
     };
