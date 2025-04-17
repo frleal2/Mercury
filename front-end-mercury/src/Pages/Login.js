@@ -18,7 +18,7 @@ const Login = () => {
         setSuccess(''); // Clear success message
 
         try {
-            const response = await axios.post(`${BASE_URL}api/token/`, {
+            const response = await axios.post(`${BASE_URL}/api/token`, { // Ensure no double slash
                 username,
                 password,
             });
