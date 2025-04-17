@@ -39,7 +39,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',  # Ensure this is included
-    'MercApi',  # Ensure this matches the actual app directory name
+    'MercAPI',  # Ensure this matches the actual app directory name
     'rest_framework',
     'rest_framework.authtoken',
     'rest_framework_simplejwt',
@@ -57,7 +57,7 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-ROOT_URLCONF = 'MercApi.urls'
+ROOT_URLCONF = 'MercAPI.urls'
 
 TEMPLATES = [
     {
@@ -75,7 +75,7 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'MercApi.wsgi.application'
+WSGI_APPLICATION = 'MercAPI.wsgi.application'
 
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:5173',
