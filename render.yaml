@@ -3,7 +3,7 @@ services:
     name: Mercury-backend
     env: python
     buildCommand: "pip install -r requirements.txt"
-    startCommand: "gunicorn MercApi.wsgi:application --bind 0.0.0.0:$PORT"
+    startCommand: "gunicorn MercApi.wsgi:application --bind 0.0.0.0:$PORT --chdir back-end"
     envVars:
       - key: DJANGO_SECRET_KEY
         value: <your-secret-key>
