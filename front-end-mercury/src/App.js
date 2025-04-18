@@ -35,7 +35,7 @@ function AppContent() {
 export default function App() {
     return (
         <SessionProvider>
-            <BrowserRouter>
+            <BrowserRouter basename={process.env.PUBLIC_URL || '/'}>
                 <AppContent />
             </BrowserRouter>
         </SessionProvider>
