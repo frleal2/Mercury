@@ -20,6 +20,12 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
+#CORS_ALLOWED_ORIGINS = [
+#    'http://localhost:5173',
+#    'http://localhost:3000',
+#    'https://mercury-337x.onrender.com',
+#]
+
 STORAGES = {
     'default': {
         'BACKEND': 'django.core.files.storage.FileSystemStorage',
@@ -31,7 +37,7 @@ STORAGES = {
 
 DATABASES = {
     'default': dj_database_url.config(
-        default=os.environ.get('DATABASE_URL'),
+        default=os.environ['DATABASE_URL'],  # Use the DATABASE_URL environment variable
         conn_max_age=600
     )
 }

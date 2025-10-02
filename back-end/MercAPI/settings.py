@@ -83,18 +83,17 @@ CORS_ALLOWED_ORIGINS = [
     'https://mercury-337x.onrender.com',
 ]
 
-STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+STATIC_ROOT = BASE_DIR / 'staticfiles'  # Directory where static files will be collected
 
 
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
 DATABASES = {
-    'default': dj_database_url.config(
-        default='postgresql://frleal2:FSQaWHJ6QITBCKwFtpLNKcYNeGIpKhrR@dpg-d3fcftmuk2gs73dfej70-a/db_postgres_nmrj',  # Replace with your local PostgreSQL URL for development
-        conn_max_age=600,
-        ssl_require=True if os.getenv('RENDER') else False  # Enable SSL for Render
-    )
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',  # SQLite database file
+    }
 }
 
 # Password validation
