@@ -10,3 +10,8 @@ python manage.py collectstatic --no-input
 
 # Apply any outstanding database migrations
 python manage.py migrate
+
+if [[$CREATE_SUPERUSER == "true"]]; then
+  # Create a superuser if the environment variable is set to true
+  python manage.py createsuperuser --noinput
+fi
