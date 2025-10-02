@@ -13,5 +13,5 @@ python manage.py migrate
 
 if [[$CREATE_SUPERUSER == "true"]]; then
   # Create a superuser if the environment variable is set to true
-  python manage.py createsuperuser --noinput --username $DJANGO_SUPERUSER_USERNAME --email $DJANGO_SUPERUSER_EMAIL || true
+  python manage.py createsuperuser --noinput
 fi
