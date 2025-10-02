@@ -4,13 +4,14 @@ import logo from '../images/mercurylogo.png';
 import { useSession } from '../providers/SessionProvider'; // Import useSession
 
 const navigation = [
-  { name: 'Dispatch', href: '#', current: true, dropdown: true, options: [
+  { name: 'Safety Compliance', href: '#', current: true, dropdown: true, options: [
       { name: 'Companies', href: '/ActiveCompanies' },
       { name: 'Drivers', href: '/ActiveDrivers' },
       { name: 'Trucks', href: '/ActiveTrucks' },
       { name: 'Trailers', href: '/ActiveTrailers' },
     ] 
   },
+  { name: 'Recruitment', href: '/Recruitment', current: false }, // Added Recruitment module
 ]
 
 function classNames(...classes) {
@@ -45,7 +46,7 @@ export default function Example() {
               <img
                 alt="Your Company"
                 src={logo}
-                className="h-8 w-auto"
+                className="h-12 w-auto" // Increased height to 12
               />
             </div>
             <div className="hidden sm:ml-6 sm:block">

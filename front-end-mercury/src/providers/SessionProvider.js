@@ -47,7 +47,7 @@ export const SessionProvider = ({ children }) => {
     }
     activityTimeoutRef.current = setTimeout(() => {
       refreshAccessToken(); // Refresh token when timer expires
-    }, 5 * 60 * 1000); // 5 minutes of inactivity
+    }, 20 * 60 * 1000); // 20 minutes of inactivity
   };
 
   useEffect(() => {

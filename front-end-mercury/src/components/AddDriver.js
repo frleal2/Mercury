@@ -2,25 +2,32 @@ import React, { useState, useEffect } from 'react';
 import { useSession } from '../providers/SessionProvider';
 import axios from 'axios';
 import BASE_URL from '../config';
+import AddDriverTestResults from './AddDriverTestResults'; // Import the new component
 
 function AddDriver({ onClose }) {
   const { session } = useSession();
-  const [companies, setCompanies] = useState([]); // State for companies
+  const [companies, setCompanies] = useState([]);
   const [formData, setFormData] = useState({
     first_name: '',
     last_name: '',
     company: '', // Should hold a valid company ID
-    employee_verification: false,
     state: '',
     cdl_number: '',
     cdl_expiration_date: '',
     physical_date: '',
-    annual_vmr_date: '',
     dob: '',
     ssn: '',
     hire_date: '',
     phone: '',
+    test_type: '', // New field for test type
+    test_date: '', // New field for test date
+    test_result: '', // New field for test result
+    random_test_required_this_year: false, // New field for random test requirement
+    test_completion_date: '', // New field for test completion date
+    next_scheduled_test_date: '', // New field for next scheduled test date
+    follow_up_test_required: false, // New field for follow-up test requirement
   });
+  const [driverId, setDriverId] = useState(null); // State to store the added driver's ID
 
   useEffect(() => {
     // Fetch companies from the backend
@@ -66,15 +73,20 @@ function AddDriver({ onClose }) {
       );
       if (response.status === 201) {
         alert('Driver added successfully!');
-        onClose();
+        setDriverId(response.data.id); // Store the added driver's ID
       } else {
         alert('Failed to add driver.');
       }
     } catch (error) {
       console.error('Error response:', error.response);
+      console.error('Validation errors:', error.response?.data); // Log validation errors
       alert(error.response?.data?.detail || 'An error occurred.');
     }
   };
+
+  if (driverId) {
+    return <AddDriverTestResults driverId={driverId} onClose={onClose} />;
+  }
 
   return (
     <div className="fixed inset-0 bg-gray-800 bg-opacity-50 flex justify-center items-center">
@@ -123,29 +135,68 @@ function AddDriver({ onClose }) {
               ))}
             </select>
           </div>
-          {/* Employee Verification */}
-          <div className="mb-4">
-            <label className="block text-sm font-medium mb-1">Employee Verification</label>
-            <input
-              type="checkbox"
-              name="employee_verification"
-              checked={formData.employee_verification}
-              onChange={handleChange}
-              className="mr-2"
-            />
-          </div>
           {/* State */}
           <div className="mb-4">
             <label className="block text-sm font-medium mb-1">State</label>
-            <input
-              type="text"
+            <select
               name="state"
               value={formData.state}
               onChange={handleChange}
               className="w-full border border-gray-300 p-2 rounded"
-              maxLength="2"
               required
-            />
+            >
+              <option value="">Select a state</option>
+              <option value="AL">Alabama</option>
+              <option value="AK">Alaska</option>
+              <option value="AZ">Arizona</option>
+              <option value="AR">Arkansas</option>
+              <option value="CA">California</option>
+              <option value="CO">Colorado</option>
+              <option value="CT">Connecticut</option>
+              <option value="DE">Delaware</option>
+              <option value="FL">Florida</option>
+              <option value="GA">Georgia</option>
+              <option value="HI">Hawaii</option>
+              <option value="ID">Idaho</option>
+              <option value="IL">Illinois</option>
+              <option value="IN">Indiana</option>
+              <option value="IA">Iowa</option>
+              <option value="KS">Kansas</option>
+              <option value="KY">Kentucky</option>
+              <option value="LA">Louisiana</option>
+              <option value="ME">Maine</option>
+              <option value="MD">Maryland</option>
+              <option value="MA">Massachusetts</option>
+              <option value="MI">Michigan</option>
+              <option value="MN">Minnesota</option>
+              <option value="MS">Mississippi</option>
+              <option value="MO">Missouri</option>
+              <option value="MT">Montana</option>
+              <option value="NE">Nebraska</option>
+              <option value="NV">Nevada</option>
+              <option value="NH">New Hampshire</option>
+              <option value="NJ">New Jersey</option>
+              <option value="NM">New Mexico</option>
+              <option value="NY">New York</option>
+              <option value="NC">North Carolina</option>
+              <option value="ND">North Dakota</option>
+              <option value="OH">Ohio</option>
+              <option value="OK">Oklahoma</option>
+              <option value="OR">Oregon</option>
+              <option value="PA">Pennsylvania</option>
+              <option value="RI">Rhode Island</option>
+              <option value="SC">South Carolina</option>
+              <option value="SD">South Dakota</option>
+              <option value="TN">Tennessee</option>
+              <option value="TX">Texas</option>
+              <option value="UT">Utah</option>
+              <option value="VT">Vermont</option>
+              <option value="VA">Virginia</option>
+              <option value="WA">Washington</option>
+              <option value="WV">West Virginia</option>
+              <option value="WI">Wisconsin</option>
+              <option value="WY">Wyoming</option>
+            </select>
           </div>
           {/* CDL Number */}
           <div className="mb-4">
@@ -171,22 +222,11 @@ function AddDriver({ onClose }) {
           </div>
           {/* Physical Date */}
           <div className="mb-4">
-            <label className="block text-sm font-medium mb-1">Physical Date</label>
+            <label className="block text-sm font-medium mb-1">Medical Examination Expiration Date</label>
             <input
               type="date"
               name="physical_date"
               value={formData.physical_date}
-              onChange={handleChange}
-              className="w-full border border-gray-300 p-2 rounded"
-            />
-          </div>
-          {/* Annual VMR Date */}
-          <div className="mb-4">
-            <label className="block text-sm font-medium mb-1">Annual VMR Date</label>
-            <input
-              type="date"
-              name="annual_vmr_date"
-              value={formData.annual_vmr_date}
               onChange={handleChange}
               className="w-full border border-gray-300 p-2 rounded"
             />

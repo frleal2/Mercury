@@ -3,7 +3,7 @@ import axios from 'axios';
 import { useSession } from '../providers/SessionProvider'; // Import useSession
 import BASE_URL from '../config'; // Import BASE_URL
 
-function EditDriver({ driver, onClose }) {
+function EditDriver({ driver, onClose, onDriverUpdated }) { // Added onDriverUpdated
   const { session, refreshAccessToken } = useSession(); // Access session and refreshAccessToken
   const [formData, setFormData] = useState({ ...driver });
 
@@ -18,13 +18,16 @@ function EditDriver({ driver, onClose }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
+      // Update driver details
       await axios.put(`${BASE_URL}/api/drivers/${driver.id}/`, formData, {
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session.accessToken}`, // Add Authorization header
         },
       });
+
       alert('Driver updated successfully!');
+      onDriverUpdated(); // Trigger the callback to refresh both tables
       onClose();
     } catch (error) {
       if (error.response && error.response.status === 401) {
@@ -38,7 +41,9 @@ function EditDriver({ driver, onClose }) {
                 'Authorization': `Bearer ${newAccessToken}`,
               },
             });
+
             alert('Driver updated successfully!');
+            onDriverUpdated(); // Trigger the callback to refresh both tables
             onClose();
           } catch (retryError) {
             console.error('Error retrying update driver:', retryError);
@@ -94,29 +99,68 @@ function EditDriver({ driver, onClose }) {
               className="w-full border border-gray-300 p-2 rounded"
             />
           </div>
-          {/* Employee Verification */}
-          <div className="mb-4">
-            <label className="block text-sm font-medium mb-1">Employee Verification</label>
-            <input
-              type="checkbox"
-              name="employee_verification"
-              checked={formData.employee_verification}
-              onChange={handleChange}
-              className="mr-2"
-            />
-          </div>
           {/* State */}
           <div className="mb-4">
             <label className="block text-sm font-medium mb-1">State</label>
-            <input
-              type="text"
+            <select
               name="state"
               value={formData.state}
               onChange={handleChange}
               className="w-full border border-gray-300 p-2 rounded"
-              maxLength="2"
               required
-            />
+            >
+              <option value="">Select a state</option>
+              <option value="AL">Alabama</option>
+              <option value="AK">Alaska</option>
+              <option value="AZ">Arizona</option>
+              <option value="AR">Arkansas</option>
+              <option value="CA">California</option>
+              <option value="CO">Colorado</option>
+              <option value="CT">Connecticut</option>
+              <option value="DE">Delaware</option>
+              <option value="FL">Florida</option>
+              <option value="GA">Georgia</option>
+              <option value="HI">Hawaii</option>
+              <option value="ID">Idaho</option>
+              <option value="IL">Illinois</option>
+              <option value="IN">Indiana</option>
+              <option value="IA">Iowa</option>
+              <option value="KS">Kansas</option>
+              <option value="KY">Kentucky</option>
+              <option value="LA">Louisiana</option>
+              <option value="ME">Maine</option>
+              <option value="MD">Maryland</option>
+              <option value="MA">Massachusetts</option>
+              <option value="MI">Michigan</option>
+              <option value="MN">Minnesota</option>
+              <option value="MS">Mississippi</option>
+              <option value="MO">Missouri</option>
+              <option value="MT">Montana</option>
+              <option value="NE">Nebraska</option>
+              <option value="NV">Nevada</option>
+              <option value="NH">New Hampshire</option>
+              <option value="NJ">New Jersey</option>
+              <option value="NM">New Mexico</option>
+              <option value="NY">New York</option>
+              <option value="NC">North Carolina</option>
+              <option value="ND">North Dakota</option>
+              <option value="OH">Ohio</option>
+              <option value="OK">Oklahoma</option>
+              <option value="OR">Oregon</option>
+              <option value="PA">Pennsylvania</option>
+              <option value="RI">Rhode Island</option>
+              <option value="SC">South Carolina</option>
+              <option value="SD">South Dakota</option>
+              <option value="TN">Tennessee</option>
+              <option value="TX">Texas</option>
+              <option value="UT">Utah</option>
+              <option value="VT">Vermont</option>
+              <option value="VA">Virginia</option>
+              <option value="WA">Washington</option>
+              <option value="WV">West Virginia</option>
+              <option value="WI">Wisconsin</option>
+              <option value="WY">Wyoming</option>
+            </select>
           </div>
           {/* CDL Number */}
           <div className="mb-4">

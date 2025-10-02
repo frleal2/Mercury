@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useSession } from '../providers/SessionProvider';
 import BASE_URL from '../config';
+import MercuryLogoBlack from '../images/mercurylogoblack.png'; // Corrected path for the logo
 
 const Login = () => {
     const [username, setUsername] = useState('');
@@ -18,7 +19,7 @@ const Login = () => {
         setSuccess(''); // Clear success message
 
         try {
-            const response = await axios.post(`${BASE_URL}/api/token/`, { // Ensure correct URL and method
+            const response = await axios.post(`${BASE_URL}/api/token/`, { // Corrected endpoint
                 username,
                 password,
             });
@@ -27,7 +28,7 @@ const Login = () => {
             setSuccess('Login was successful!'); // Set success message
             navigate('/ActiveDrivers'); // Redirect to ActiveDrivers page
         } catch (err) {
-            console.log('Login error:', err.response || err); // Log the error
+            console.error('Login error:', err.response || err); // Log the full error response
             setError(err.response?.data?.detail || 'Login failed');
         }
     };
@@ -35,9 +36,9 @@ const Login = () => {
     return (
         <div className="flex items-center justify-center min-h-screen bg-gray-100">
             <div className="bg-white p-8 rounded-lg shadow-lg w-full max-w-md">
-                <h1 className="text-2xl font-bold text-center mb-6 text-gray-800">
-                    Mercury
-                </h1>
+                <div className="flex justify-center mb-4"> {/* Reduced margin */}
+                    <img src={MercuryLogoBlack} alt="Mercury Logo" className="h-32" /> {/* Slightly increased height */}
+                </div>
                 <form onSubmit={handleLogin}>
                     <div className="mb-4">
                         <label className="block text-gray-700 font-medium mb-2">Username</label>

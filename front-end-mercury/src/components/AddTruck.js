@@ -4,15 +4,23 @@ import axios from 'axios';
 import BASE_URL from '../config'; // Import BASE_URL
 
 function AddTruck({ onClose }) {
-  const { session } = useSession();
+  const { session, refreshAccessToken } = useSession(); // Include refreshAccessToken
   const [companies, setCompanies] = useState([]);
   const [drivers, setDrivers] = useState([]);
   const [formData, setFormData] = useState({
+    unit_number: '',
+    vin: '',
     license_plate: '',
+    license_plate_state: '',
+    year: '',
+    make: '',
     model: '',
+    license_plate_expiration: '',
+    registration_expiration: '',
+    insurance_expiration: '',
+    annual_dot_inspection_date: '',
     company: '',
     driver: '',
-    active: true,
   });
 
   useEffect(() => {
@@ -29,12 +37,18 @@ function AddTruck({ onClose }) {
         setCompanies(companiesResponse.data);
         setDrivers(driversResponse.data);
       } catch (error) {
+        if (error.response && error.response.status === 401) {
+          const newAccessToken = await refreshAccessToken();
+          if (newAccessToken) {
+            return fetchData(); // Retry fetching data with refreshed token
+          }
+        }
         console.error('Error fetching data:', error);
         alert('Failed to load data.');
       }
     };
     fetchData();
-  }, [session]);
+  }, [session, refreshAccessToken]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -57,8 +71,8 @@ function AddTruck({ onClose }) {
         alert('Failed to add truck.');
       }
     } catch (error) {
-      console.error('Error adding truck:', error);
-      alert('An error occurred.');
+      console.error('Error adding truck:', error.response?.data || error); // Log backend validation errors
+      alert(error.response?.data?.detail || 'An error occurred.');
     }
   };
 
@@ -68,11 +82,66 @@ function AddTruck({ onClose }) {
         <h2 className="text-xl font-bold mb-4">Add Truck</h2>
         <form onSubmit={handleSubmit}>
           <div className="mb-4">
+            <label className="block text-sm font-medium mb-1">Unit Number</label>
+            <input
+              type="text"
+              name="unit_number"
+              value={formData.unit_number}
+              onChange={handleChange}
+              className="w-full border border-gray-300 p-2 rounded"
+              required
+            />
+          </div>
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-1">VIN</label>
+            <input
+              type="text"
+              name="vin"
+              value={formData.vin}
+              onChange={handleChange}
+              className="w-full border border-gray-300 p-2 rounded"
+              required
+            />
+          </div>
+          <div className="mb-4">
             <label className="block text-sm font-medium mb-1">License Plate</label>
             <input
               type="text"
               name="license_plate"
               value={formData.license_plate}
+              onChange={handleChange}
+              className="w-full border border-gray-300 p-2 rounded"
+              required
+            />
+          </div>
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-1">License Plate State</label>
+            <input
+              type="text"
+              name="license_plate_state"
+              value={formData.license_plate_state}
+              onChange={handleChange}
+              className="w-full border border-gray-300 p-2 rounded"
+              required
+            />
+          </div>
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-1">Year</label>
+            <input
+              type="number"
+              name="year"
+              value={formData.year}
+              onChange={handleChange}
+              className="w-full border border-gray-300 p-2 rounded"
+              required
+            />
+          </div>
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-1">Make</label>
+            <input
+              type="text"
+              name="make"
+              value={formData.make}
               onChange={handleChange}
               className="w-full border border-gray-300 p-2 rounded"
               required
@@ -87,6 +156,46 @@ function AddTruck({ onClose }) {
               onChange={handleChange}
               className="w-full border border-gray-300 p-2 rounded"
               required
+            />
+          </div>
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-1">License Plate Expiration</label>
+            <input
+              type="date"
+              name="license_plate_expiration"
+              value={formData.license_plate_expiration}
+              onChange={handleChange}
+              className="w-full border border-gray-300 p-2 rounded"
+            />
+          </div>
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-1">Registration Expiration</label>
+            <input
+              type="date"
+              name="registration_expiration"
+              value={formData.registration_expiration}
+              onChange={handleChange}
+              className="w-full border border-gray-300 p-2 rounded"
+            />
+          </div>
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-1">Insurance Expiration</label>
+            <input
+              type="date"
+              name="insurance_expiration"
+              value={formData.insurance_expiration}
+              onChange={handleChange}
+              className="w-full border border-gray-300 p-2 rounded"
+            />
+          </div>
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-1">Annual DOT Inspection Date</label>
+            <input
+              type="date"
+              name="annual_dot_inspection_date"
+              value={formData.annual_dot_inspection_date}
+              onChange={handleChange}
+              className="w-full border border-gray-300 p-2 rounded"
             />
           </div>
           <div className="mb-4">
@@ -120,18 +229,6 @@ function AddTruck({ onClose }) {
                   {driver.first_name} {driver.last_name}
                 </option>
               ))}
-            </select>
-          </div>
-          <div className="mb-4">
-            <label className="block text-sm font-medium mb-1">Active</label>
-            <select
-              name="active"
-              value={formData.active}
-              onChange={handleChange}
-              className="w-full border border-gray-300 p-2 rounded"
-            >
-              <option value={true}>Yes</option>
-              <option value={false}>No</option>
             </select>
           </div>
           <div className="flex justify-end">

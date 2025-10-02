@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useSession } from '../providers/SessionProvider';
-import BASE_URL from '../config'; // Import BASE_URL
+import BASE_URL from '../config';
 
 function EditTruck({ truck, onClose }) {
   const { session, refreshAccessToken } = useSession();
@@ -78,6 +78,31 @@ function EditTruck({ truck, onClose }) {
       <div className="bg-white p-6 rounded shadow-lg w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <h2 className="text-xl font-bold mb-4">Edit Truck</h2>
         <form onSubmit={handleSubmit}>
+          {/* Unit Number */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-1">Unit Number</label>
+            <input
+              type="text"
+              name="unit_number"
+              value={formData.unit_number}
+              onChange={handleChange}
+              className="w-full border border-gray-300 p-2 rounded"
+              required
+            />
+          </div>
+          {/* VIN */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-1">VIN</label>
+            <input
+              type="text"
+              name="vin"
+              value={formData.vin}
+              onChange={handleChange}
+              className="w-full border border-gray-300 p-2 rounded"
+              required
+            />
+          </div>
+          {/* License Plate */}
           <div className="mb-4">
             <label className="block text-sm font-medium mb-1">License Plate</label>
             <input
@@ -89,6 +114,43 @@ function EditTruck({ truck, onClose }) {
               required
             />
           </div>
+          {/* License Plate State */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-1">License Plate State</label>
+            <input
+              type="text"
+              name="license_plate_state"
+              value={formData.license_plate_state}
+              onChange={handleChange}
+              className="w-full border border-gray-300 p-2 rounded"
+              required
+            />
+          </div>
+          {/* Year */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-1">Year</label>
+            <input
+              type="number"
+              name="year"
+              value={formData.year}
+              onChange={handleChange}
+              className="w-full border border-gray-300 p-2 rounded"
+              required
+            />
+          </div>
+          {/* Make */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-1">Make</label>
+            <input
+              type="text"
+              name="make"
+              value={formData.make}
+              onChange={handleChange}
+              className="w-full border border-gray-300 p-2 rounded"
+              required
+            />
+          </div>
+          {/* Model */}
           <div className="mb-4">
             <label className="block text-sm font-medium mb-1">Model</label>
             <input
@@ -100,6 +162,51 @@ function EditTruck({ truck, onClose }) {
               required
             />
           </div>
+          {/* License Plate Expiration */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-1">License Plate Expiration</label>
+            <input
+              type="date"
+              name="license_plate_expiration"
+              value={formData.license_plate_expiration}
+              onChange={handleChange}
+              className="w-full border border-gray-300 p-2 rounded"
+            />
+          </div>
+          {/* Registration Expiration */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-1">Registration Expiration</label>
+            <input
+              type="date"
+              name="registration_expiration"
+              value={formData.registration_expiration}
+              onChange={handleChange}
+              className="w-full border border-gray-300 p-2 rounded"
+            />
+          </div>
+          {/* Insurance Expiration */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-1">Insurance Expiration</label>
+            <input
+              type="date"
+              name="insurance_expiration"
+              value={formData.insurance_expiration}
+              onChange={handleChange}
+              className="w-full border border-gray-300 p-2 rounded"
+            />
+          </div>
+          {/* Annual DOT Inspection Date */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-1">Annual DOT Inspection Date</label>
+            <input
+              type="date"
+              name="annual_dot_inspection_date"
+              value={formData.annual_dot_inspection_date}
+              onChange={handleChange}
+              className="w-full border border-gray-300 p-2 rounded"
+            />
+          </div>
+          {/* Company */}
           <div className="mb-4">
             <label className="block text-sm font-medium mb-1">Company</label>
             <select
@@ -117,6 +224,7 @@ function EditTruck({ truck, onClose }) {
               ))}
             </select>
           </div>
+          {/* Driver */}
           <div className="mb-4">
             <label className="block text-sm font-medium mb-1">Driver</label>
             <select
@@ -131,18 +239,6 @@ function EditTruck({ truck, onClose }) {
                   {driver.first_name} {driver.last_name}
                 </option>
               ))}
-            </select>
-          </div>
-          <div className="mb-4">
-            <label className="block text-sm font-medium mb-1">Active</label>
-            <select
-              name="active"
-              value={formData.active}
-              onChange={handleChange}
-              className="w-full border border-gray-300 p-2 rounded"
-            >
-              <option value={true}>Yes</option>
-              <option value={false}>No</option>
             </select>
           </div>
           <div className="flex justify-end">

@@ -4,6 +4,7 @@ import EditTruck from '../components/EditTruck';
 import { useSession } from '../providers/SessionProvider';
 import axios from 'axios';
 import BASE_URL from '../config';
+import InspectionHistory from '../components/InspectionHistory';
 
 function Trucks() {
   const { session, refreshAccessToken } = useSession();
@@ -13,6 +14,7 @@ function Trucks() {
   const [trucks, setTrucks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('active');
+  const [isInspectionHistoryOpen, setIsInspectionHistoryOpen] = useState(false);
 
   const handleAddTruckClick = () => {
     setIsAddTruckOpen(true);
@@ -32,6 +34,14 @@ function Trucks() {
     setIsEditTruckOpen(false);
     setSelectedTruck(null);
     fetchTrucks();
+  };
+
+  const handleOpenInspectionHistory = () => {
+    setIsInspectionHistoryOpen(true);
+  };
+
+  const handleCloseInspectionHistory = () => {
+    setIsInspectionHistoryOpen(false);
   };
 
   const fetchTrucks = async () => {
@@ -109,10 +119,13 @@ function Trucks() {
             <thead>
               <tr className="bg-gray-100">
                 <th className="border border-gray-300 px-4 py-2">License Plate</th>
-                <th className="border border-gray-300 px-4 py-2">Model</th>
                 <th className="border border-gray-300 px-4 py-2">Company</th>
                 <th className="border border-gray-300 px-4 py-2">Driver</th>
-                <th className="border border-gray-300 px-4 py-2">Active</th>
+                <th className="border border-gray-300 px-4 py-2">Annual DOT Inspection</th>
+                <th className="border border-gray-300 px-4 py-2">Plates</th>
+                <th className="border border-gray-300 px-4 py-2">Registration</th>
+                <th className="border border-gray-300 px-4 py-2">Insurance</th>
+                <th className="border border-gray-300 px-4 py-2">Inspection</th>
               </tr>
             </thead>
             <tbody>
@@ -126,10 +139,80 @@ function Trucks() {
                   >
                     {truck.license_plate}
                   </td>
-                  <td className="border border-gray-300 px-4 py-2">{truck.model}</td>
                   <td className="border border-gray-300 px-4 py-2">{truck.company_name || 'Unassigned'}</td>
                   <td className="border border-gray-300 px-4 py-2">{truck.driver_name || 'Unassigned'}</td>
-                  <td className="border border-gray-300 px-4 py-2">{truck.active ? 'Yes' : 'No'}</td>
+                  <td className="border border-gray-300 px-4 py-2">
+                    {(() => {
+                      const expirationDate = new Date(truck.annual_dot_inspection_date);
+                      const today = new Date();
+                      const timeDiff = expirationDate - today;
+                      const daysUntilExpiration = Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
+
+                      if (timeDiff < 0) {
+                        return <span className="text-red-500">Expired</span>;
+                      } else if (daysUntilExpiration <= 30) {
+                        return <span className="text-yellow-500">{daysUntilExpiration} days until expired</span>;
+                      } else {
+                        return <span className="text-green-500">Active</span>;
+                      }
+                    })()}
+                  </td>
+                  <td className="border border-gray-300 px-4 py-2">
+                    {(() => {
+                      const expirationDate = new Date(truck.license_plate_expiration);
+                      const today = new Date();
+                      const timeDiff = expirationDate - today;
+                      const daysUntilExpiration = Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
+
+                      if (timeDiff < 0) {
+                        return <span className="text-red-500">Expired</span>;
+                      } else if (daysUntilExpiration <= 30) {
+                        return <span className="text-yellow-500">{daysUntilExpiration} days until expired</span>;
+                      } else {
+                        return <span className="text-green-500">Active</span>;
+                      }
+                    })()}
+                  </td>
+                  <td className="border border-gray-300 px-4 py-2">
+                    {(() => {
+                      const expirationDate = new Date(truck.registration_expiration);
+                      const today = new Date();
+                      const timeDiff = expirationDate - today;
+                      const daysUntilExpiration = Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
+
+                      if (timeDiff < 0) {
+                        return <span className="text-red-500">Expired</span>;
+                      } else if (daysUntilExpiration <= 30) {
+                        return <span className="text-yellow-500">{daysUntilExpiration} days until expired</span>;
+                      } else {
+                        return <span className="text-green-500">Active</span>;
+                      }
+                    })()}
+                  </td>
+                  <td className="border border-gray-300 px-4 py-2">
+                    {(() => {
+                      const expirationDate = new Date(truck.insurance_expiration);
+                      const today = new Date();
+                      const timeDiff = expirationDate - today;
+                      const daysUntilExpiration = Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
+
+                      if (timeDiff < 0) {
+                        return <span className="text-red-500">Expired</span>;
+                      } else if (daysUntilExpiration <= 30) {
+                        return <span className="text-yellow-500">{daysUntilExpiration} days until expired</span>;
+                      } else {
+                        return <span className="text-green-500">Active</span>;
+                      }
+                    })()}
+                  </td>
+                  <td className="border border-gray-300 px-4 py-2">
+                    <button
+                      className="text-blue-500 hover:underline"
+                      onClick={handleOpenInspectionHistory}
+                    >
+                      History
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -138,6 +221,9 @@ function Trucks() {
       )}
       {isEditTruckOpen && (
         <EditTruck truck={selectedTruck} onClose={handleCloseEditTruck} />
+      )}
+      {isInspectionHistoryOpen && (
+        <InspectionHistory onClose={handleCloseInspectionHistory} />
       )}
     </div>
   );

@@ -7,6 +7,7 @@ import { useSession, SessionProvider } from './providers/SessionProvider';
 import Companies from './Pages/Companies';
 import Trailers from './Pages/Trailers';
 import Trucks from './Pages/Trucks';
+import Recruitment from './Pages/Recruitment';
 
 function AppContent() {
     const { session } = useSession();
@@ -21,6 +22,7 @@ function AppContent() {
                     <Route path="/ActiveCompanies" element={<><Header /><Companies /></>} />
                     <Route path="/ActiveTrailers" element={<><Header /><Trailers /></>} />
                     <Route path="/ActiveTrucks" element={<><Header /><Trucks /></>} />
+                    <Route path="/Recruitment" element={<><Header /><Recruitment /></>} /> {/* Added Recruitment route */}
                 </>
             ) : (
                 <>
