@@ -12,8 +12,6 @@ python manage.py collectstatic --no-input
 python manage.py migrate
 
 if [[$CREATE_SUPERUSER == "true"]]; then
-    print()  # Debugging line
-
   # Create a superuser if the environment variable is set to true
-  python manage.py createsuperuser --noinput
+  python manage.py createsuperuser --noinput --username $DJANGO_SUPERUSER_USERNAME --email $DJANGO_SUPERUSER_EMAIL || true
 fi
