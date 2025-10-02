@@ -29,6 +29,7 @@ def main():
                 print("Migrations applied successfully.")
             except Exception as e:
                 print(f"Error during migrations: {e}")
+                raise
 
         run_migrations()
 
@@ -47,6 +48,7 @@ def main():
                         print("Superuser created successfully.")
                     except Exception as e:
                         print(f"Error creating superuser: {e}")
+                        raise
                 else:
                     print("Superuser already exists.")
                     print(f"Username: {username}")

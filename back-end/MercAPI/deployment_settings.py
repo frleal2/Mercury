@@ -36,6 +36,9 @@ DATABASES = {
     )
 }
 
+if not DATABASES['default']:
+    raise ValueError("DATABASE_URL environment variable is not set or invalid.")
+
 print("Deployment settings loaded")  # Debugging line
 
 
