@@ -20,11 +20,11 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-#CORS_ALLOWED_ORIGINS = [
-#    'http://localhost:5173',
-#    'http://localhost:3000',
-#    'https://mercury-337x.onrender.com',
-#]
+CORS_ALLOWED_ORIGINS = [
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'https://mercury-337x.onrender.com',
+]
 
 STORAGES = {
     'default': {
