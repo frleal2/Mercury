@@ -1,6 +1,6 @@
 import logging
 from .serializers import UserSerializer, DriverSerializer, TruckSerializer, CompanySerializer, TrailerSerializer, ApplicationSerializer, DriverTestSerializer, DriverHOSSerializer  # Import the DriverHOS serializer
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.contrib.auth.models import User
@@ -12,6 +12,8 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from .models import Driver, Truck, Company, Trailer, Application, DriverTest, DriverHOS  # Import the DriverHOS model
 from rest_framework.serializers import ValidationError
 from rest_framework import serializers
+from django.core.files.storage import default_storage
+from django.core.files.base import ContentFile
 
 logger = logging.getLogger(__name__)
 

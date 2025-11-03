@@ -8,6 +8,7 @@ import Companies from './Pages/Companies';
 import Trailers from './Pages/Trailers';
 import Trucks from './Pages/Trucks';
 import Recruitment from './Pages/Recruitment';
+import ApplicationForm from './Pages/ApplicationForm';
 
 function AppContent() {
     const { session } = useSession();
@@ -27,6 +28,7 @@ function AppContent() {
             ) : (
                 <>
                     <Route path="/login" element={<Login />} />
+                    <Route path="/apply" element={<ApplicationForm />} /> {/* Allow access to Recruitment without login */}
                     <Route path="*" element={<Navigate to="/login" />} />
                 </>
             )}

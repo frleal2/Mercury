@@ -101,15 +101,43 @@ class Trailer(models.Model):
 
 class Application(models.Model):
     id = models.AutoField(primary_key=True)
-    name = models.CharField(max_length=255)
+    first_name = models.CharField(max_length=255)
+    middle_name = models.CharField(max_length=255, blank=True, null=True)
+    last_name = models.CharField(max_length=255)
     email = models.EmailField()
     phone = models.CharField(max_length=20)
-    company = models.CharField(max_length=255, blank=True, null=True)
-    resume = models.FileField(upload_to='resumes/')
+    date_of_birth = models.DateField()
+    address = models.TextField()
+    previous_addresses = models.TextField()
+    city = models.CharField(max_length=255)
+    state = models.CharField(max_length=20)
+    zip_code = models.CharField(max_length=10)
+    license_number = models.CharField(max_length=50)
+    license_state = models.CharField(max_length=20)
+    license_expiration = models.DateField()
+    education_level = models.CharField(max_length=50)
+    school_name = models.CharField(max_length=255)
+    graduation_year = models.CharField(max_length=4, blank=True, null=True)
+    emergency_contact_name = models.CharField(max_length=255)
+    emergency_contact_phone = models.CharField(max_length=20)
+    emergency_contact_relationship = models.CharField(max_length=50)
+    no_employment_history = models.BooleanField(default=False)
+    additional_details = models.TextField(blank=True, null=True)
+    employment_history = models.JSONField(blank=True, null=True)
+    ever_denied_license = models.BooleanField(default=False)
+    license_suspended_revoked = models.BooleanField(default=False)
+    stopped_while_intoxicated = models.BooleanField(default=False)
+    tested_positive_last_2_years = models.BooleanField(default=False)
+    refused_test_last_2_years = models.BooleanField(default=False)
+    convicted_of_sale_alcohol_drugs = models.BooleanField(default=False)
+    convicted_of_criminal_offense = models.BooleanField(default=False)
+    criminal_actions_pending = models.BooleanField(default=False)
+    currently_probation_parole = models.BooleanField(default=False)
+    yes_to_any_questions = models.CharField(max_length=255, blank=True, null=True)
     submitted_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"Application {self.id} - {self.name}"
+        return f"Application {self.id} - {self.first_name} {self.last_name}"
 
 class Inspection(models.Model):
     inspection_id = models.AutoField(primary_key=True)

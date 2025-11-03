@@ -21,7 +21,7 @@ from rest_framework.authtoken.views import obtain_auth_token
 from django.conf import settings
 from django.conf.urls.static import static
 from MercAPI import views  # Corrected to match the actual directory name
-from MercAPI.views import RegisterUserView, CustomTokenObtainPairView, DriverViewSet, TruckViewSet, CompanyViewSet, TrailerViewSet, ApplicationViewSet, DriverTestViewSet, DriverHOSViewSet  # Import ApplicationViewSet and DriverHOSViewSet
+from MercAPI.views import RegisterUserView, CustomTokenObtainPairView, DriverViewSet, TruckViewSet, CompanyViewSet, TrailerViewSet, ApplicationViewSet, DriverTestViewSet, DriverHOSViewSet, submit_application  # Import ApplicationViewSet and DriverHOSViewSet
 
 router = DefaultRouter()
 router.register(r'drivers', DriverViewSet, basename='driver')  # Register DriverViewSet
@@ -38,6 +38,7 @@ urlpatterns = [
     path('api/token/', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/register/', RegisterUserView.as_view(), name='register_user'),
     path('api/DriverTest/<int:driver_id>/', views.get_latest_driver_test, name='get_latest_driver_test'),
+    path('api/submit-application/', submit_application, name='submit_application'),
 ]
 
 # Serve media files during development
