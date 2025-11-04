@@ -22,7 +22,8 @@ const ApplicationForm = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
-            const response = await axios.post(`${BASE_URL}/applications`, formData);
+            console.log('Submitting application with data:', formData);
+            const response = await axios.post(`${BASE_URL}/api/applications`, formData);
             alert('Application submitted successfully!');
         } catch (error) {
             console.error('Error submitting application:', error);

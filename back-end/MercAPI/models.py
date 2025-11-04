@@ -101,11 +101,11 @@ class Trailer(models.Model):
 
 class Application(models.Model):
     id = models.AutoField(primary_key=True)
-    first_name = models.CharField(max_length=255)
-    middle_name = models.CharField(max_length=255, blank=True, null=True)
-    last_name = models.CharField(max_length=255)
-    email = models.EmailField()
-    phone = models.CharField(max_length=20)
+    first_name = models.CharField(max_length=255,null=False,default="")
+    middle_name = models.CharField(max_length=255, blank=True, null=True, default="")
+    last_name = models.CharField(max_length=255, null=False, default="")
+    email = models.EmailField(null=False,default="")   
+    phone = models.CharField(max_length=20, null=False, default="")
 
     def __str__(self):
         return f"Application {self.id} - {self.first_name} {self.last_name}"
