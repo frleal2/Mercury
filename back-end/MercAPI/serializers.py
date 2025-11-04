@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication  # Import additional models
+from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApp  # Import additional models
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -53,9 +53,9 @@ class TrailerSerializer(serializers.ModelSerializer):
         model = Trailer
         fields = '__all__'
 
-class DriverApplicationSerializer(serializers.ModelSerializer):
+class DriverAppSerializer(serializers.ModelSerializer):
     class Meta:
-        model = DriverApplication
+        model = DriverApp
         fields = '__all__'
 
 class DriverHOSSerializer(serializers.ModelSerializer):

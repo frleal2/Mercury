@@ -1,5 +1,5 @@
 import logging
-from .serializers import UserSerializer, DriverSerializer, TruckSerializer, CompanySerializer, TrailerSerializer, DriverTestSerializer, DriverHOSSerializer, DriverApplicationSerializer  # Import the DriverHOS serializer
+from .serializers import UserSerializer, DriverSerializer, TruckSerializer, CompanySerializer, TrailerSerializer, DriverTestSerializer, DriverHOSSerializer, DriverAppSerializer  # Import the DriverHOS serializer
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -9,7 +9,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework_simplejwt.views import TokenObtainPairView
-from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication  
+from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApp  
 from rest_framework.serializers import ValidationError
 from rest_framework import serializers
 from django.core.files.storage import default_storage
@@ -59,9 +59,9 @@ class TrailerViewSet(ModelViewSet):
     permission_classes = [IsAuthenticated]
 
 
-class DriverApplicationViewSet(ModelViewSet):
-    queryset = DriverApplication.objects.all()
-    serializer_class = DriverApplicationSerializer
+class DriverAppViewSet(ModelViewSet):
+    queryset = DriverApp.objects.all()
+    serializer_class = DriverAppSerializer
     permission_classes = [AllowAny]
 
 class DriverTestViewSet(ModelViewSet):
