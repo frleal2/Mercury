@@ -8,7 +8,6 @@ const ApplicationForm = () => {
         middle_name: '',
         last_name: '',
         email: '',
-        phone: ''
     });
 
     const handleChange = (e) => {
@@ -22,12 +21,10 @@ const ApplicationForm = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
-            console.log('Submitting application with data:', formData);
             const response = await axios.post(`${BASE_URL}/api/applications`, formData);
-            alert('Application submitted successfully!');
-        } catch (error) {
-            console.error('Error submitting application:', error);
-            alert('Failed to submit application.');
+            console.log('Submission response:', response);
+        } catch (e1) {
+            alert('Failed to submit application. Please try again.');
         }
     };
 
@@ -73,17 +70,6 @@ const ApplicationForm = () => {
                         type="email"
                         name="email"
                         value={formData.email}
-                        onChange={handleChange}
-                        required
-                        style={{ width: '100%', padding: '10px', marginTop: '5px' }}
-                    />
-                </div>
-                <div>
-                    <label>Phone:</label>
-                    <input
-                        type="text"
-                        name="phone"
-                        value={formData.phone}
                         onChange={handleChange}
                         required
                         style={{ width: '100%', padding: '10px', marginTop: '5px' }}

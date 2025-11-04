@@ -24,6 +24,7 @@ function AppContent() {
                     <Route path="/ActiveTrailers" element={<><Header /><Trailers /></>} />
                     <Route path="/ActiveTrucks" element={<><Header /><Trucks /></>} />
                     <Route path="/Recruitment" element={<><Header /><Recruitment /></>} /> {/* Added Recruitment route */}
+                    <Route path="/apply" element={<ApplicationForm />} /> {/* Allow access to Recruitment without login */}
                 </>
             ) : (
                 <>

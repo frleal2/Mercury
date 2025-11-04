@@ -44,17 +44,17 @@ const Recruitment = () => {
           <table className="table-auto w-full border-collapse border border-gray-300">
             <thead>
               <tr className="bg-gray-100">
-                <th className="border border-gray-300 px-4 py-2">Application Number</th>
                 <th className="border border-gray-300 px-4 py-2">Name</th>
-                <th className="border border-gray-300 px-4 py-2">Company</th>
+                <th className="border border-gray-300 px-4 py-2">last_name</th>
+                <th className="border border-gray-300 px-4 py-2">Email</th>
               </tr>
             </thead>
             <tbody>
               {applications.map((application) => (
                 <tr key={application.id} className="hover:bg-gray-50">
-                  <td className="border border-gray-300 px-4 py-2">{application.application_number}</td>
-                  <td className="border border-gray-300 px-4 py-2">{application.name}</td>
-                  <td className="border border-gray-300 px-4 py-2">{application.company}</td>
+                  <td className="border border-gray-300 px-4 py-2">{application.first_name}</td>
+                  <td className="border border-gray-300 px-4 py-2">{application.last_name}</td>
+                  <td className="border border-gray-300 px-4 py-2">{application.email}</td>
                 </tr>
               ))}
             </tbody>

@@ -46,16 +46,6 @@ class Migration(migrations.Migration):
             ],
         ),
         migrations.CreateModel(
-            name='DriverApplication',
-            fields=[
-                ('id', models.AutoField(primary_key=True, serialize=False)),
-                ('first_name', models.CharField(default='', max_length=255)),
-                ('middle_name', models.CharField(blank=True, default='', max_length=255, null=True)),
-                ('last_name', models.CharField(default='', max_length=255)),
-                ('email', models.EmailField(default='', max_length=254)),
-            ],
-        ),
-        migrations.CreateModel(
             name='Inspection',
             fields=[
                 ('inspection_id', models.AutoField(primary_key=True, serialize=False)),
