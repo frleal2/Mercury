@@ -24,12 +24,12 @@ function AppContent() {
                     <Route path="/ActiveTrailers" element={<><Header /><Trailers /></>} />
                     <Route path="/ActiveTrucks" element={<><Header /><Trucks /></>} />
                     <Route path="/Recruitment" element={<><Header /><Recruitment /></>} /> {/* Added Recruitment route */}
-                    <Route path="/apply" element={<ApplicationForm />} /> {/* Allow access to Recruitment without login */}
+                    <Route path="/QuickApply" element={<ApplicationForm />} /> {/* Allow access to Recruitment without login */}
                 </>
             ) : (
                 <>
                     <Route path="/login" element={<Login />} />
-                    <Route path="/apply" element={<ApplicationForm />} /> {/* Allow access to Recruitment without login */}
+                    <Route path="/QuickApply" element={<ApplicationForm />} /> {/* Allow access to Recruitment without login */}
                     <Route path="*" element={<Navigate to="/login" />} />
                 </>
             )}

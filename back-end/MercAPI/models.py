@@ -18,7 +18,7 @@ class Driver(models.Model):
     first_name = models.CharField(max_length=255, blank=False)  # Ensure this is required
     last_name = models.CharField(max_length=255, blank=False)  # Ensure this is required
     employee_verification = models.BooleanField(default=False)  # Default value
-    state = models.CharField(max_length=2, default="", blank=True)  # Allow blank values
+    state = models.CharField(max_length=50, default="", blank=True)  # Allow full state name
     cdl_number = models.CharField(max_length=255, default="", blank=True)  # Allow blank values
     cdl_expiration_date = models.DateField(null=True, blank=True, default=date(2000, 1, 1))  # Corrected default
     physical_date = models.DateField(null=True, blank=True, default=date(2000, 1, 1))  # Corrected default
@@ -105,6 +105,11 @@ class DriverApplication(models.Model):
     middle_name = models.CharField(max_length=255, blank=True, null=True, default="")
     last_name = models.CharField(max_length=255, null=False, default="")
     email = models.EmailField(null=False,default="")
+    phone_number = models.CharField(max_length=20, null=False, default="")
+    address = models.TextField(null=False, default="")
+    zip_code = models.CharField(max_length=10, null=False, default="")
+    state = models.CharField(max_length=50, null=False, default="")  # Full state name
+    cdla_experience = models.BooleanField(default=False)
 
     def __str__(self):
         return f"DriverApplication {self.id} - {self.first_name} {self.last_name}"
