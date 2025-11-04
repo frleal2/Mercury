@@ -99,7 +99,7 @@ class Trailer(models.Model):
     def __str__(self):
         return f"Trailer {self.license_plate}"
 
-class DriverApp(models.Model):
+class DriverApplication(models.Model):
     id = models.AutoField(primary_key=True)
     first_name = models.CharField(max_length=255,null=False,default="")
     middle_name = models.CharField(max_length=255, blank=True, null=True, default="")
@@ -107,7 +107,7 @@ class DriverApp(models.Model):
     email = models.EmailField(null=False,default="")
 
     def __str__(self):
-        return f"DriverApp {self.id} - {self.first_name} {self.last_name}"
+        return f"DriverApplication {self.id} - {self.first_name} {self.last_name}"
 
 class Inspection(models.Model):
     inspection_id = models.AutoField(primary_key=True)

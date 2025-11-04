@@ -21,14 +21,14 @@ from rest_framework.authtoken.views import obtain_auth_token
 from django.conf import settings
 from django.conf.urls.static import static
 from MercAPI import views  # Corrected to match the actual directory name
-from MercAPI.views import RegisterUserView, CustomTokenObtainPairView, DriverViewSet, TruckViewSet, CompanyViewSet, TrailerViewSet, DriverTestViewSet, DriverHOSViewSet, DriverAppViewSet # Import ApplicationViewSet and DriverHOSViewSet
+from MercAPI.views import RegisterUserView, CustomTokenObtainPairView, DriverViewSet, TruckViewSet, CompanyViewSet, TrailerViewSet, DriverTestViewSet, DriverHOSViewSet, DriverApplicationViewSet # Import ApplicationViewSet and DriverHOSViewSet
 
 router = DefaultRouter()
 router.register(r'drivers', DriverViewSet, basename='driver')  # Register DriverViewSet
 router.register(r'trucks', TruckViewSet, basename='truck')  # Register TruckViewSet
 router.register(r'companies', CompanyViewSet, basename='company')  # Register CompanyViewSet
 router.register(r'trailers', TrailerViewSet, basename='trailer')  # Register TrailerViewSet
-router.register(r'applications', DriverAppViewSet, basename='application')  # Register ApplicationViewSet
+router.register(r'applications', DriverApplicationViewSet, basename='application')  # Register ApplicationViewSet
 router.register(r'driver-tests', DriverTestViewSet, basename='driver-test')  # Register DriverTestViewSet
 router.register(r'driver-hos', DriverHOSViewSet, basename='driver-hos')  # Register DriverHOSViewSet
 
