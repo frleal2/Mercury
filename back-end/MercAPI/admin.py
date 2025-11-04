@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Driver, Company, DriverTest, Truck, Trailer, Application, Inspection, InspectionItem, Trips, DriverHOS  # Import the DriverHOS model
+from .models import Driver, Company, DriverTest, Truck, Trailer, Inspection, InspectionItem, Trips, DriverHOS, DriverApplication  # Import the DriverHOS model
 
 @admin.register(Driver)
 class DriverAdmin(admin.ModelAdmin):
@@ -22,7 +22,8 @@ class TruckAdmin(admin.ModelAdmin):
 admin.site.register(Company)
 admin.site.register(DriverTest)
 admin.site.register(Trailer)
-admin.site.register(Application)
+admin.site.register(DriverApplication)
+
 
 @admin.register(Inspection)
 class InspectionAdmin(admin.ModelAdmin):
