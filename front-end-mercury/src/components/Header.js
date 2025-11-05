@@ -11,6 +11,7 @@ const navigation = [
       { name: 'Trailers', href: '/ActiveTrailers' },
     ] 
   },
+  { name: 'Maintenance', href: '/Maintenance', current: false },
   { name: 'Recruitment', href: '/Recruitment', current: false }, // Added Recruitment module
 ]
 

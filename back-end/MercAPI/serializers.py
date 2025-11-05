@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication  # Import additional models
+from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -62,3 +62,54 @@ class DriverHOSSerializer(serializers.ModelSerializer):
     class Meta:
         model = DriverHOS
         fields = '__all__'
+
+class MaintenanceCategorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MaintenanceCategory
+        fields = '__all__'
+
+class MaintenanceTypeSerializer(serializers.ModelSerializer):
+    category_name = serializers.CharField(source='category.name', read_only=True)
+    
+    class Meta:
+        model = MaintenanceType
+        fields = '__all__'
+
+class MaintenanceAttachmentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MaintenanceAttachment
+        fields = '__all__'
+
+class MaintenanceRecordSerializer(serializers.ModelSerializer):
+    maintenance_type_name = serializers.CharField(source='maintenance_type.name', read_only=True)
+    category_name = serializers.CharField(source='maintenance_type.category.name', read_only=True)
+    category_color = serializers.CharField(source='maintenance_type.category.color_code', read_only=True)
+    vehicle_identifier = serializers.CharField(read_only=True)
+    is_overdue = serializers.BooleanField(read_only=True)
+    days_until_due = serializers.IntegerField(read_only=True)
+    attachments = MaintenanceAttachmentSerializer(many=True, read_only=True)
+    truck_info = serializers.SerializerMethodField()
+    trailer_info = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = MaintenanceRecord
+        fields = '__all__'
+    
+    def get_truck_info(self, obj):
+        if obj.truck:
+            return {
+                'unit_number': obj.truck.unit_number,
+                'license_plate': obj.truck.license_plate,
+                'make': obj.truck.make,
+                'model': obj.truck.model,
+                'year': obj.truck.year
+            }
+        return None
+    
+    def get_trailer_info(self, obj):
+        if obj.trailer:
+            return {
+                'license_plate': obj.trailer.license_plate,
+                'model': obj.trailer.model
+            }
+        return None

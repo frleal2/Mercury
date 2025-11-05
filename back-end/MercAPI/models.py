@@ -229,3 +229,122 @@ class DriverHOS(models.Model):
     def __str__(self):
         return f"HOS {self.hos_id} - Driver {self.driver} - {self.duty_date}"
 
+class MaintenanceCategory(models.Model):
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True, null=True)
+    color_code = models.CharField(max_length=7, default="#3B82F6")  # Hex color for UI
+    
+    class Meta:
+        verbose_name_plural = "Maintenance Categories"
+    
+    def __str__(self):
+        return self.name
+
+class MaintenanceType(models.Model):
+    category = models.ForeignKey(MaintenanceCategory, on_delete=models.CASCADE, related_name="types")
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True, null=True)
+    estimated_hours = models.DecimalField(max_digits=4, decimal_places=2, null=True, blank=True)
+    dot_required = models.BooleanField(default=False)  # If this maintenance is DOT required
+    
+    def __str__(self):
+        return f"{self.category.name} - {self.name}"
+
+class MaintenanceRecord(models.Model):
+    VEHICLE_TYPE_CHOICES = [
+        ('truck', 'Truck'),
+        ('trailer', 'Trailer'),
+    ]
+    
+    MAINTENANCE_STATUS_CHOICES = [
+        ('scheduled', 'Scheduled'),
+        ('in_progress', 'In Progress'),
+        ('completed', 'Completed'),
+        ('cancelled', 'Cancelled'),
+    ]
+    
+    PRIORITY_CHOICES = [
+        ('low', 'Low'),
+        ('medium', 'Medium'),
+        ('high', 'High'),
+        ('critical', 'Critical'),
+    ]
+
+    # Basic Information
+    record_id = models.AutoField(primary_key=True)
+    vehicle_type = models.CharField(max_length=10, choices=VEHICLE_TYPE_CHOICES)
+    truck = models.ForeignKey(Truck, on_delete=models.CASCADE, null=True, blank=True, related_name="maintenance_records")
+    trailer = models.ForeignKey(Trailer, on_delete=models.CASCADE, null=True, blank=True, related_name="maintenance_records")
+    
+    # Maintenance Details
+    maintenance_type = models.ForeignKey(MaintenanceType, on_delete=models.CASCADE)
+    work_order_number = models.CharField(max_length=50, unique=True)
+    
+    # Scheduling
+    scheduled_date = models.DateField()
+    completed_date = models.DateField(null=True, blank=True)
+    due_mileage = models.IntegerField(null=True, blank=True)
+    actual_mileage = models.IntegerField(null=True, blank=True)
+    
+    # Status and Priority
+    status = models.CharField(max_length=20, choices=MAINTENANCE_STATUS_CHOICES, default='scheduled')
+    priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default='medium')
+    
+    # Work Details
+    description = models.TextField()
+    parts_used = models.TextField(blank=True, null=True)  # JSON or text list of parts
+    labor_hours = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
+    total_cost = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    
+    # Service Provider
+    service_provider = models.CharField(max_length=200, blank=True, null=True)  # Shop name or internal
+    technician_name = models.CharField(max_length=100, blank=True, null=True)
+    
+    # Documentation
+    notes = models.TextField(blank=True, null=True)
+    warranty_expiration = models.DateField(null=True, blank=True)
+    
+    # Tracking
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.CharField(max_length=100, default="system")  # Could be FK to User later
+    
+    class Meta:
+        ordering = ['-scheduled_date', '-created_at']
+    
+    def __str__(self):
+        vehicle = self.truck.unit_number if self.truck else self.trailer.license_plate
+        return f"WO-{self.work_order_number}: {self.maintenance_type.name} on {vehicle}"
+    
+    @property
+    def vehicle_identifier(self):
+        """Get the main identifier for the vehicle"""
+        if self.truck:
+            return f"Truck {self.truck.unit_number}"
+        elif self.trailer:
+            return f"Trailer {self.trailer.license_plate}"
+        return "Unknown Vehicle"
+    
+    @property
+    def is_overdue(self):
+        """Check if scheduled maintenance is overdue"""
+        if self.status == 'completed':
+            return False
+        return self.scheduled_date < date.today()
+    
+    @property
+    def days_until_due(self):
+        """Get days until due (negative if overdue)"""
+        return (self.scheduled_date - date.today()).days
+
+class MaintenanceAttachment(models.Model):
+    maintenance_record = models.ForeignKey(MaintenanceRecord, on_delete=models.CASCADE, related_name="attachments")
+    file_name = models.CharField(max_length=255)
+    file_path = models.CharField(max_length=500)  # Path to file storage
+    file_type = models.CharField(max_length=10)  # pdf, jpg, png, etc.
+    description = models.CharField(max_length=200, blank=True, null=True)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    
+    def __str__(self):
+        return f"{self.maintenance_record.work_order_number} - {self.file_name}"
+

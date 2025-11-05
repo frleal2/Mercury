@@ -9,6 +9,7 @@ import Trailers from './Pages/Trailers';
 import Trucks from './Pages/Trucks';
 import Recruitment from './Pages/Recruitment';
 import ApplicationForm from './Pages/ApplicationForm';
+import Maintenance from './Pages/Maintenance';
 
 function AppContent() {
     const { session } = useSession();
@@ -23,6 +24,7 @@ function AppContent() {
                     <Route path="/ActiveCompanies" element={<><Header /><Companies /></>} />
                     <Route path="/ActiveTrailers" element={<><Header /><Trailers /></>} />
                     <Route path="/ActiveTrucks" element={<><Header /><Trucks /></>} />
+                    <Route path="/Maintenance" element={<><Header /><Maintenance /></>} />
                     <Route path="/Recruitment" element={<><Header /><Recruitment /></>} /> {/* Added Recruitment route */}
                     <Route path="/QuickApply" element={<ApplicationForm />} /> {/* Allow access to Recruitment without login */}
                 </>

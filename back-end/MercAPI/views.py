@@ -1,5 +1,5 @@
 import logging
-from .serializers import UserSerializer, DriverSerializer, TruckSerializer, CompanySerializer, TrailerSerializer, DriverTestSerializer, DriverHOSSerializer, DriverApplicationSerializer  # Import the DriverHOS serializer
+from .serializers import UserSerializer, DriverSerializer, TruckSerializer, CompanySerializer, TrailerSerializer, DriverTestSerializer, DriverHOSSerializer, DriverApplicationSerializer, MaintenanceCategorySerializer, MaintenanceTypeSerializer, MaintenanceRecordSerializer, MaintenanceAttachmentSerializer
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -9,7 +9,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework_simplejwt.views import TokenObtainPairView
-from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication  
+from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment  
 from rest_framework.serializers import ValidationError
 from rest_framework import serializers
 from django.core.files.storage import default_storage
@@ -72,6 +72,43 @@ class DriverTestViewSet(ModelViewSet):
 class DriverHOSViewSet(ModelViewSet):
     queryset = DriverHOS.objects.all()
     serializer_class = DriverHOSSerializer
+    permission_classes = [IsAuthenticated]
+
+class MaintenanceCategoryViewSet(ModelViewSet):
+    queryset = MaintenanceCategory.objects.all()
+    serializer_class = MaintenanceCategorySerializer
+    permission_classes = [IsAuthenticated]
+
+class MaintenanceTypeViewSet(ModelViewSet):
+    queryset = MaintenanceType.objects.all()
+    serializer_class = MaintenanceTypeSerializer
+    permission_classes = [IsAuthenticated]
+
+class MaintenanceRecordViewSet(ModelViewSet):
+    queryset = MaintenanceRecord.objects.all()
+    serializer_class = MaintenanceRecordSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        queryset = MaintenanceRecord.objects.all()
+        vehicle_type = self.request.query_params.get('vehicle_type', None)
+        vehicle_id = self.request.query_params.get('vehicle_id', None)
+        status = self.request.query_params.get('status', None)
+        
+        if vehicle_type and vehicle_id:
+            if vehicle_type == 'truck':
+                queryset = queryset.filter(truck_id=vehicle_id)
+            elif vehicle_type == 'trailer':
+                queryset = queryset.filter(trailer_id=vehicle_id)
+        
+        if status:
+            queryset = queryset.filter(status=status)
+            
+        return queryset
+
+class MaintenanceAttachmentViewSet(ModelViewSet):
+    queryset = MaintenanceAttachment.objects.all()
+    serializer_class = MaintenanceAttachmentSerializer
     permission_classes = [IsAuthenticated]
 
 @api_view(['GET'])
