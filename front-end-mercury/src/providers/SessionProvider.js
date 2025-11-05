@@ -17,11 +17,16 @@ export const SessionProvider = ({ children }) => {
   const logout = useCallback(() => {
     setSession({ accessToken: '', refreshToken: '' });
     localStorage.removeItem('session');
+    // Use window.location to redirect to login page
+    if (window.location.pathname !== '/login') {
+      window.location.href = '/login';
+    }
   }, []);
 
   const refreshAccessToken = useCallback(async () => {
     if (!session.refreshToken) {
       console.log('No refresh token available');
+      logout();
       return null;
     }
 
@@ -35,11 +40,9 @@ export const SessionProvider = ({ children }) => {
       });
 
       if (!response.ok) {
-        if (response.status === 401) {
-          console.log('Refresh token expired, logging out');
-          logout();
-        }
-        throw new Error('Failed to refresh access token');
+        console.log('Refresh token failed, logging out');
+        logout();
+        return null;
       }
 
       const data = await response.json();
@@ -49,7 +52,8 @@ export const SessionProvider = ({ children }) => {
       return data.access;
     } catch (error) {
       console.error('Error refreshing access token:', error);
-      // Don't automatically logout on refresh failure - could be network issue
+      // Any refresh failure should result in logout and redirect
+      logout();
       return null;
     }
   }, [session.refreshToken, logout]);

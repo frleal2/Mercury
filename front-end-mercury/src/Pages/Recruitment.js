@@ -321,7 +321,7 @@ const Recruitment = () => {
 // Application Detail Modal Component
 const ApplicationDetailModal = ({ application, onClose, onStatusUpdate, session, handleFileDownload }) => {
   const [status, setStatus] = useState(application.status || 'new');
-  const [notes, setNotes] = useState('');
+  const [notes, setNotes] = useState(application.notes || '');
   const [updating, setUpdating] = useState(false);
 
   const updateApplicationStatus = async () => {

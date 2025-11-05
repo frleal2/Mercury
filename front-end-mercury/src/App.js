@@ -41,10 +41,10 @@ function AppContent() {
 
 export default function App() {
     return (
-        <SessionProvider>
-            <BrowserRouter basename={process.env.PUBLIC_URL || '/'}>
+        <BrowserRouter basename={process.env.PUBLIC_URL || '/'}>
+            <SessionProvider>
                 <AppContent />
-            </BrowserRouter>
-        </SessionProvider>
+            </SessionProvider>
+        </BrowserRouter>
     );
 }
