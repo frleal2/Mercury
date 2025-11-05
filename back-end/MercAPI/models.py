@@ -110,6 +110,23 @@ class DriverApplication(models.Model):
     zip_code = models.CharField(max_length=10, null=False, default="")
     state = models.CharField(max_length=50, null=False, default="")  # Full state name
     cdla_experience = models.BooleanField(default=False)
+    status = models.CharField(
+        max_length=20,
+        choices=[
+            ('new', 'New'),
+            ('reviewed', 'Reviewed'),
+            ('contacted', 'Contacted'),
+            ('approved', 'Approved'),
+            ('rejected', 'Rejected'),
+        ],
+        default='new'
+    )
+    notes = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']  # Show newest applications first
 
     def __str__(self):
         return f"DriverApplication {self.id} - {self.first_name} {self.last_name}"

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useSession } from '../providers/SessionProvider';
 import BASE_URL from '../config';
-import MercuryLogoBlack from '../images/mercurylogoblack.png'; // Corrected path for the logo
+import MercuryLogoBlack from '../images/fleetlyBackgroundRemoved.png'; // Corrected path for the logo
 
 const Login = () => {
     const [username, setUsername] = useState('');
