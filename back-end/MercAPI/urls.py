@@ -21,7 +21,7 @@ from rest_framework.authtoken.views import obtain_auth_token
 from django.conf import settings
 from django.conf.urls.static import static
 from MercAPI import views  # Corrected to match the actual directory name
-from MercAPI.views import RegisterUserView, CustomTokenObtainPairView, DriverViewSet, TruckViewSet, CompanyViewSet, TrailerViewSet, DriverTestViewSet, DriverHOSViewSet, DriverApplicationViewSet, MaintenanceCategoryViewSet, MaintenanceTypeViewSet, MaintenanceRecordViewSet, MaintenanceAttachmentViewSet
+from MercAPI.views import RegisterUserView, CustomTokenObtainPairView, DriverViewSet, TruckViewSet, CompanyViewSet, TrailerViewSet, DriverTestViewSet, DriverHOSViewSet, DriverApplicationViewSet, MaintenanceCategoryViewSet, MaintenanceTypeViewSet, MaintenanceRecordViewSet, MaintenanceAttachmentViewSet, DriverDocumentViewSet, MaintenanceAttachmentUploadView, DriverDocumentUploadView
 
 router = DefaultRouter()
 router.register(r'drivers', DriverViewSet, basename='driver')  # Register DriverViewSet
@@ -35,6 +35,7 @@ router.register(r'maintenance-categories', MaintenanceCategoryViewSet, basename=
 router.register(r'maintenance-types', MaintenanceTypeViewSet, basename='maintenance-type')
 router.register(r'maintenance-records', MaintenanceRecordViewSet, basename='maintenance-record')
 router.register(r'maintenance-attachments', MaintenanceAttachmentViewSet, basename='maintenance-attachment')
+router.register(r'driver-documents', DriverDocumentViewSet, basename='driver-document')
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -42,6 +43,8 @@ urlpatterns = [
     path('api/token/', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/register/', RegisterUserView.as_view(), name='register_user'),
     path('api/DriverTest/<int:driver_id>/', views.get_latest_driver_test, name='get_latest_driver_test'),
+    path('api/upload/maintenance-attachment/', MaintenanceAttachmentUploadView.as_view(), name='upload_maintenance_attachment'),
+    path('api/upload/driver-document/', DriverDocumentUploadView.as_view(), name='upload_driver_document'),
 ]
 
 # Serve media files during development

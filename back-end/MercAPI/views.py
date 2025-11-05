@@ -1,5 +1,5 @@
 import logging
-from .serializers import UserSerializer, DriverSerializer, TruckSerializer, CompanySerializer, TrailerSerializer, DriverTestSerializer, DriverHOSSerializer, DriverApplicationSerializer, MaintenanceCategorySerializer, MaintenanceTypeSerializer, MaintenanceRecordSerializer, MaintenanceAttachmentSerializer
+from .serializers import UserSerializer, DriverSerializer, TruckSerializer, CompanySerializer, TrailerSerializer, DriverTestSerializer, DriverHOSSerializer, DriverApplicationSerializer, MaintenanceCategorySerializer, MaintenanceTypeSerializer, MaintenanceRecordSerializer, MaintenanceAttachmentSerializer, DriverDocumentSerializer
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -9,13 +9,205 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework_simplejwt.views import TokenObtainPairView
-from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment  
+from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument
 from rest_framework.serializers import ValidationError
 from rest_framework import serializers
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
+from django.conf import settings
+import mimetypes
+import os
 
 logger = logging.getLogger(__name__)
+
+class FileUploadView(APIView):
+    """
+    Base view for handling file uploads with validation
+    """
+    permission_classes = [IsAuthenticated]
+    
+    ALLOWED_TYPES = {
+        'pdf': ['application/pdf'],
+        'image': ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'],
+        'document': ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+        'spreadsheet': ['application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+        'text': ['text/plain', 'text/csv']
+    }
+    
+    MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+    
+    def validate_file(self, file, allowed_categories=None):
+        """Validate uploaded file"""
+        if not file:
+            raise ValidationError("No file provided")
+        
+        # Check file size
+        if file.size > self.MAX_FILE_SIZE:
+            raise ValidationError(f"File size too large. Maximum size is {self.MAX_FILE_SIZE / (1024*1024):.1f}MB")
+        
+        # Get file extension and mime type
+        file_extension = os.path.splitext(file.name)[1].lower()
+        content_type = file.content_type or mimetypes.guess_type(file.name)[0]
+        
+        # Validate file type if categories specified
+        if allowed_categories:
+            allowed_types = []
+            for category in allowed_categories:
+                if category in self.ALLOWED_TYPES:
+                    allowed_types.extend(self.ALLOWED_TYPES[category])
+            
+            if content_type not in allowed_types:
+                raise ValidationError(f"File type not allowed. Allowed types: {', '.join(allowed_types)}")
+        
+        return True
+
+class MaintenanceAttachmentUploadView(FileUploadView):
+    """
+    Handle file uploads for maintenance attachments
+    """
+    
+    def post(self, request, *args, **kwargs):
+        try:
+            file = request.FILES.get('file')
+            maintenance_record_id = request.data.get('maintenance_record_id')
+            description = request.data.get('description', '')
+            
+            if not file:
+                return Response(
+                    {'error': 'No file provided'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            if not maintenance_record_id:
+                return Response(
+                    {'error': 'maintenance_record_id is required'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Validate maintenance record exists
+            try:
+                maintenance_record = MaintenanceRecord.objects.get(id=maintenance_record_id)
+            except MaintenanceRecord.DoesNotExist:
+                return Response(
+                    {'error': 'Maintenance record not found'}, 
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
+            # Validate file
+            self.validate_file(file, ['pdf', 'image', 'document'])
+            
+            # Create attachment
+            attachment = MaintenanceAttachment.objects.create(
+                maintenance_record=maintenance_record,
+                file=file,
+                description=description,
+                file_size=file.size
+            )
+            
+            serializer = MaintenanceAttachmentSerializer(attachment)
+            
+            return Response(
+                {
+                    'message': 'File uploaded successfully',
+                    'attachment': serializer.data
+                }, 
+                status=status.HTTP_201_CREATED
+            )
+            
+        except ValidationError as e:
+            return Response(
+                {'error': str(e)}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            logger.error(f"Error uploading maintenance attachment: {str(e)}")
+            return Response(
+                {'error': 'Internal server error'}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+class DriverDocumentUploadView(FileUploadView):
+    """
+    Handle file uploads for driver documents (licenses, certifications, etc.)
+    """
+    
+    def post(self, request, *args, **kwargs):
+        try:
+            file = request.FILES.get('file')
+            driver_id = request.data.get('driver_id')
+            document_type = request.data.get('document_type')
+            description = request.data.get('description', '')
+            expiry_date = request.data.get('expiry_date')
+            
+            if not file:
+                return Response(
+                    {'error': 'No file provided'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            if not driver_id:
+                return Response(
+                    {'error': 'driver_id is required'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            if not document_type:
+                return Response(
+                    {'error': 'document_type is required'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Validate driver exists
+            try:
+                driver = Driver.objects.get(id=driver_id)
+            except Driver.DoesNotExist:
+                return Response(
+                    {'error': 'Driver not found'}, 
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
+            # Validate document type
+            valid_types = [choice[0] for choice in DriverDocument.DOCUMENT_TYPE_CHOICES]
+            if document_type not in valid_types:
+                return Response(
+                    {'error': f'Invalid document type. Valid types: {", ".join(valid_types)}'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Validate file
+            self.validate_file(file, ['pdf', 'image', 'document'])
+            
+            # Create document
+            document = DriverDocument.objects.create(
+                driver=driver,
+                document_type=document_type,
+                file=file,
+                description=description,
+                expiry_date=expiry_date,
+                file_size=file.size
+            )
+            
+            serializer = DriverDocumentSerializer(document)
+            
+            return Response(
+                {
+                    'message': 'Document uploaded successfully',
+                    'document': serializer.data
+                }, 
+                status=status.HTTP_201_CREATED
+            )
+            
+        except ValidationError as e:
+            return Response(
+                {'error': str(e)}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            logger.error(f"Error uploading driver document: {str(e)}")
+            return Response(
+                {'error': 'Internal server error'}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 class RegisterUserView(APIView):
     permission_classes = [AllowAny]
@@ -110,6 +302,24 @@ class MaintenanceAttachmentViewSet(ModelViewSet):
     queryset = MaintenanceAttachment.objects.all()
     serializer_class = MaintenanceAttachmentSerializer
     permission_classes = [IsAuthenticated]
+
+class DriverDocumentViewSet(ModelViewSet):
+    queryset = DriverDocument.objects.all()
+    serializer_class = DriverDocumentSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        queryset = DriverDocument.objects.all()
+        driver_id = self.request.query_params.get('driver_id', None)
+        document_type = self.request.query_params.get('document_type', None)
+        
+        if driver_id:
+            queryset = queryset.filter(driver_id=driver_id)
+        
+        if document_type:
+            queryset = queryset.filter(document_type=document_type)
+            
+        return queryset.order_by('-uploaded_at')
 
 @api_view(['GET'])
 def get_latest_driver_test(request, driver_id):

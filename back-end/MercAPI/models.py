@@ -33,6 +33,42 @@ class Driver(models.Model):
     def __str__(self):
         return f"{self.first_name} {self.last_name}"  # Ensure this returns a clear identifier for the driver
 
+class DriverDocument(models.Model):
+    DOCUMENT_TYPE_CHOICES = [
+        ('cdl_license', 'CDL License'),
+        ('medical_certificate', 'Medical Certificate'),
+        ('mvr_report', 'Motor Vehicle Record'),
+        ('employment_verification', 'Employment Verification'),
+        ('drug_test_results', 'Drug Test Results'),
+        ('background_check', 'Background Check'),
+        ('training_certificate', 'Training Certificate'),
+        ('other', 'Other Document'),
+    ]
+    
+    driver = models.ForeignKey(Driver, on_delete=models.CASCADE, related_name="documents")
+    document_type = models.CharField(max_length=30, choices=DOCUMENT_TYPE_CHOICES)
+    file = models.FileField(upload_to='driver_documents/%Y/%m/%d/')
+    file_name = models.CharField(max_length=255)
+    file_size = models.PositiveIntegerField(null=True, blank=True)  # Size in bytes
+    expiration_date = models.DateField(null=True, blank=True)  # For documents with expiration
+    description = models.CharField(max_length=200, blank=True, null=True)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    uploaded_by = models.CharField(max_length=100, default="system")
+    is_verified = models.BooleanField(default=False)  # For document verification workflow
+    
+    class Meta:
+        ordering = ['-uploaded_at']
+    
+    def __str__(self):
+        return f"{self.driver} - {self.get_document_type_display()}"
+    
+    def save(self, *args, **kwargs):
+        if self.file and not self.file_name:
+            self.file_name = self.file.name
+        if self.file:
+            self.file_size = self.file.size
+        super().save(*args, **kwargs)
+
 class DriverTest(models.Model):
     id = models.AutoField(primary_key=True)
     driver = models.ForeignKey(
@@ -382,13 +418,32 @@ class MaintenanceRecord(models.Model):
         return (self.scheduled_date - date.today()).days
 
 class MaintenanceAttachment(models.Model):
+    ATTACHMENT_TYPE_CHOICES = [
+        ('image', 'Image'),
+        ('document', 'Document'),
+        ('archive', 'Archive'),
+        ('other', 'Other'),
+    ]
+    
     maintenance_record = models.ForeignKey(MaintenanceRecord, on_delete=models.CASCADE, related_name="attachments")
+    file = models.FileField(upload_to='maintenance_attachments/%Y/%m/%d/', null=True, blank=True)
     file_name = models.CharField(max_length=255)
-    file_path = models.CharField(max_length=500)  # Path to file storage
-    file_type = models.CharField(max_length=10)  # pdf, jpg, png, etc.
+    file_type = models.CharField(max_length=20, choices=ATTACHMENT_TYPE_CHOICES, default='document')
+    file_size = models.PositiveIntegerField(null=True, blank=True)  # Size in bytes
     description = models.CharField(max_length=200, blank=True, null=True)
     uploaded_at = models.DateTimeField(auto_now_add=True)
+    uploaded_by = models.CharField(max_length=100, default="system")  # Could be FK to User later
+    
+    class Meta:
+        ordering = ['-uploaded_at']
     
     def __str__(self):
         return f"{self.maintenance_record.work_order_number} - {self.file_name}"
+    
+    def save(self, *args, **kwargs):
+        if self.file and not self.file_name:
+            self.file_name = self.file.name
+        if self.file:
+            self.file_size = self.file.size
+        super().save(*args, **kwargs)
 

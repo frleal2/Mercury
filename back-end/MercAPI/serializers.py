@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment
+from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -26,8 +26,22 @@ class DriverTestSerializer(serializers.ModelSerializer):
         model = DriverTest
         fields = '__all__'
 
+class DriverDocumentSerializer(serializers.ModelSerializer):
+    document_type_display = serializers.CharField(source='get_document_type_display', read_only=True)
+    file_url = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = DriverDocument
+        fields = '__all__'
+    
+    def get_file_url(self, obj):
+        if obj.file:
+            return obj.file.url
+        return None
+
 class DriverSerializer(serializers.ModelSerializer):
     tests = DriverTestSerializer(many=True, read_only=True)  # Include related DriverTest data
+    documents = DriverDocumentSerializer(many=True, read_only=True)  # Include driver documents
 
     class Meta:
         model = Driver
@@ -76,9 +90,17 @@ class MaintenanceTypeSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class MaintenanceAttachmentSerializer(serializers.ModelSerializer):
+    file_type_display = serializers.CharField(source='get_file_type_display', read_only=True)
+    file_url = serializers.SerializerMethodField()
+    
     class Meta:
         model = MaintenanceAttachment
         fields = '__all__'
+    
+    def get_file_url(self, obj):
+        if obj.file:
+            return obj.file.url
+        return None
 
 class MaintenanceRecordSerializer(serializers.ModelSerializer):
     maintenance_type_name = serializers.CharField(source='get_maintenance_type_display', read_only=True)
