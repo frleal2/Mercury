@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useSession } from '../providers/SessionProvider';
 import axios from 'axios';
 import BASE_URL from '../config';
-import Header from '../components/Header';
 import AddMaintenanceRecord from '../components/AddMaintenanceRecord';
+import ViewMaintenanceRecord from '../components/ViewMaintenanceRecord';
+import EditMaintenanceRecord from '../components/EditMaintenanceRecord';
 import {
   WrenchScrewdriverIcon,
   TruckIcon,
@@ -30,6 +31,8 @@ function Maintenance() {
   const [priorityFilter, setPriorityFilter] = useState('all');
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [isAddRecordOpen, setIsAddRecordOpen] = useState(false);
+  const [isEditRecordOpen, setIsEditRecordOpen] = useState(false);
+  const [editingRecord, setEditingRecord] = useState(null);
 
   const fetchData = async () => {
     try {
@@ -68,6 +71,10 @@ function Maintenance() {
 
   const handleRecordAdded = () => {
     fetchData(); // Refresh the data after adding a new record
+  };
+
+  const handleRecordUpdated = () => {
+    fetchData(); // Refresh the data after updating a record
   };
 
   const filteredRecords = maintenanceRecords.filter((record) => {
@@ -147,13 +154,11 @@ function Maintenance() {
   };
 
   return (
-    <>
-      <Header />
-      <div className="p-6">
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Fleet Maintenance</h1>
-          <p className="text-gray-600">Track and manage maintenance records for DOT compliance</p>
-        </div>
+    <div className="p-6">
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">Fleet Maintenance</h1>
+        <p className="text-gray-600">Track and manage maintenance records for DOT compliance</p>
+      </div>
 
       {/* Filters and Search */}
       <div className="mb-6 space-y-4">
@@ -312,6 +317,10 @@ function Maintenance() {
                             <EyeIcon className="h-5 w-5" />
                           </button>
                           <button
+                            onClick={() => {
+                              setEditingRecord(record);
+                              setIsEditRecordOpen(true);
+                            }}
                             className="text-green-600 hover:text-green-800 p-1"
                             title="Edit Record"
                           >
@@ -364,8 +373,29 @@ function Maintenance() {
           trailers={trailers}
         />
       )}
-      </div>
-    </>
+
+      {/* View Maintenance Record Modal */}
+      {selectedRecord && (
+        <ViewMaintenanceRecord
+          record={selectedRecord}
+          onClose={() => setSelectedRecord(null)}
+        />
+      )}
+
+      {/* Edit Maintenance Record Modal */}
+      {isEditRecordOpen && editingRecord && (
+        <EditMaintenanceRecord
+          record={editingRecord}
+          onClose={() => {
+            setIsEditRecordOpen(false);
+            setEditingRecord(null);
+          }}
+          onRecordUpdated={handleRecordUpdated}
+          trucks={trucks}
+          trailers={trailers}
+        />
+      )}
+    </div>
   );
 }
 
