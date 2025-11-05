@@ -46,6 +46,7 @@ const Recruitment = () => {
   // Add function to handle secure file download
   const handleFileDownload = async (applicationId, fileType) => {
     try {
+      console.log('Downloading file:', applicationId, fileType);
       const response = await axios.get(
         `${BASE_URL}/api/applications/${applicationId}/download/${fileType}/`,
         {
@@ -55,11 +56,14 @@ const Recruitment = () => {
         }
       );
       
+      console.log('Download response:', response.data);
+      
       // Open the signed URL in new tab
       window.open(response.data.download_url, '_blank');
     } catch (error) {
       console.error('Error downloading file:', error);
-      alert('Failed to download file. Please try again.');
+      console.error('Error details:', error.response?.data);
+      alert(`Failed to download file: ${error.response?.data?.error || error.message}`);
     }
   };
 

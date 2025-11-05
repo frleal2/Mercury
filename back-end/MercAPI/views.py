@@ -1,4 +1,7 @@
 import logging
+import boto3
+from botocore.exceptions import NoCredentialsError
+from django.conf import settings
 from .serializers import UserSerializer, DriverSerializer, TruckSerializer, CompanySerializer, TrailerSerializer, DriverTestSerializer, DriverHOSSerializer, DriverApplicationSerializer, MaintenanceCategorySerializer, MaintenanceTypeSerializer, MaintenanceRecordSerializer, MaintenanceAttachmentSerializer, DriverDocumentSerializer
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.viewsets import ModelViewSet
@@ -372,6 +375,8 @@ def download_application_file(request, application_id, file_type):
     Generate signed URL for application file download
     """
     try:
+        logger.info(f"Download request: application_id={application_id}, file_type={file_type}")
+        
         # Get the application
         application = DriverApplication.objects.get(id=application_id)
         
@@ -383,6 +388,7 @@ def download_application_file(request, application_id, file_type):
             file_field = application.medical_certificate
             file_name = f"medical_certificate_{application.id}"
         else:
+            logger.error(f"Invalid file type: {file_type}")
             return Response(
                 {'error': 'Invalid file type'}, 
                 status=status.HTTP_400_BAD_REQUEST
@@ -390,21 +396,45 @@ def download_application_file(request, application_id, file_type):
         
         # Check if file exists
         if not file_field:
+            logger.error(f"File not found for application {application_id}, type {file_type}")
             return Response(
                 {'error': 'File not found'}, 
                 status=status.HTTP_404_NOT_FOUND
             )
         
-        # Generate signed URL (this will be handled by S3Boto3Storage)
-        file_url = file_field.url
-        
-        return Response({
-            'download_url': file_url,
-            'filename': file_field.name.split('/')[-1],
-            'expires_in': 3600  # 1 hour
-        }, status=status.HTTP_200_OK)
+        # Generate signed URL manually using boto3
+        try:
+            # Create S3 client
+            s3_client = boto3.client(
+                's3',
+                aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+                aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+                region_name=settings.AWS_S3_REGION_NAME
+            )
+            
+            # Generate presigned URL
+            presigned_url = s3_client.generate_presigned_url(
+                'get_object',
+                Params={'Bucket': settings.AWS_STORAGE_BUCKET_NAME, 'Key': file_field.name},
+                ExpiresIn=3600  # 1 hour
+            )
+            
+            logger.info(f"Generated presigned URL: {presigned_url}")
+            
+            return Response({
+                'download_url': presigned_url,
+                'filename': file_field.name.split('/')[-1],
+                'expires_in': 3600  # 1 hour
+            }, status=status.HTTP_200_OK)
+        except Exception as url_error:
+            logger.error(f"Error generating presigned URL: {str(url_error)}")
+            return Response(
+                {'error': 'Error generating download URL'}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
         
     except DriverApplication.DoesNotExist:
+        logger.error(f"Application not found: {application_id}")
         return Response(
             {'error': 'Application not found'}, 
             status=status.HTTP_404_NOT_FOUND
