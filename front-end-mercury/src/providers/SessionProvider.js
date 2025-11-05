@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
+import axios from 'axios';
 import BASE_URL from '../config';
 
 const SessionContext = createContext();
@@ -8,6 +9,9 @@ export const SessionProvider = ({ children }) => {
     const savedSession = localStorage.getItem('session');
     return savedSession ? JSON.parse(savedSession) : { accessToken: '', refreshToken: '' };
   });
+
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const failedQueue = useRef([]);
 
   const setSession = (newSession) => {
     setSessionState(newSession);
@@ -24,16 +28,31 @@ export const SessionProvider = ({ children }) => {
   }, []);
 
   const refreshAccessToken = useCallback(async () => {
+    if (isRefreshing) {
+      // If already refreshing, wait for it
+      return new Promise((resolve, reject) => {
+        failedQueue.current.push({ resolve, reject });
+      });
+    }
+
     const currentSession = JSON.parse(localStorage.getItem('session') || '{}');
     
+    console.log('🔄 Refresh token attempt - Current session:', {
+      hasAccessToken: !!currentSession.accessToken,
+      hasRefreshToken: !!currentSession.refreshToken,
+      timestamp: new Date().toISOString()
+    });
+    
     if (!currentSession.refreshToken) {
-      console.log('No refresh token available');
+      console.log('❌ No refresh token available - logging out');
       logout();
       return null;
     }
 
+    setIsRefreshing(true);
+
     try {
-      console.log('Attempting to refresh access token...');
+      console.log('📡 Calling refresh token API...');
       const response = await fetch(`${BASE_URL}/api/token/refresh/`, {
         method: 'POST',
         headers: {
@@ -42,28 +61,55 @@ export const SessionProvider = ({ children }) => {
         body: JSON.stringify({ refresh: currentSession.refreshToken }),
       });
 
+      console.log('📡 Refresh API response status:', response.status);
+
       if (!response.ok) {
-        console.log('Refresh token failed with status:', response.status);
+        console.log('❌ Refresh token failed with status:', response.status);
         if (response.status === 401) {
           // Only logout on 401 (token expired), not on network errors
-          console.log('Refresh token expired, logging out');
+          console.log('🔐 Refresh token expired - logging out');
           logout();
+        } else {
+          console.log('⚠️ Non-401 error during refresh - not logging out');
         }
+        
+        // Process failed queue
+        failedQueue.current.forEach(({ reject }) => {
+          reject(new Error('Token refresh failed'));
+        });
+        failedQueue.current = [];
+        
         return null;
       }
 
       const data = await response.json();
       const updatedSession = { ...currentSession, accessToken: data.access };
       setSession(updatedSession);
-      console.log('Access token refreshed successfully');
+      
+      // Process failed queue with new token
+      failedQueue.current.forEach(({ resolve }) => {
+        resolve(data.access);
+      });
+      failedQueue.current = [];
+      
+      console.log('✅ Access token refreshed successfully');
       return data.access;
     } catch (error) {
-      console.error('Error refreshing access token:', error);
+      console.error('💥 Error refreshing access token:', error);
+      
+      // Process failed queue
+      failedQueue.current.forEach(({ reject }) => {
+        reject(error);
+      });
+      failedQueue.current = [];
+      
       // Don't logout on network errors, only on authentication failures
-      console.log('Network error during refresh, will retry later');
+      console.log('⚠️ Network error during refresh - not logging out, will retry later');
       return null;
+    } finally {
+      setIsRefreshing(false);
     }
-  }, [logout]);
+  }, [logout, isRefreshing]);
 
   // Activity tracking
   const activityTimeoutRef = useRef(null);
@@ -112,8 +158,10 @@ export const SessionProvider = ({ children }) => {
     tokenRefreshIntervalRef.current = setInterval(() => {
       const currentSession = JSON.parse(localStorage.getItem('session') || '{}');
       if (currentSession.accessToken) {
-        console.log('Proactively refreshing access token');
+        console.log('⏰ Proactive refresh triggered (12min interval)');
         refreshAccessToken();
+      } else {
+        console.log('⏰ Proactive refresh skipped - no access token');
       }
     }, 12 * 60 * 1000); // 12 minutes (was 14)
   }, [refreshAccessToken]);
@@ -184,6 +232,51 @@ export const SessionProvider = ({ children }) => {
       }
     }
   }, []);
+
+  // Set up axios interceptor for automatic token refresh
+  useEffect(() => {
+    const requestInterceptor = axios.interceptors.request.use(
+      (config) => {
+        const currentSession = JSON.parse(localStorage.getItem('session') || '{}');
+        if (currentSession.accessToken) {
+          config.headers.Authorization = `Bearer ${currentSession.accessToken}`;
+        }
+        return config;
+      },
+      (error) => Promise.reject(error)
+    );
+
+    const responseInterceptor = axios.interceptors.response.use(
+      (response) => response,
+      async (error) => {
+        const originalRequest = error.config;
+
+        if (error.response?.status === 401 && !originalRequest._retry) {
+          originalRequest._retry = true;
+
+          try {
+            console.log('🔄 401 detected, attempting token refresh...');
+            const newToken = await refreshAccessToken();
+            if (newToken) {
+              originalRequest.headers.Authorization = `Bearer ${newToken}`;
+              console.log('🔄 Retrying original request with new token');
+              return axios(originalRequest);
+            }
+          } catch (refreshError) {
+            console.error('🔄 Token refresh failed in interceptor:', refreshError);
+            return Promise.reject(error);
+          }
+        }
+
+        return Promise.reject(error);
+      }
+    );
+
+    return () => {
+      axios.interceptors.request.eject(requestInterceptor);
+      axios.interceptors.response.eject(responseInterceptor);
+    };
+  }, [refreshAccessToken]);
 
   return (
     <SessionContext.Provider value={{ session, setSession, refreshAccessToken, logout }}>
