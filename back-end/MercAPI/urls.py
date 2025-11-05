@@ -46,6 +46,7 @@ urlpatterns = [
     path('api/upload/maintenance-attachment/', MaintenanceAttachmentUploadView.as_view(), name='upload_maintenance_attachment'),
     path('api/upload/driver-document/', DriverDocumentUploadView.as_view(), name='upload_driver_document'),
     path('api/applications-with-files/', views.list_applications_with_files, name='list_applications_with_files'),
+    path('api/applications/<int:application_id>/download/<str:file_type>/', views.download_application_file, name='download_application_file'),
 ]
 
 # Serve media files during development

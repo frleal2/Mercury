@@ -366,6 +366,57 @@ def list_applications_with_files(request):
         )
 
 @api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def download_application_file(request, application_id, file_type):
+    """
+    Generate signed URL for application file download
+    """
+    try:
+        # Get the application
+        application = DriverApplication.objects.get(id=application_id)
+        
+        # Get the file based on type
+        if file_type == 'license':
+            file_field = application.drivers_license
+            file_name = f"drivers_license_{application.id}"
+        elif file_type == 'medical':
+            file_field = application.medical_certificate
+            file_name = f"medical_certificate_{application.id}"
+        else:
+            return Response(
+                {'error': 'Invalid file type'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Check if file exists
+        if not file_field:
+            return Response(
+                {'error': 'File not found'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Generate signed URL (this will be handled by S3Boto3Storage)
+        file_url = file_field.url
+        
+        return Response({
+            'download_url': file_url,
+            'filename': file_field.name.split('/')[-1],
+            'expires_in': 3600  # 1 hour
+        }, status=status.HTTP_200_OK)
+        
+    except DriverApplication.DoesNotExist:
+        return Response(
+            {'error': 'Application not found'}, 
+            status=status.HTTP_404_NOT_FOUND
+        )
+    except Exception as e:
+        logger.error(f"Error generating download URL: {str(e)}")
+        return Response(
+            {'error': 'Internal server error'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+@api_view(['GET'])
 def get_latest_driver_test(request, driver_id):
     try:
         # Fetch the latest test for the given driver ID, ordered by completion_date

@@ -43,6 +43,26 @@ const Recruitment = () => {
     }
   };
 
+  // Add function to handle secure file download
+  const handleFileDownload = async (applicationId, fileType) => {
+    try {
+      const response = await axios.get(
+        `${BASE_URL}/api/applications/${applicationId}/download/${fileType}/`,
+        {
+          headers: {
+            Authorization: `Bearer ${session.accessToken}`,
+          },
+        }
+      );
+      
+      // Open the signed URL in new tab
+      window.open(response.data.download_url, '_blank');
+    } catch (error) {
+      console.error('Error downloading file:', error);
+      alert('Failed to download file. Please try again.');
+    }
+  };
+
   const getTimeAgo = (dateString) => {
     const now = new Date();
     const applicationDate = new Date(dateString);
@@ -408,15 +428,13 @@ const ApplicationDetailModal = ({ application, onClose, onStatusUpdate, session 
                           <p className="text-xs text-gray-500">Uploaded document</p>
                         </div>
                       </div>
-                      <a
-                        href={application.drivers_license_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                      <button
+                        onClick={() => handleFileDownload(application.id, 'license')}
                         className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded text-blue-700 bg-blue-100 hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                       >
                         <EyeIcon className="h-4 w-4 mr-1" />
                         View
-                      </a>
+                      </button>
                     </div>
                   )}
                   {application.medical_certificate_url && (
@@ -428,15 +446,13 @@ const ApplicationDetailModal = ({ application, onClose, onStatusUpdate, session 
                           <p className="text-xs text-gray-500">DOT Physical / Medical cert</p>
                         </div>
                       </div>
-                      <a
-                        href={application.medical_certificate_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                      <button
+                        onClick={() => handleFileDownload(application.id, 'medical')}
                         className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded text-green-700 bg-green-100 hover:bg-green-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
                       >
                         <EyeIcon className="h-4 w-4 mr-1" />
                         View
-                      </a>
+                      </button>
                     </div>
                   )}
                 </div>
