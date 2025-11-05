@@ -270,6 +270,50 @@ class MaintenanceRecord(models.Model):
         ('critical', 'Critical'),
     ]
 
+    MAINTENANCE_TYPE_CHOICES = [
+        # Engine & Powertrain
+        ('oil_change', 'Oil Change'),
+        ('transmission_service', 'Transmission Service'),
+        ('differential_service', 'Differential Service'),
+        ('engine_tune_up', 'Engine Tune-Up'),
+        
+        # Brakes & Safety
+        ('brake_inspection', 'Brake Inspection'),
+        ('brake_pad_replacement', 'Brake Pad Replacement'),
+        ('air_brake_service', 'Air Brake Service'),
+        
+        # Tires & Wheels
+        ('tire_rotation', 'Tire Rotation'),
+        ('tire_replacement', 'Tire Replacement'),
+        ('wheel_alignment', 'Wheel Alignment'),
+        
+        # Electrical & Lighting
+        ('lighting_inspection', 'Lighting Inspection'),
+        ('battery_service', 'Battery Service'),
+        ('alternator_service', 'Alternator Service'),
+        
+        # HVAC & Climate
+        ('ac_service', 'A/C Service'),
+        ('heater_service', 'Heater Service'),
+        
+        # Body & Frame
+        ('body_repair', 'Body Repair'),
+        ('frame_inspection', 'Frame Inspection'),
+        
+        # Preventive Maintenance
+        ('a_service', 'A-Service (Basic)'),
+        ('b_service', 'B-Service (Intermediate)'),
+        ('c_service', 'C-Service (Complete)'),
+        
+        # DOT Inspections
+        ('annual_dot_inspection', 'Annual DOT Inspection'),
+        ('quarterly_inspection', '90-Day Inspection'),
+        ('pre_trip_inspection', 'Pre-Trip Inspection'),
+        
+        # Other
+        ('other', 'Other'),
+    ]
+
     # Basic Information
     record_id = models.AutoField(primary_key=True)
     vehicle_type = models.CharField(max_length=10, choices=VEHICLE_TYPE_CHOICES)
@@ -277,7 +321,7 @@ class MaintenanceRecord(models.Model):
     trailer = models.ForeignKey(Trailer, on_delete=models.CASCADE, null=True, blank=True, related_name="maintenance_records")
     
     # Maintenance Details
-    maintenance_type = models.ForeignKey(MaintenanceType, on_delete=models.CASCADE)
+    maintenance_type = models.CharField(max_length=50, choices=MAINTENANCE_TYPE_CHOICES)
     work_order_number = models.CharField(max_length=50, unique=True)
     
     # Scheduling
@@ -314,7 +358,7 @@ class MaintenanceRecord(models.Model):
     
     def __str__(self):
         vehicle = self.truck.unit_number if self.truck else self.trailer.license_plate
-        return f"WO-{self.work_order_number}: {self.maintenance_type.name} on {vehicle}"
+        return f"WO-{self.work_order_number}: {self.get_maintenance_type_display()} on {vehicle}"
     
     @property
     def vehicle_identifier(self):

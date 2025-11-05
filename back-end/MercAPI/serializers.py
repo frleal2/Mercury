@@ -81,9 +81,7 @@ class MaintenanceAttachmentSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class MaintenanceRecordSerializer(serializers.ModelSerializer):
-    maintenance_type_name = serializers.CharField(source='maintenance_type.name', read_only=True)
-    category_name = serializers.CharField(source='maintenance_type.category.name', read_only=True)
-    category_color = serializers.CharField(source='maintenance_type.category.color_code', read_only=True)
+    maintenance_type_name = serializers.CharField(source='get_maintenance_type_display', read_only=True)
     vehicle_identifier = serializers.CharField(read_only=True)
     is_overdue = serializers.BooleanField(read_only=True)
     days_until_due = serializers.IntegerField(read_only=True)

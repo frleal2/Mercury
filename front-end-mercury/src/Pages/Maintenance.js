@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useSession } from '../providers/SessionProvider';
 import axios from 'axios';
 import BASE_URL from '../config';
+import Header from '../components/Header';
+import AddMaintenanceRecord from '../components/AddMaintenanceRecord';
 import {
   WrenchScrewdriverIcon,
   TruckIcon,
@@ -19,8 +21,6 @@ import {
 function Maintenance() {
   const { session, refreshAccessToken } = useSession();
   const [maintenanceRecords, setMaintenanceRecords] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [types, setTypes] = useState([]);
   const [trucks, setTrucks] = useState([]);
   const [trailers, setTrailers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -33,14 +33,8 @@ function Maintenance() {
 
   const fetchData = async () => {
     try {
-      const [recordsRes, categoriesRes, typesRes, trucksRes, trailersRes] = await Promise.all([
+      const [recordsRes, trucksRes, trailersRes] = await Promise.all([
         axios.get(`${BASE_URL}/api/maintenance-records/`, {
-          headers: { 'Authorization': `Bearer ${session.accessToken}` }
-        }),
-        axios.get(`${BASE_URL}/api/maintenance-categories/`, {
-          headers: { 'Authorization': `Bearer ${session.accessToken}` }
-        }),
-        axios.get(`${BASE_URL}/api/maintenance-types/`, {
           headers: { 'Authorization': `Bearer ${session.accessToken}` }
         }),
         axios.get(`${BASE_URL}/api/trucks/`, {
@@ -52,8 +46,6 @@ function Maintenance() {
       ]);
 
       setMaintenanceRecords(recordsRes.data);
-      setCategories(categoriesRes.data);
-      setTypes(typesRes.data);
       setTrucks(trucksRes.data);
       setTrailers(trailersRes.data);
     } catch (error) {
@@ -73,6 +65,10 @@ function Maintenance() {
   useEffect(() => {
     fetchData();
   }, []);
+
+  const handleRecordAdded = () => {
+    fetchData(); // Refresh the data after adding a new record
+  };
 
   const filteredRecords = maintenanceRecords.filter((record) => {
     const matchesSearch = searchTerm === '' || 
@@ -151,11 +147,13 @@ function Maintenance() {
   };
 
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Fleet Maintenance</h1>
-        <p className="text-gray-600">Track and manage maintenance records for DOT compliance</p>
-      </div>
+    <>
+      <Header />
+      <div className="p-6">
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Fleet Maintenance</h1>
+          <p className="text-gray-600">Track and manage maintenance records for DOT compliance</p>
+        </div>
 
       {/* Filters and Search */}
       <div className="mb-6 space-y-4">
@@ -356,7 +354,18 @@ function Maintenance() {
           </div>
         </div>
       )}
-    </div>
+
+      {/* Add Maintenance Record Modal */}
+      {isAddRecordOpen && (
+        <AddMaintenanceRecord
+          onClose={() => setIsAddRecordOpen(false)}
+          onRecordAdded={handleRecordAdded}
+          trucks={trucks}
+          trailers={trailers}
+        />
+      )}
+      </div>
+    </>
   );
 }
 
