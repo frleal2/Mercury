@@ -255,6 +255,25 @@ class DriverApplicationViewSet(ModelViewSet):
     queryset = DriverApplication.objects.all()
     serializer_class = DriverApplicationSerializer
     permission_classes = [AllowAny]
+    
+    def create(self, request, *args, **kwargs):
+        try:
+            logger.info(f"Creating driver application with data: {request.data}")
+            logger.info(f"Files in request: {request.FILES}")
+            
+            # Check if files are present
+            if 'drivers_license' in request.FILES:
+                logger.info(f"Driver's license file size: {request.FILES['drivers_license'].size}")
+            if 'medical_certificate' in request.FILES:
+                logger.info(f"Medical certificate file size: {request.FILES['medical_certificate'].size}")
+            
+            return super().create(request, *args, **kwargs)
+        except Exception as e:
+            logger.error(f"Error creating driver application: {str(e)}")
+            logger.error(f"Error type: {type(e)}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            raise
 
 class DriverTestViewSet(ModelViewSet):
     queryset = DriverTest.objects.all()

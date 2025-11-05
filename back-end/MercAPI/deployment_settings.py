@@ -43,7 +43,11 @@ if USE_S3:
         'CacheControl': 'max-age=86400',
     }
     
-    # Media URL for S3
+    # Use signed URLs for private files
+    AWS_QUERYSTRING_AUTH = True
+    AWS_QUERYSTRING_EXPIRE = 3600  # URLs expire after 1 hour
+    
+    # Media URL for S3 (will be signed URLs)
     MEDIA_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/media/' if AWS_S3_CUSTOM_DOMAIN else f'https://{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com/media/'
     
     # Use S3 for media files, WhiteNoise for static files
