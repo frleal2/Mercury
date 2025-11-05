@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import BASE_URL from '../config';
+import FileUploadField from '../components/FileUploadField';
 
 const US_STATES = [
   { value: 'AL', label: 'Alabama' },
@@ -66,9 +67,12 @@ const ApplicationForm = () => {
         zip_code: '',
         state: '',
         cdla_experience: false,
+        drivers_license: null,
+        medical_certificate: null,
     });
     const [submitting, setSubmitting] = useState(false);
     const [message, setMessage] = useState(null);
+    const [fileErrors, setFileErrors] = useState({});
 
     const handleChange = (e) => {
         const { name, type, value, checked } = e.target;
@@ -82,12 +86,49 @@ const ApplicationForm = () => {
         });
     };
 
+    const handleFileSelect = (fieldName, file) => {
+        setFormData({
+            ...formData,
+            [fieldName]: file
+        });
+        
+        // Clear any existing error for this field
+        if (fileErrors[fieldName]) {
+            setFileErrors({
+                ...fileErrors,
+                [fieldName]: null
+            });
+        }
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         setSubmitting(true);
         setMessage(null);
+        setFileErrors({});
+        
         try {
-            const response = await axios.post(`${BASE_URL}/api/applications/`, formData);
+            // Create FormData for file upload
+            const formDataToSend = new FormData();
+            
+            // Add all form fields
+            Object.keys(formData).forEach(key => {
+                if (key === 'drivers_license' || key === 'medical_certificate') {
+                    // Add files if they exist
+                    if (formData[key]) {
+                        formDataToSend.append(key, formData[key]);
+                    }
+                } else {
+                    formDataToSend.append(key, formData[key]);
+                }
+            });
+            
+            const response = await axios.post(`${BASE_URL}/api/applications/`, formDataToSend, {
+                headers: {
+                    'Content-Type': 'multipart/form-data',
+                },
+            });
+            
             console.log('Submission response:', response);
             setMessage({ type: 'success', text: 'Application submitted successfully.' });
             setFormData({ 
@@ -100,8 +141,11 @@ const ApplicationForm = () => {
                 zip_code: '',
                 state: '',
                 cdla_experience: false,
+                drivers_license: null,
+                medical_certificate: null,
             });
-        } catch (e1) {
+        } catch (error) {
+            console.error('Submission error:', error);
             setMessage({ type: 'error', text: 'Failed to submit application. Please try again.' });
         } finally {
             setSubmitting(false);
@@ -260,6 +304,45 @@ const ApplicationForm = () => {
                             <option value="yes">Yes, I have verifiable CDL-A experience</option>
                             <option value="no">No, I do not</option>
                         </select>
+                    </div>
+
+                    <div className="app-field app-col-12" style={{ marginTop: '20px' }}>
+                        <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#0f172a', marginBottom: '16px' }}>
+                            Required Documents
+                        </h3>
+                        <p style={{ fontSize: '14px', color: '#64748b', marginBottom: '20px' }}>
+                            Please upload clear photos or scans of the following documents:
+                        </p>
+                    </div>
+
+                    <div className="app-field app-col-12">
+                        <FileUploadField
+                            label="Driver's License *"
+                            name="drivers_license"
+                            accept={{
+                                'image/*': ['.png', '.jpg', '.jpeg'],
+                                'application/pdf': ['.pdf']
+                            }}
+                            maxSize={5 * 1024 * 1024} // 5MB
+                            onFileSelect={handleFileSelect}
+                            currentFile={formData.drivers_license}
+                            error={fileErrors.drivers_license}
+                        />
+                    </div>
+
+                    <div className="app-field app-col-12">
+                        <FileUploadField
+                            label="Medical Certificate / DOT Physical *"
+                            name="medical_certificate"
+                            accept={{
+                                'image/*': ['.png', '.jpg', '.jpeg'],
+                                'application/pdf': ['.pdf']
+                            }}
+                            maxSize={5 * 1024 * 1024} // 5MB
+                            onFileSelect={handleFileSelect}
+                            currentFile={formData.medical_certificate}
+                            error={fileErrors.medical_certificate}
+                        />
                     </div>
 
                     <div className="app-actions">

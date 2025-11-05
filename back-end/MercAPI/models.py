@@ -158,6 +158,21 @@ class DriverApplication(models.Model):
         default='new'
     )
     notes = models.TextField(blank=True, null=True)
+    
+    # File upload fields
+    drivers_license = models.FileField(
+        upload_to='applications/licenses/',
+        blank=True,
+        null=True,
+        help_text="Upload driver's license image"
+    )
+    medical_certificate = models.FileField(
+        upload_to='applications/medical/',
+        blank=True, 
+        null=True,
+        help_text="Upload medical certificate/DOT physical"
+    )
+    
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

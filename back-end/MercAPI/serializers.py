@@ -68,9 +68,22 @@ class TrailerSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class DriverApplicationSerializer(serializers.ModelSerializer):
+    drivers_license_url = serializers.SerializerMethodField()
+    medical_certificate_url = serializers.SerializerMethodField()
+    
     class Meta:
         model = DriverApplication
         fields = '__all__'
+    
+    def get_drivers_license_url(self, obj):
+        if obj.drivers_license:
+            return obj.drivers_license.url
+        return None
+    
+    def get_medical_certificate_url(self, obj):
+        if obj.medical_certificate:
+            return obj.medical_certificate.url
+        return None
 
 class DriverHOSSerializer(serializers.ModelSerializer):
     class Meta:
