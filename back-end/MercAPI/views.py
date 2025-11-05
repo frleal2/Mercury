@@ -327,20 +327,16 @@ def list_applications_with_files(request):
     """List all driver applications with file information"""
     try:
         applications = DriverApplication.objects.all().order_by('-created_at')
-        data = []
         
-        for app in applications:
-            app_data = {
-                'id': app.id,
-                'name': f"{app.first_name} {app.last_name}",
-                'email': app.email,
-                'status': app.status,
-                'created_at': app.created_at,
-                'drivers_license_url': app.drivers_license.url if app.drivers_license else None,
-                'medical_certificate_url': app.medical_certificate.url if app.medical_certificate else None,
-                'has_files': bool(app.drivers_license or app.medical_certificate)
-            }
-            data.append(app_data)
+        # Use the serializer to get full data, then add file URLs
+        serializer = DriverApplicationSerializer(applications, many=True)
+        data = serializer.data
+        
+        # Add file URL information to each application
+        for i, app in enumerate(applications):
+            data[i]['drivers_license_url'] = app.drivers_license.url if app.drivers_license else None
+            data[i]['medical_certificate_url'] = app.medical_certificate.url if app.medical_certificate else None
+            data[i]['has_files'] = bool(app.drivers_license or app.medical_certificate)
         
         return Response(data, status=status.HTTP_200_OK)
     except Exception as e:

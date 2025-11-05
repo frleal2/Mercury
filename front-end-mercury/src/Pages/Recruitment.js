@@ -23,7 +23,7 @@ const Recruitment = () => {
 
   const fetchApplications = async () => {
     try {
-      const response = await axios.get(`${BASE_URL}/api/applications-with-files/`, {
+      const response = await axios.get(`${BASE_URL}/api/applications/`, {
         headers: {
           Authorization: `Bearer ${session.accessToken}`,
         },
@@ -74,7 +74,7 @@ const Recruitment = () => {
   const filteredApplications = applications.filter(app => {
     const matchesStatus = statusFilter === 'all' || (app.status || 'new') === statusFilter;
     const matchesSearch = searchTerm === '' || 
-      `${app.first_name} ${app.last_name}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      `${app.first_name || ''} ${app.last_name || ''}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
       app.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
       app.phone_number.includes(searchTerm);
     
@@ -168,13 +168,13 @@ const Recruitment = () => {
                         <div className="flex-shrink-0 h-10 w-10">
                           <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
                             <span className="text-sm font-medium text-blue-800">
-                              {application.first_name.charAt(0)}{application.last_name.charAt(0)}
+                              {application.first_name?.charAt(0) || '?'}{application.last_name?.charAt(0) || '?'}
                             </span>
                           </div>
                         </div>
                         <div className="ml-4">
                           <div className="text-sm font-medium text-gray-900">
-                            {application.first_name} {application.middle_name && application.middle_name + ' '}{application.last_name}
+                            {application.first_name || 'Unknown'} {application.middle_name && application.middle_name + ' '}{application.last_name || ''}
                           </div>
                         </div>
                       </div>
@@ -341,7 +341,7 @@ const ApplicationDetailModal = ({ application, onClose, onStatusUpdate, session 
                 <div>
                   <label className="text-sm font-medium text-gray-500">Full Name</label>
                   <p className="mt-1 text-sm text-gray-900">
-                    {application.first_name} {application.middle_name && application.middle_name + ' '}{application.last_name}
+                    {application.first_name || 'Unknown'} {application.middle_name && application.middle_name + ' '}{application.last_name || ''}
                   </p>
                 </div>
                 <div>
@@ -485,7 +485,7 @@ const ApplicationDetailModal = ({ application, onClose, onStatusUpdate, session 
               <h4 className="text-md font-medium text-gray-900 mb-3">Quick Actions</h4>
               <div className="flex space-x-3">
                 <a
-                  href={`mailto:${application.email}?subject=Driver Application - ${application.first_name} ${application.last_name}`}
+                  href={`mailto:${application.email}?subject=Driver Application - ${application.first_name || 'Unknown'} ${application.last_name || ''}`}
                   className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                 >
                   <EnvelopeIcon className="h-4 w-4 mr-2" />
