@@ -24,46 +24,55 @@ export const SessionProvider = ({ children }) => {
   }, []);
 
   const refreshAccessToken = useCallback(async () => {
-    if (!session.refreshToken) {
+    const currentSession = JSON.parse(localStorage.getItem('session') || '{}');
+    
+    if (!currentSession.refreshToken) {
       console.log('No refresh token available');
       logout();
       return null;
     }
 
     try {
+      console.log('Attempting to refresh access token...');
       const response = await fetch(`${BASE_URL}/api/token/refresh/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ refresh: session.refreshToken }),
+        body: JSON.stringify({ refresh: currentSession.refreshToken }),
       });
 
       if (!response.ok) {
-        console.log('Refresh token failed, logging out');
-        logout();
+        console.log('Refresh token failed with status:', response.status);
+        if (response.status === 401) {
+          // Only logout on 401 (token expired), not on network errors
+          console.log('Refresh token expired, logging out');
+          logout();
+        }
         return null;
       }
 
       const data = await response.json();
-      const updatedSession = { ...session, accessToken: data.access };
+      const updatedSession = { ...currentSession, accessToken: data.access };
       setSession(updatedSession);
       console.log('Access token refreshed successfully');
       return data.access;
     } catch (error) {
       console.error('Error refreshing access token:', error);
-      // Any refresh failure should result in logout and redirect
-      logout();
+      // Don't logout on network errors, only on authentication failures
+      console.log('Network error during refresh, will retry later');
       return null;
     }
-  }, [session.refreshToken, logout]);
+  }, [logout]);
 
   // Activity tracking
   const activityTimeoutRef = useRef(null);
   const lastActivityRef = useRef(Date.now());
+  const isActiveRef = useRef(true);
 
   const resetActivityTimer = useCallback(() => {
     lastActivityRef.current = Date.now();
+    isActiveRef.current = true;
     
     if (activityTimeoutRef.current) {
       clearTimeout(activityTimeoutRef.current);
@@ -76,6 +85,7 @@ export const SessionProvider = ({ children }) => {
       
       // If truly inactive for 30 minutes, show warning
       if (timeSinceLastActivity >= 30 * 60 * 1000) {
+        isActiveRef.current = false;
         const shouldStayLoggedIn = window.confirm(
           'Your session will expire soon due to inactivity. Do you want to stay logged in?'
         );
@@ -98,14 +108,15 @@ export const SessionProvider = ({ children }) => {
       clearInterval(tokenRefreshIntervalRef.current);
     }
 
-    // Refresh token every 14 minutes (assuming 15-minute token expiry)
+    // Refresh token every 12 minutes (more conservative, assuming 15-minute token expiry)
     tokenRefreshIntervalRef.current = setInterval(() => {
-      if (session.accessToken) {
+      const currentSession = JSON.parse(localStorage.getItem('session') || '{}');
+      if (currentSession.accessToken) {
         console.log('Proactively refreshing access token');
         refreshAccessToken();
       }
-    }, 14 * 60 * 1000); // 14 minutes
-  }, [session.accessToken, refreshAccessToken]);
+    }, 12 * 60 * 1000); // 12 minutes (was 14)
+  }, [refreshAccessToken]);
 
   // Activity listeners
   useEffect(() => {
