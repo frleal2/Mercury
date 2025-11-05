@@ -108,14 +108,41 @@ const ApplicationForm = () => {
         setFileErrors({});
         
         try {
-            // Temporarily disable file uploads for testing
-            const dataToSend = { ...formData };
-            delete dataToSend.drivers_license;
-            delete dataToSend.medical_certificate;
+            // For file uploads, we need to use FormData
+            const hasFiles = formData.drivers_license || formData.medical_certificate;
             
-            console.log('Sending data:', dataToSend);
-            const response = await axios.post(`${BASE_URL}/api/applications/`, dataToSend);
-            console.log('Submission response:', response);
+            if (hasFiles) {
+                // Use FormData for file upload
+                const formDataToSend = new FormData();
+                
+                // Add all form fields except files first
+                Object.keys(formData).forEach(key => {
+                    if (key !== 'drivers_license' && key !== 'medical_certificate') {
+                        formDataToSend.append(key, formData[key]);
+                    }
+                });
+                
+                // Add files only if they exist
+                if (formData.drivers_license) {
+                    formDataToSend.append('drivers_license', formData.drivers_license);
+                }
+                if (formData.medical_certificate) {
+                    formDataToSend.append('medical_certificate', formData.medical_certificate);
+                }
+                
+                console.log('Sending FormData with files');
+                const response = await axios.post(`${BASE_URL}/api/applications/`, formDataToSend);
+                console.log('Submission response:', response);
+            } else {
+                // No files, send as regular JSON
+                const dataToSend = { ...formData };
+                delete dataToSend.drivers_license;
+                delete dataToSend.medical_certificate;
+                
+                console.log('Sending data without files:', dataToSend);
+                const response = await axios.post(`${BASE_URL}/api/applications/`, dataToSend);
+                console.log('Submission response:', response);
+            }
             setMessage({ type: 'success', text: 'Application submitted successfully.' });
             setFormData({ 
                 first_name: '', 

@@ -9,7 +9,8 @@ import {
   CheckCircleIcon, 
   XCircleIcon,
   ClockIcon,
-  MapPinIcon
+  MapPinIcon,
+  DocumentIcon
 } from '@heroicons/react/24/outline';
 
 const Recruitment = () => {
@@ -22,7 +23,7 @@ const Recruitment = () => {
 
   const fetchApplications = async () => {
     try {
-      const response = await axios.get(`${BASE_URL}/api/applications/`, {
+      const response = await axios.get(`${BASE_URL}/api/applications-with-files/`, {
         headers: {
           Authorization: `Bearer ${session.accessToken}`,
         },
@@ -146,6 +147,9 @@ const Recruitment = () => {
                     CDL Experience
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Documents
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Status
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -205,6 +209,25 @@ const Recruitment = () => {
                       }`}>
                         {application.cdla_experience ? 'Has CDL-A' : 'No CDL-A'}
                       </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center space-x-1">
+                        {application.drivers_license_url && (
+                          <div className="flex items-center">
+                            <DocumentIcon className="h-4 w-4 text-blue-500" />
+                            <span className="ml-1 text-xs text-blue-600">License</span>
+                          </div>
+                        )}
+                        {application.medical_certificate_url && (
+                          <div className="flex items-center">
+                            <DocumentIcon className="h-4 w-4 text-green-500" />
+                            <span className="ml-1 text-xs text-green-600">Medical</span>
+                          </div>
+                        )}
+                        {!application.drivers_license_url && !application.medical_certificate_url && (
+                          <span className="text-xs text-gray-400">No docs</span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       {getStatusBadge(application.status)}
@@ -369,6 +392,61 @@ const ApplicationDetailModal = ({ application, onClose, onStatusUpdate, session 
                   <p className="mt-1 text-sm text-gray-900">{application.zip_code}</p>
                 </div>
               </div>
+            </div>
+
+            {/* Uploaded Documents */}
+            <div>
+              <h4 className="text-md font-medium text-gray-900 mb-3">Uploaded Documents</h4>
+              {application.drivers_license_url || application.medical_certificate_url ? (
+                <div className="space-y-3">
+                  {application.drivers_license_url && (
+                    <div className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
+                      <div className="flex items-center space-x-3">
+                        <DocumentIcon className="h-8 w-8 text-blue-500" />
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">Driver's License</p>
+                          <p className="text-xs text-gray-500">Uploaded document</p>
+                        </div>
+                      </div>
+                      <a
+                        href={application.drivers_license_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded text-blue-700 bg-blue-100 hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                      >
+                        <EyeIcon className="h-4 w-4 mr-1" />
+                        View
+                      </a>
+                    </div>
+                  )}
+                  {application.medical_certificate_url && (
+                    <div className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
+                      <div className="flex items-center space-x-3">
+                        <DocumentIcon className="h-8 w-8 text-green-500" />
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">Medical Certificate</p>
+                          <p className="text-xs text-gray-500">DOT Physical / Medical cert</p>
+                        </div>
+                      </div>
+                      <a
+                        href={application.medical_certificate_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded text-green-700 bg-green-100 hover:bg-green-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                      >
+                        <EyeIcon className="h-4 w-4 mr-1" />
+                        View
+                      </a>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center py-6 border-2 border-dashed border-gray-300 rounded-lg">
+                  <DocumentIcon className="mx-auto h-12 w-12 text-gray-400" />
+                  <p className="mt-2 text-sm text-gray-500">No documents uploaded</p>
+                  <p className="text-xs text-gray-400">Driver's license and medical certificate</p>
+                </div>
+              )}
             </div>
 
             {/* Status Management */}

@@ -322,6 +322,35 @@ class DriverDocumentViewSet(ModelViewSet):
         return queryset.order_by('-uploaded_at')
 
 @api_view(['GET'])
+@permission_classes([AllowAny])
+def list_applications_with_files(request):
+    """List all driver applications with file information"""
+    try:
+        applications = DriverApplication.objects.all().order_by('-created_at')
+        data = []
+        
+        for app in applications:
+            app_data = {
+                'id': app.id,
+                'name': f"{app.first_name} {app.last_name}",
+                'email': app.email,
+                'status': app.status,
+                'created_at': app.created_at,
+                'drivers_license_url': app.drivers_license.url if app.drivers_license else None,
+                'medical_certificate_url': app.medical_certificate.url if app.medical_certificate else None,
+                'has_files': bool(app.drivers_license or app.medical_certificate)
+            }
+            data.append(app_data)
+        
+        return Response(data, status=status.HTTP_200_OK)
+    except Exception as e:
+        logger.error(f"Error listing applications: {str(e)}")
+        return Response(
+            {'error': 'Internal server error'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+@api_view(['GET'])
 def get_latest_driver_test(request, driver_id):
     try:
         # Fetch the latest test for the given driver ID, ordered by completion_date

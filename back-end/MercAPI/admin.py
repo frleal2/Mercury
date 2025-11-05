@@ -22,7 +22,35 @@ class TruckAdmin(admin.ModelAdmin):
 admin.site.register(Company)
 admin.site.register(DriverTest)
 admin.site.register(Trailer)
-admin.site.register(DriverApplication)
+
+@admin.register(DriverApplication)
+class DriverApplicationAdmin(admin.ModelAdmin):
+    list_display = ('id', 'first_name', 'last_name', 'email', 'status', 'has_license_file', 'has_medical_file', 'created_at')
+    list_filter = ('status', 'cdla_experience', 'state', 'created_at')
+    search_fields = ('first_name', 'last_name', 'email', 'phone_number')
+    readonly_fields = ('created_at', 'updated_at', 'drivers_license_url', 'medical_certificate_url')
+    
+    def has_license_file(self, obj):
+        return bool(obj.drivers_license)
+    has_license_file.boolean = True
+    has_license_file.short_description = 'License File'
+    
+    def has_medical_file(self, obj):
+        return bool(obj.medical_certificate)
+    has_medical_file.boolean = True
+    has_medical_file.short_description = 'Medical File'
+    
+    def drivers_license_url(self, obj):
+        if obj.drivers_license:
+            return obj.drivers_license.url
+        return None
+    drivers_license_url.short_description = 'License File URL'
+    
+    def medical_certificate_url(self, obj):
+        if obj.medical_certificate:
+            return obj.medical_certificate.url
+        return None
+    medical_certificate_url.short_description = 'Medical File URL'
 
 
 @admin.register(Inspection)
