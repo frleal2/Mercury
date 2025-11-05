@@ -108,27 +108,13 @@ const ApplicationForm = () => {
         setFileErrors({});
         
         try {
-            // Create FormData for file upload
-            const formDataToSend = new FormData();
+            // Temporarily disable file uploads for testing
+            const dataToSend = { ...formData };
+            delete dataToSend.drivers_license;
+            delete dataToSend.medical_certificate;
             
-            // Add all form fields
-            Object.keys(formData).forEach(key => {
-                if (key === 'drivers_license' || key === 'medical_certificate') {
-                    // Add files if they exist
-                    if (formData[key]) {
-                        formDataToSend.append(key, formData[key]);
-                    }
-                } else {
-                    formDataToSend.append(key, formData[key]);
-                }
-            });
-            
-            const response = await axios.post(`${BASE_URL}/api/applications/`, formDataToSend, {
-                headers: {
-                    'Content-Type': 'multipart/form-data',
-                },
-            });
-            
+            console.log('Sending data:', dataToSend);
+            const response = await axios.post(`${BASE_URL}/api/applications/`, dataToSend);
             console.log('Submission response:', response);
             setMessage({ type: 'success', text: 'Application submitted successfully.' });
             setFormData({ 
