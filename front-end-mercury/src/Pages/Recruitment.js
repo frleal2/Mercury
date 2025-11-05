@@ -307,6 +307,7 @@ const Recruitment = () => {
             setSelectedApplication(null);
           }}
           session={session}
+          handleFileDownload={handleFileDownload}
         />
       )}
     </div>
@@ -314,7 +315,7 @@ const Recruitment = () => {
 };
 
 // Application Detail Modal Component
-const ApplicationDetailModal = ({ application, onClose, onStatusUpdate, session }) => {
+const ApplicationDetailModal = ({ application, onClose, onStatusUpdate, session, handleFileDownload }) => {
   const [status, setStatus] = useState(application.status || 'new');
   const [notes, setNotes] = useState('');
   const [updating, setUpdating] = useState(false);
