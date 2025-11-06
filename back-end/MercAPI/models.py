@@ -1,6 +1,44 @@
 from django.db import models
 from datetime import date, datetime  # Import date and datetime for default values
 
+class Tenant(models.Model):
+    """
+    Represents a business/organization that uses the fleet management system.
+    A tenant can have multiple companies (subsidiaries, divisions, etc.)
+    """
+    name = models.CharField(max_length=255, help_text="Business name (e.g., 'ABC Logistics LLC')")
+    domain = models.CharField(
+        max_length=100, 
+        unique=True, 
+        help_text="Subdomain for this tenant (e.g., 'abc-logistics')"
+    )
+    application_code = models.CharField(
+        max_length=10, 
+        unique=True, 
+        help_text="Short code for Quick Apply links (e.g., 'ABC123')"
+    )
+    contact_email = models.EmailField(help_text="Primary contact email for this tenant")
+    subscription_plan = models.CharField(
+        max_length=50, 
+        default='starter',
+        choices=[
+            ('starter', 'Starter'),
+            ('professional', 'Professional'),
+            ('enterprise', 'Enterprise'),
+        ]
+    )
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['name']
+        verbose_name = "Tenant (Business Account)"
+        verbose_name_plural = "Tenants (Business Accounts)"
+
+    def __str__(self):
+        return f"{self.name} ({self.domain})"
+
 class Company(models.Model):
     id = models.AutoField(primary_key=True)
     name = models.CharField(max_length=255)

@@ -1,5 +1,28 @@
 from django.contrib import admin
-from .models import Driver, Company, DriverTest, Truck, Trailer, Inspection, InspectionItem, Trips, DriverHOS, DriverApplication  # Import the DriverHOS model
+from .models import Driver, Company, DriverTest, Truck, Trailer, Inspection, InspectionItem, Trips, DriverHOS, DriverApplication, Tenant  # Import the Tenant model
+
+@admin.register(Tenant)
+class TenantAdmin(admin.ModelAdmin):
+    list_display = ('name', 'domain', 'application_code', 'subscription_plan', 'is_active', 'created_at')
+    list_filter = ('subscription_plan', 'is_active', 'created_at')
+    search_fields = ('name', 'domain', 'application_code', 'contact_email')
+    readonly_fields = ('created_at', 'updated_at')
+    
+    fieldsets = (
+        ('Basic Information', {
+            'fields': ('name', 'contact_email')
+        }),
+        ('System Configuration', {
+            'fields': ('domain', 'application_code')
+        }),
+        ('Subscription', {
+            'fields': ('subscription_plan', 'is_active')
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
 
 @admin.register(Driver)
 class DriverAdmin(admin.ModelAdmin):
