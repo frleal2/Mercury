@@ -85,13 +85,9 @@ const ApplicationForm = () => {
 
     // Function to extract tenant domain from hostname
     const extractTenantDomain = () => {
-        const hostname = window.location.hostname;
-        // If hostname is like "abc-logistics.mercuryfleet.com", extract "abc-logistics"
-        // For development, might be "localhost" so we'll handle both cases
-        if (hostname.includes('.') && !hostname.startsWith('localhost')) {
-            return hostname.split('.')[0];
-        }
-        // For development/testing, check if there's a tenant parameter
+        // For now, always use URL parameter since we're on shared hosting
+        // Later when you have custom subdomains like "secoya.fleetly.com", 
+        // you can update this logic to extract from hostname
         return searchParams.get('tenant') || null;
     };
 
