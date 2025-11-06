@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument
+from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Inspection, InspectionItem, Trips
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -146,3 +146,23 @@ class MaintenanceRecordSerializer(serializers.ModelSerializer):
                 'model': obj.trailer.model
             }
         return None
+
+
+class InspectionItemSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = InspectionItem
+        fields = '__all__'
+
+
+class InspectionSerializer(serializers.ModelSerializer):
+    items = InspectionItemSerializer(many=True, read_only=True)
+    
+    class Meta:
+        model = Inspection
+        fields = '__all__'
+
+
+class TripsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Trips
+        fields = '__all__'

@@ -2,17 +2,18 @@ import logging
 import boto3
 from botocore.exceptions import NoCredentialsError
 from django.conf import settings
-from .serializers import UserSerializer, DriverSerializer, TruckSerializer, CompanySerializer, TrailerSerializer, DriverTestSerializer, DriverHOSSerializer, DriverApplicationSerializer, MaintenanceCategorySerializer, MaintenanceTypeSerializer, MaintenanceRecordSerializer, MaintenanceAttachmentSerializer, DriverDocumentSerializer
+from .serializers import UserSerializer, DriverSerializer, TruckSerializer, CompanySerializer, TrailerSerializer, DriverTestSerializer, DriverHOSSerializer, DriverApplicationSerializer, MaintenanceCategorySerializer, MaintenanceTypeSerializer, MaintenanceRecordSerializer, MaintenanceAttachmentSerializer, DriverDocumentSerializer, InspectionSerializer, InspectionItemSerializer, TripsSerializer
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.contrib.auth.models import User
+from django.db.models import Q
 from rest_framework.authtoken.models import Token
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework_simplejwt.views import TokenObtainPairView
-from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Tenant, UserProfile
+from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Tenant, UserProfile, Inspection, InspectionItem, Trips
 from rest_framework.serializers import ValidationError
 from rest_framework import serializers
 from django.core.files.storage import default_storage
@@ -22,6 +23,51 @@ import mimetypes
 import os
 
 logger = logging.getLogger(__name__)
+
+class CompanyFilterMixin:
+    """
+    Mixin to filter queryset by user's assigned companies.
+    Only shows data for companies the user has access to.
+    """
+    def get_queryset(self):
+        # Get the base queryset
+        queryset = super().get_queryset()
+        
+        # If user is not authenticated, return empty queryset
+        if not self.request.user.is_authenticated:
+            return queryset.none()
+        
+        # If user doesn't have a profile, return empty queryset
+        if not hasattr(self.request.user, 'profile'):
+            return queryset.none()
+        
+        # Get user's assigned companies
+        user_companies = self.request.user.profile.companies.all()
+        
+        # If user has no companies assigned, return empty queryset
+        if not user_companies.exists():
+            return queryset.none()
+        
+        # Filter queryset by company field (if it exists)
+        if hasattr(queryset.model, 'company'):
+            return queryset.filter(company__in=user_companies)
+        
+        # For Company model itself, return only user's companies
+        if queryset.model.__name__ == 'Company':
+            return user_companies
+        
+        # Handle models that connect to companies through relationships
+        model_name = queryset.model.__name__
+        
+        if model_name == 'InspectionItem':
+            # Filter through inspection -> truck/driver -> company
+            return queryset.filter(
+                Q(inspection__truck__company__in=user_companies) |
+                Q(inspection__driver__company__in=user_companies)
+            )
+        
+        # For models that don't have a company field, return all (maintenance categories, etc.)
+        return queryset
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
@@ -580,41 +626,79 @@ class RegisterUserView(APIView):
             return Response({'token': token.key}, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-class CustomTokenObtainPairView(TokenObtainPairView):
-    # Optionally, you can override methods or serializers here if needed
-    pass
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
-class DriverViewSet(ModelViewSet):
+class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    @classmethod
+    def get_token(cls, user):
+        token = super().get_token(user)
+        
+        # Add custom claims
+        if hasattr(user, 'profile'):
+            profile = user.profile
+            # Add tenant information
+            if profile.tenant:
+                token['tenant_id'] = profile.tenant.id
+                token['tenant_name'] = profile.tenant.name
+            
+            # Add company information
+            companies = profile.companies.all()
+            token['companies'] = [
+                {
+                    'id': company.id,
+                    'name': company.name,
+                    'slug': company.slug
+                }
+                for company in companies
+            ]
+            
+            # Add admin status
+            token['is_company_admin'] = profile.is_company_admin
+        
+        return token
+
+class CustomTokenObtainPairView(TokenObtainPairView):
+    serializer_class = CustomTokenObtainPairSerializer
+
+class DriverViewSet(CompanyFilterMixin, ModelViewSet):
     queryset = Driver.objects.all()
     serializer_class = DriverSerializer
+    permission_classes = [IsAuthenticated]
 
     def list(self, request, *args, **kwargs):
-        logger.debug("Fetching all drivers with their test history")
+        logger.debug("Fetching drivers filtered by user's companies")
         return super().list(request, *args, **kwargs)
 
     def create(self, request, *args, **kwargs):
         return super().create(request, *args, **kwargs)
 
-class TruckViewSet(ModelViewSet):
+class TruckViewSet(CompanyFilterMixin, ModelViewSet):
     queryset = Truck.objects.all()
     serializer_class = TruckSerializer
     permission_classes = [IsAuthenticated]
 
-class CompanyViewSet(ModelViewSet):
+class CompanyViewSet(CompanyFilterMixin, ModelViewSet):
     queryset = Company.objects.all()
     serializer_class = CompanySerializer
     permission_classes = [IsAuthenticated]
 
-class TrailerViewSet(ModelViewSet):
+class TrailerViewSet(CompanyFilterMixin, ModelViewSet):
     queryset = Trailer.objects.all()
     serializer_class = TrailerSerializer
     permission_classes = [IsAuthenticated]
 
 
-class DriverApplicationViewSet(ModelViewSet):
+class DriverApplicationViewSet(CompanyFilterMixin, ModelViewSet):
     queryset = DriverApplication.objects.all()
     serializer_class = DriverApplicationSerializer
     permission_classes = [AllowAny]
+    
+    def get_queryset(self):
+        # If user is authenticated, filter by their companies
+        if self.request.user.is_authenticated:
+            return super().get_queryset()
+        # If not authenticated (public access), return all for create operations
+        return DriverApplication.objects.all()
     
     def create(self, request, *args, **kwargs):
         try:
@@ -635,33 +719,36 @@ class DriverApplicationViewSet(ModelViewSet):
             logger.error(f"Traceback: {traceback.format_exc()}")
             raise
 
-class DriverTestViewSet(ModelViewSet):
+class DriverTestViewSet(CompanyFilterMixin, ModelViewSet):
     queryset = DriverTest.objects.all()
     serializer_class = DriverTestSerializer
     permission_classes = [IsAuthenticated]
 
-class DriverHOSViewSet(ModelViewSet):
+class DriverHOSViewSet(CompanyFilterMixin, ModelViewSet):
     queryset = DriverHOS.objects.all()
     serializer_class = DriverHOSSerializer
     permission_classes = [IsAuthenticated]
 
-class MaintenanceCategoryViewSet(ModelViewSet):
+class MaintenanceCategoryViewSet(CompanyFilterMixin, ModelViewSet):
     queryset = MaintenanceCategory.objects.all()
     serializer_class = MaintenanceCategorySerializer
     permission_classes = [IsAuthenticated]
 
-class MaintenanceTypeViewSet(ModelViewSet):
+class MaintenanceTypeViewSet(CompanyFilterMixin, ModelViewSet):
     queryset = MaintenanceType.objects.all()
     serializer_class = MaintenanceTypeSerializer
     permission_classes = [IsAuthenticated]
 
-class MaintenanceRecordViewSet(ModelViewSet):
+class MaintenanceRecordViewSet(CompanyFilterMixin, ModelViewSet):
     queryset = MaintenanceRecord.objects.all()
     serializer_class = MaintenanceRecordSerializer
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
-        queryset = MaintenanceRecord.objects.all()
+        # First apply company filtering
+        queryset = super().get_queryset()
+        
+        # Then apply additional filters
         vehicle_type = self.request.query_params.get('vehicle_type', None)
         vehicle_id = self.request.query_params.get('vehicle_id', None)
         status = self.request.query_params.get('status', None)
@@ -709,18 +796,21 @@ class MaintenanceRecordViewSet(ModelViewSet):
             
         return queryset
 
-class MaintenanceAttachmentViewSet(ModelViewSet):
+class MaintenanceAttachmentViewSet(CompanyFilterMixin, ModelViewSet):
     queryset = MaintenanceAttachment.objects.all()
     serializer_class = MaintenanceAttachmentSerializer
     permission_classes = [IsAuthenticated]
 
-class DriverDocumentViewSet(ModelViewSet):
+class DriverDocumentViewSet(CompanyFilterMixin, ModelViewSet):
     queryset = DriverDocument.objects.all()
     serializer_class = DriverDocumentSerializer
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
-        queryset = DriverDocument.objects.all()
+        # First apply company filtering
+        queryset = super().get_queryset()
+        
+        # Then apply additional filters
         driver_id = self.request.query_params.get('driver_id', None)
         document_type = self.request.query_params.get('document_type', None)
         
@@ -731,6 +821,89 @@ class DriverDocumentViewSet(ModelViewSet):
             queryset = queryset.filter(document_type=document_type)
             
         return queryset.order_by('-uploaded_at')
+
+
+class InspectionViewSet(CompanyFilterMixin, ModelViewSet):
+    queryset = Inspection.objects.all()
+    serializer_class = InspectionSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        # Apply company filtering through truck and driver relationships
+        queryset = super().get_queryset()
+        
+        # Additional filters
+        truck_id = self.request.query_params.get('truck_id', None)
+        driver_id = self.request.query_params.get('driver_id', None)
+        inspection_type = self.request.query_params.get('inspection_type', None)
+        
+        if truck_id:
+            queryset = queryset.filter(truck_id=truck_id)
+        
+        if driver_id:
+            queryset = queryset.filter(driver_id=driver_id)
+            
+        if inspection_type:
+            queryset = queryset.filter(inspection_type=inspection_type)
+            
+        return queryset.order_by('-inspection_date')
+
+
+class InspectionItemViewSet(CompanyFilterMixin, ModelViewSet):
+    queryset = InspectionItem.objects.all()
+    serializer_class = InspectionItemSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        # Filter through inspection relationship
+        queryset = super().get_queryset()
+        
+        # Additional filters
+        inspection_id = self.request.query_params.get('inspection_id', None)
+        component = self.request.query_params.get('component', None)
+        condition = self.request.query_params.get('condition', None)
+        
+        if inspection_id:
+            queryset = queryset.filter(inspection_id=inspection_id)
+        
+        if component:
+            queryset = queryset.filter(component=component)
+            
+        if condition:
+            queryset = queryset.filter(condition=condition)
+            
+        return queryset
+
+
+class TripsViewSet(CompanyFilterMixin, ModelViewSet):
+    queryset = Trips.objects.all()
+    serializer_class = TripsSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        # Apply company filtering through driver and truck relationships
+        queryset = super().get_queryset()
+        
+        # Additional filters
+        driver_id = self.request.query_params.get('driver_id', None)
+        truck_id = self.request.query_params.get('truck_id', None)
+        start_date = self.request.query_params.get('start_date', None)
+        end_date = self.request.query_params.get('end_date', None)
+        
+        if driver_id:
+            queryset = queryset.filter(driver_id=driver_id)
+        
+        if truck_id:
+            queryset = queryset.filter(truck_id=truck_id)
+            
+        if start_date:
+            queryset = queryset.filter(start_time__date__gte=start_date)
+            
+        if end_date:
+            queryset = queryset.filter(start_time__date__lte=end_date)
+            
+        return queryset.order_by('-start_time')
+
 
 @api_view(['GET'])
 @permission_classes([AllowAny])

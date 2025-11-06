@@ -1,19 +1,59 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
 import BASE_URL from '../config';
+import { jwtDecode } from 'jwt-decode';
 
 const SessionContext = createContext();
 
 export const SessionProvider = ({ children }) => {
   const [session, setSessionState] = useState(() => {
     const savedSession = localStorage.getItem('session');
-    return savedSession ? JSON.parse(savedSession) : { accessToken: '', refreshToken: '' };
+    if (savedSession) {
+      const parsed = JSON.parse(savedSession);
+      // If there's an access token but no userInfo, decode it
+      if (parsed.accessToken && !parsed.userInfo) {
+        try {
+          const decoded = jwtDecode(parsed.accessToken);
+          parsed.userInfo = {
+            userId: decoded.user_id,
+            username: decoded.username,
+            tenantId: decoded.tenant_id,
+            tenantName: decoded.tenant_name,
+            companies: decoded.companies || [],
+            isCompanyAdmin: decoded.is_company_admin || false,
+            exp: decoded.exp
+          };
+        } catch (error) {
+          console.error('Error decoding existing JWT token:', error);
+        }
+      }
+      return parsed;
+    }
+    return { accessToken: '', refreshToken: '' };
   });
 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const failedQueue = useRef([]);
 
   const setSession = (newSession) => {
+    // If there's an access token, decode it and add user info
+    if (newSession.accessToken) {
+      try {
+        const decoded = jwtDecode(newSession.accessToken);
+        newSession.userInfo = {
+          userId: decoded.user_id,
+          username: decoded.username,
+          tenantId: decoded.tenant_id,
+          tenantName: decoded.tenant_name,
+          companies: decoded.companies || [],
+          isCompanyAdmin: decoded.is_company_admin || false,
+          exp: decoded.exp
+        };
+      } catch (error) {
+        console.error('Error decoding JWT token:', error);
+      }
+    }
+    
     setSessionState(newSession);
     localStorage.setItem('session', JSON.stringify(newSession));
   };

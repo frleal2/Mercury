@@ -21,7 +21,7 @@ from rest_framework.authtoken.views import obtain_auth_token
 from django.conf import settings
 from django.conf.urls.static import static
 from MercAPI import views  # Corrected to match the actual directory name
-from MercAPI.views import RegisterUserView, CustomTokenObtainPairView, DriverViewSet, TruckViewSet, CompanyViewSet, TrailerViewSet, DriverTestViewSet, DriverHOSViewSet, DriverApplicationViewSet, MaintenanceCategoryViewSet, MaintenanceTypeViewSet, MaintenanceRecordViewSet, MaintenanceAttachmentViewSet, DriverDocumentViewSet, MaintenanceAttachmentUploadView, DriverDocumentUploadView
+from MercAPI.views import RegisterUserView, CustomTokenObtainPairView, DriverViewSet, TruckViewSet, CompanyViewSet, TrailerViewSet, DriverTestViewSet, DriverHOSViewSet, DriverApplicationViewSet, MaintenanceCategoryViewSet, MaintenanceTypeViewSet, MaintenanceRecordViewSet, MaintenanceAttachmentViewSet, DriverDocumentViewSet, MaintenanceAttachmentUploadView, DriverDocumentUploadView, InspectionViewSet, InspectionItemViewSet, TripsViewSet
 
 router = DefaultRouter()
 router.register(r'drivers', DriverViewSet, basename='driver')  # Register DriverViewSet
@@ -36,6 +36,9 @@ router.register(r'maintenance-types', MaintenanceTypeViewSet, basename='maintena
 router.register(r'maintenance-records', MaintenanceRecordViewSet, basename='maintenance-record')
 router.register(r'maintenance-attachments', MaintenanceAttachmentViewSet, basename='maintenance-attachment')
 router.register(r'driver-documents', DriverDocumentViewSet, basename='driver-document')
+router.register(r'inspections', InspectionViewSet, basename='inspection')
+router.register(r'inspection-items', InspectionItemViewSet, basename='inspection-item')
+router.register(r'trips', TripsViewSet, basename='trips')
 
 urlpatterns = [
     path('admin/', admin.site.urls),
