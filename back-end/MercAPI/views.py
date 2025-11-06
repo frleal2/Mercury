@@ -191,6 +191,195 @@ def tenant_signup(request):
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def invite_user(request):
+    """
+    Allow company admin to invite a new user to their tenant/companies.
+    Sends invitation email with signup link.
+    """
+    try:
+        # Check if user is company admin
+        if not hasattr(request.user, 'profile') or not request.user.profile.is_company_admin:
+            return Response(
+                {'error': 'Only company admins can invite users'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        data = request.data
+        required_fields = ['email', 'first_name', 'last_name', 'company_ids']
+        for field in required_fields:
+            if not data.get(field):
+                return Response(
+                    {'error': f'{field} is required'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        
+        # Check if email already exists
+        if User.objects.filter(email=data['email']).exists():
+            return Response(
+                {'error': 'User with this email already exists'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Verify admin can access all requested companies
+        admin_companies = request.user.profile.companies.all()
+        company_ids = data['company_ids']
+        requested_companies = Company.objects.filter(id__in=company_ids)
+        
+        for company in requested_companies:
+            if company not in admin_companies:
+                return Response(
+                    {'error': f'You do not have access to company: {company.name}'}, 
+                    status=status.HTTP_403_FORBIDDEN
+                )
+        
+        # Create inactive user (will be activated when they set password)
+        new_user = User.objects.create_user(
+            username=data['email'],
+            email=data['email'],
+            first_name=data['first_name'],
+            last_name=data['last_name'],
+            is_active=False  # User must activate via invite link
+        )
+        
+        # Set up user profile
+        profile = new_user.profile
+        profile.tenant = request.user.profile.tenant
+        profile.save()
+        profile.companies.set(requested_companies)
+        
+        # TODO: Send invitation email (for now just return success)
+        # In production, you'd send an email with a secure token link
+        
+        return Response({
+            'message': 'User invited successfully',
+            'user': {
+                'id': new_user.id,
+                'email': new_user.email,
+                'first_name': new_user.first_name,
+                'last_name': new_user.last_name,
+                'companies': [{'id': c.id, 'name': c.name} for c in requested_companies]
+            }
+        }, status=status.HTTP_201_CREATED)
+        
+    except Exception as e:
+        logger.error(f"Error inviting user: {str(e)}")
+        return Response(
+            {'error': 'Internal server error'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def list_tenant_users(request):
+    """
+    List all users in the admin's tenant with their company assignments.
+    Only accessible by company admins.
+    """
+    try:
+        # Check if user is company admin
+        if not hasattr(request.user, 'profile') or not request.user.profile.is_company_admin:
+            return Response(
+                {'error': 'Only company admins can view users'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Get all users in the same tenant
+        tenant = request.user.profile.tenant
+        tenant_users = User.objects.filter(profile__tenant=tenant).select_related('profile')
+        
+        users_data = []
+        for user in tenant_users:
+            user_companies = user.profile.companies.all()
+            users_data.append({
+                'id': user.id,
+                'email': user.email,
+                'first_name': user.first_name,
+                'last_name': user.last_name,
+                'is_active': user.is_active,
+                'is_company_admin': user.profile.is_company_admin,
+                'companies': [{'id': c.id, 'name': c.name, 'slug': c.slug} for c in user_companies],
+                'date_joined': user.date_joined
+            })
+        
+        return Response({
+            'users': users_data,
+            'tenant': {
+                'name': tenant.name,
+                'domain': tenant.domain
+            }
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        logger.error(f"Error listing users: {str(e)}")
+        return Response(
+            {'error': 'Internal server error'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+@api_view(['PUT'])
+@permission_classes([IsAuthenticated])
+def update_user_companies(request, user_id):
+    """
+    Update a user's company assignments.
+    Only accessible by company admins within the same tenant.
+    """
+    try:
+        # Check if user is company admin
+        if not hasattr(request.user, 'profile') or not request.user.profile.is_company_admin:
+            return Response(
+                {'error': 'Only company admins can update users'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Get target user
+        try:
+            target_user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return Response(
+                {'error': 'User not found'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Verify target user is in same tenant
+        if target_user.profile.tenant != request.user.profile.tenant:
+            return Response(
+                {'error': 'User not in your tenant'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Verify admin can access all requested companies
+        company_ids = request.data.get('company_ids', [])
+        admin_companies = request.user.profile.companies.all()
+        requested_companies = Company.objects.filter(id__in=company_ids)
+        
+        for company in requested_companies:
+            if company not in admin_companies:
+                return Response(
+                    {'error': f'You do not have access to company: {company.name}'}, 
+                    status=status.HTTP_403_FORBIDDEN
+                )
+        
+        # Update user's company assignments
+        target_user.profile.companies.set(requested_companies)
+        
+        return Response({
+            'message': 'User companies updated successfully',
+            'user': {
+                'id': target_user.id,
+                'email': target_user.email,
+                'companies': [{'id': c.id, 'name': c.name} for c in requested_companies]
+            }
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        logger.error(f"Error updating user companies: {str(e)}")
+        return Response(
+            {'error': 'Internal server error'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
 class FileUploadView(APIView):
     """
     Base view for handling file uploads with validation

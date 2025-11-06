@@ -51,6 +51,9 @@ urlpatterns = [
     path('api/resolve/<str:tenant_domain>/', views.resolve_tenant_company, name='resolve_tenant'),
     path('api/resolve/<str:tenant_domain>/<str:company_slug>/', views.resolve_tenant_company, name='resolve_tenant_company'),
     path('api/tenant-signup/', views.tenant_signup, name='tenant_signup'),
+    path('api/invite-user/', views.invite_user, name='invite_user'),
+    path('api/tenant-users/', views.list_tenant_users, name='list_tenant_users'),
+    path('api/users/<int:user_id>/companies/', views.update_user_companies, name='update_user_companies'),
 ]
 
 # Serve media files during development

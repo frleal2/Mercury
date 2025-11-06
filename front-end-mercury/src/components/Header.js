@@ -135,6 +135,14 @@ export default function Example() {
                   </a>
                 </MenuItem>
                 <MenuItem>
+                  <a
+                    href="/UserManagement"
+                    className="block px-4 py-2 text-sm text-gray-700 data-focus:bg-gray-100 data-focus:outline-hidden"
+                  >
+                    User Management
+                  </a>
+                </MenuItem>
+                <MenuItem>
                   <button
                     onClick={() => handleSignOut(setSession)} // Pass setSession to handleSignOut
                     className="block w-full text-left px-4 py-2 text-sm text-gray-700 data-focus:bg-gray-100 data-focus:outline-hidden"
