@@ -1,5 +1,7 @@
 from django.contrib import admin
-from .models import Driver, Company, DriverTest, Truck, Trailer, Inspection, InspectionItem, Trips, DriverHOS, DriverApplication, Tenant  # Import the Tenant model
+from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
+from django.contrib.auth.models import User
+from .models import Driver, Company, DriverTest, Truck, Trailer, Inspection, InspectionItem, Trips, DriverHOS, DriverApplication, Tenant, UserProfile  # Import the UserProfile model
 
 @admin.register(Tenant)
 class TenantAdmin(admin.ModelAdmin):
@@ -42,6 +44,55 @@ class CompanyAdmin(admin.ModelAdmin):
             'fields': ('active',)
         }),
     )
+
+# UserProfile admin - inline with User
+class UserProfileInline(admin.StackedInline):
+    model = UserProfile
+    can_delete = False
+    verbose_name_plural = 'Profile'
+    filter_horizontal = ('companies',)  # Makes company selection easier
+    
+    fieldsets = (
+        ('Company Access', {
+            'fields': ('companies', 'tenant')
+        }),
+        ('Permissions', {
+            'fields': ('is_company_admin',)
+        }),
+    )
+
+# Extend the existing User admin
+class UserAdmin(BaseUserAdmin):
+    inlines = (UserProfileInline,)
+
+# Re-register UserAdmin
+admin.site.unregister(User)
+admin.site.register(User, UserAdmin)
+
+@admin.register(UserProfile)
+class UserProfileAdmin(admin.ModelAdmin):
+    list_display = ('user', 'tenant', 'is_company_admin', 'company_count', 'created_at')
+    list_filter = ('tenant', 'is_company_admin', 'created_at')
+    search_fields = ('user__username', 'user__email', 'user__first_name', 'user__last_name')
+    filter_horizontal = ('companies',)
+    
+    def company_count(self, obj):
+        return obj.companies.count()
+    company_count.short_description = 'Companies'
+    
+    fieldsets = (
+        ('User', {
+            'fields': ('user',)
+        }),
+        ('Access Control', {
+            'fields': ('tenant', 'companies', 'is_company_admin')
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    readonly_fields = ('created_at', 'updated_at')
 
 @admin.register(Driver)
 class DriverAdmin(admin.ModelAdmin):

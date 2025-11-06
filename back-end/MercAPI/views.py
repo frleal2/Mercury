@@ -12,7 +12,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework_simplejwt.views import TokenObtainPairView
-from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Tenant
+from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Tenant, UserProfile
 from rest_framework.serializers import ValidationError
 from rest_framework import serializers
 from django.core.files.storage import default_storage
@@ -90,6 +90,102 @@ def resolve_tenant_company(request, tenant_domain=None, company_slug=None):
         
     except Exception as e:
         logger.error(f"Error resolving tenant/company: {str(e)}")
+        return Response(
+            {'error': 'Internal server error'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def tenant_signup(request):
+    """
+    Create a new tenant, company, and admin user in one signup flow.
+    Used for client self-service signup.
+    """
+    try:
+        data = request.data
+        
+        # Required fields validation
+        required_fields = ['business_name', 'domain', 'admin_email', 'admin_password', 'admin_first_name', 'admin_last_name']
+        for field in required_fields:
+            if not data.get(field):
+                return Response(
+                    {'error': f'{field} is required'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        
+        # Check if domain is already taken
+        if Tenant.objects.filter(domain=data['domain']).exists():
+            return Response(
+                {'error': 'Domain already exists'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Check if admin email is already taken
+        if User.objects.filter(email=data['admin_email']).exists():
+            return Response(
+                {'error': 'Email already exists'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Create tenant
+        tenant = Tenant.objects.create(
+            name=data['business_name'],
+            domain=data['domain'],
+            application_code=data['domain'][:10].upper(),  # Use first 10 chars of domain
+            contact_email=data['admin_email'],
+            subscription_plan=data.get('subscription_plan', 'starter')
+        )
+        
+        # Create default company
+        company = Company.objects.create(
+            tenant=tenant,
+            name=data.get('company_name', f"{data['business_name']} - Main Office"),
+            slug=data['domain'],  # Use domain as slug for main company
+            email=data['admin_email'],
+            active=True
+        )
+        
+        # Create admin user
+        admin_user = User.objects.create_user(
+            username=data['admin_email'],  # Use email as username
+            email=data['admin_email'],
+            password=data['admin_password'],
+            first_name=data['admin_first_name'],
+            last_name=data['admin_last_name'],
+            is_staff=True  # Allow admin panel access
+        )
+        
+        # The UserProfile is created automatically by signal
+        # Now assign the admin to the company with admin permissions
+        profile = admin_user.profile
+        profile.tenant = tenant
+        profile.is_company_admin = True
+        profile.save()
+        profile.companies.add(company)
+        
+        return Response({
+            'message': 'Tenant created successfully',
+            'tenant': {
+                'id': tenant.id,
+                'name': tenant.name,
+                'domain': tenant.domain
+            },
+            'company': {
+                'id': company.id,
+                'name': company.name,
+                'slug': company.slug
+            },
+            'admin_user': {
+                'id': admin_user.id,
+                'email': admin_user.email,
+                'first_name': admin_user.first_name,
+                'last_name': admin_user.last_name
+            }
+        }, status=status.HTTP_201_CREATED)
+        
+    except Exception as e:
+        logger.error(f"Error creating tenant: {str(e)}")
         return Response(
             {'error': 'Internal server error'}, 
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
