@@ -66,6 +66,13 @@ class CompanyFilterMixin:
                 Q(inspection__driver__company__in=user_companies)
             )
         
+        if model_name == 'MaintenanceRecord':
+            # Filter through truck/trailer -> company
+            return queryset.filter(
+                Q(truck__company__in=user_companies) |
+                Q(trailer__company__in=user_companies)
+            )
+        
         # For models that don't have a company field, return all (maintenance categories, etc.)
         return queryset
 
