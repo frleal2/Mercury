@@ -71,6 +71,18 @@ const Login = () => {
                         Login
                     </button>
                 </form>
+                
+                <div className="mt-6 text-center">
+                    <p className="text-sm text-gray-600">
+                        Don't have an account?{' '}
+                        <button
+                            onClick={() => navigate('/signup')}
+                            className="font-medium text-blue-600 hover:text-blue-500"
+                        >
+                            Sign up for free
+                        </button>
+                    </p>
+                </div>
             </div>
         </div>
     );

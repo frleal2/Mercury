@@ -11,6 +11,7 @@ import Recruitment from './Pages/Recruitment';
 import ApplicationForm from './Pages/ApplicationForm';
 import Maintenance from './Pages/Maintenance';
 import UserManagement from './Pages/UserManagement';
+import Signup from './Pages/Signup';
 
 function AppContent() {
     const { session } = useSession();
@@ -33,6 +34,7 @@ function AppContent() {
             ) : (
                 <>
                     <Route path="/login" element={<Login />} />
+                    <Route path="/signup" element={<Signup />} />
                     <Route path="/QuickApply" element={<ApplicationForm />} /> {/* Allow access to Recruitment without login */}
                     <Route path="*" element={<Navigate to="/login" />} />
                 </>

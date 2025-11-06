@@ -152,7 +152,7 @@ def tenant_signup(request):
         data = request.data
         
         # Required fields validation
-        required_fields = ['business_name', 'domain', 'admin_email', 'admin_password', 'admin_first_name', 'admin_last_name']
+        required_fields = ['business_name', 'domain', 'admin_username', 'admin_email', 'admin_password', 'admin_first_name', 'admin_last_name']
         for field in required_fields:
             if not data.get(field):
                 return Response(
@@ -164,6 +164,13 @@ def tenant_signup(request):
         if Tenant.objects.filter(domain=data['domain']).exists():
             return Response(
                 {'error': 'Domain already exists'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Check if admin username is already taken
+        if User.objects.filter(username=data['admin_username']).exists():
+            return Response(
+                {'error': 'Username already exists'}, 
                 status=status.HTTP_400_BAD_REQUEST
             )
         
@@ -194,7 +201,7 @@ def tenant_signup(request):
         
         # Create admin user
         admin_user = User.objects.create_user(
-            username=data['admin_email'],  # Use email as username
+            username=data['admin_username'],  # Use provided username
             email=data['admin_email'],
             password=data['admin_password'],
             first_name=data['admin_first_name'],
