@@ -26,13 +26,14 @@ class TenantAdmin(admin.ModelAdmin):
 
 @admin.register(Company)
 class CompanyAdmin(admin.ModelAdmin):
-    list_display = ('name', 'tenant', 'phone', 'email', 'active')
+    list_display = ('name', 'slug', 'tenant', 'phone', 'email', 'active')
     list_filter = ('tenant', 'active')
-    search_fields = ('name', 'email', 'phone')
+    search_fields = ('name', 'slug', 'email', 'phone')
+    prepopulated_fields = {'slug': ('name',)}  # Auto-generate slug from name
     
     fieldsets = (
         ('Basic Information', {
-            'fields': ('tenant', 'name', 'email', 'phone')
+            'fields': ('tenant', 'name', 'slug', 'email', 'phone')
         }),
         ('Address', {
             'fields': ('address',)
@@ -65,9 +66,27 @@ admin.site.register(Trailer)
 
 @admin.register(DriverApplication)
 class DriverApplicationAdmin(admin.ModelAdmin):
-    list_display = ('id', 'first_name', 'last_name', 'email', 'status', 'has_license_file', 'has_medical_file', 'created_at')
-    list_filter = ('status', 'cdla_experience', 'state', 'created_at')
+    list_display = ('id', 'first_name', 'last_name', 'email', 'company', 'status', 'has_license_file', 'has_medical_file', 'created_at')
+    list_filter = ('company', 'status', 'cdla_experience', 'state', 'created_at')
     search_fields = ('first_name', 'last_name', 'email', 'phone_number')
+    
+    fieldsets = (
+        ('Application Target', {
+            'fields': ('company',)
+        }),
+        ('Personal Information', {
+            'fields': ('first_name', 'middle_name', 'last_name', 'email', 'phone_number')
+        }),
+        ('Address', {
+            'fields': ('address', 'zip_code', 'state')
+        }),
+        ('Experience & Status', {
+            'fields': ('cdla_experience', 'status', 'notes')
+        }),
+        ('Documents', {
+            'fields': ('drivers_license', 'medical_certificate')
+        }),
+    )
     readonly_fields = ('created_at', 'updated_at', 'drivers_license_url', 'medical_certificate_url')
     
     def has_license_file(self, obj):

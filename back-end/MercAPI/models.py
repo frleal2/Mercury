@@ -49,6 +49,13 @@ class Company(models.Model):
         help_text="The business/organization this company belongs to"
     )
     name = models.CharField(max_length=255)
+    slug = models.SlugField(
+        max_length=100,
+        unique=True,
+        null=True,
+        blank=True,
+        help_text="URL-friendly name for this company (e.g., 'east-coast', 'west-division')"
+    )
     address = models.TextField(null=True, blank=True)
     phone = models.CharField(max_length=20, null=True, blank=True)
     email = models.EmailField(null=True, blank=True)
@@ -182,6 +189,13 @@ class Trailer(models.Model):
 
 class DriverApplication(models.Model):
     id = models.AutoField(primary_key=True)
+    company = models.ForeignKey(
+        Company,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        help_text="The specific company/division this application is for"
+    )
     first_name = models.CharField(max_length=255,null=False,default="")
     middle_name = models.CharField(max_length=255, blank=True, null=True, default="")
     last_name = models.CharField(max_length=255, null=False, default="")
