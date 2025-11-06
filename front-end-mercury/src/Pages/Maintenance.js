@@ -123,8 +123,12 @@ function Maintenance() {
 
   const getTimeInfo = (record) => {
     if (record.status === 'completed') {
+      const completedDate = record.completed_date ? 
+        new Date(record.completed_date).toLocaleDateString() : 
+        'Recently';
+      
       return {
-        text: `Completed ${new Date(record.completed_date).toLocaleDateString()}`,
+        text: `Completed ${completedDate}`,
         color: 'text-green-600',
         icon: CheckCircleIcon
       };

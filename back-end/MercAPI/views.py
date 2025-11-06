@@ -317,6 +317,38 @@ class MaintenanceRecordViewSet(ModelViewSet):
         
         if status:
             queryset = queryset.filter(status=status)
+        
+        return queryset
+    
+    def update(self, request, *args, **kwargs):
+        """Override update to automatically set completed_date when status changes to completed"""
+        instance = self.get_object()
+        
+        # Check if status is being changed to completed
+        if (request.data.get('status') == 'completed' and 
+            instance.status != 'completed' and 
+            not request.data.get('completed_date')):
+            # Automatically set completed_date to today
+            from datetime import date
+            request.data['completed_date'] = date.today().isoformat()
+            logger.info(f"Auto-setting completed_date for maintenance record {instance.record_id}")
+        
+        return super().update(request, *args, **kwargs)
+    
+    def partial_update(self, request, *args, **kwargs):
+        """Override partial_update to automatically set completed_date when status changes to completed"""
+        instance = self.get_object()
+        
+        # Check if status is being changed to completed
+        if (request.data.get('status') == 'completed' and 
+            instance.status != 'completed' and 
+            not request.data.get('completed_date')):
+            # Automatically set completed_date to today
+            from datetime import date
+            request.data['completed_date'] = date.today().isoformat()
+            logger.info(f"Auto-setting completed_date for maintenance record {instance.record_id}")
+        
+        return super().partial_update(request, *args, **kwargs)
             
         return queryset
 
