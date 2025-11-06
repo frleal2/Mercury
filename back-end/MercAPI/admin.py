@@ -24,6 +24,24 @@ class TenantAdmin(admin.ModelAdmin):
         }),
     )
 
+@admin.register(Company)
+class CompanyAdmin(admin.ModelAdmin):
+    list_display = ('name', 'tenant', 'phone', 'email', 'active')
+    list_filter = ('tenant', 'active')
+    search_fields = ('name', 'email', 'phone')
+    
+    fieldsets = (
+        ('Basic Information', {
+            'fields': ('tenant', 'name', 'email', 'phone')
+        }),
+        ('Address', {
+            'fields': ('address',)
+        }),
+        ('Status', {
+            'fields': ('active',)
+        }),
+    )
+
 @admin.register(Driver)
 class DriverAdmin(admin.ModelAdmin):
     exclude = ('random_test_required_this_year',)  # Exclude the field from the form
@@ -42,7 +60,6 @@ class TruckAdmin(admin.ModelAdmin):
     search_fields = ('unit_number', 'license_plate', 'vin')  # Add search fields
 
 # Register other models
-admin.site.register(Company)
 admin.site.register(DriverTest)
 admin.site.register(Trailer)
 

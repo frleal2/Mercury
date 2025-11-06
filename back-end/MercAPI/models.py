@@ -41,6 +41,13 @@ class Tenant(models.Model):
 
 class Company(models.Model):
     id = models.AutoField(primary_key=True)
+    tenant = models.ForeignKey(
+        Tenant, 
+        on_delete=models.CASCADE, 
+        null=True, 
+        blank=True,
+        help_text="The business/organization this company belongs to"
+    )
     name = models.CharField(max_length=255)
     address = models.TextField(null=True, blank=True)
     phone = models.CharField(max_length=20, null=True, blank=True)
