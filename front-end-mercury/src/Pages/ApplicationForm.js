@@ -4,6 +4,9 @@ import axios from 'axios';
 import BASE_URL from '../config';
 import FileUploadField from '../components/FileUploadField';
 
+// Create a public axios instance without auth interceptors
+const publicAxios = axios.create();
+
 const US_STATES = [
   { value: 'AL', label: 'Alabama' },
   { value: 'AK', label: 'Alaska' },
@@ -117,7 +120,7 @@ const ApplicationForm = () => {
                 }
 
                 console.log('Resolving company from URL:', url);
-                const response = await axios.get(url);
+                const response = await publicAxios.get(url);
                 
                 if (response.data.tenant) {
                     setTenantInfo(response.data.tenant);
@@ -220,7 +223,7 @@ const ApplicationForm = () => {
                 }
                 
                 console.log('Sending FormData with files');
-                const response = await axios.post(`${BASE_URL}/api/applications/`, formDataToSend);
+                const response = await publicAxios.post(`${BASE_URL}/api/applications/`, formDataToSend);
                 console.log('Submission response:', response);
             } else {
                 // No files, send as regular JSON
@@ -229,7 +232,7 @@ const ApplicationForm = () => {
                 delete dataToSend.medical_certificate;
                 
                 console.log('Sending data without files:', dataToSend);
-                const response = await axios.post(`${BASE_URL}/api/applications/`, dataToSend);
+                const response = await publicAxios.post(`${BASE_URL}/api/applications/`, dataToSend);
                 console.log('Submission response:', response);
             }
             setMessage({ type: 'success', text: 'Application submitted successfully.' });
@@ -275,7 +278,7 @@ const ApplicationForm = () => {
                 .app-btn:hover { background:#1d4ed8; transform: translateY(-1px); box-shadow: 0 8px 18px rgba(29,78,216,.25); }
                 .app-btn:active { transform: translateY(0); }
                 .app-btn:disabled { opacity:.7; cursor:not-allowed; }
-                .app-alert { grid-column:1 / -1; border-radius:12px; padding:12px 16px; border:1px solid transparent; }
+                .app-alert { grid-column:1 / -1; border-radius:12px; padding:12px 16px; border:1px solid transparent; margin-bottom:24px; }
                 .app-alert.success { background:#ecfdf5; color:#065f46; border-color:#10b981; }
                 .app-alert.error { background:#fef2f2; color:#991b1b; border-color:#ef4444; }
                 .app-alert.info { background:#eff6ff; color:#1e40af; border-color:#3b82f6; }
@@ -293,13 +296,6 @@ const ApplicationForm = () => {
                 {loadingCompany && (
                     <div className="app-alert info">
                         Loading company information...
-                    </div>
-                )}
-
-                {companyInfo && (
-                    <div className="app-alert info">
-                        <strong>Applying to:</strong> {companyInfo.name}
-                        {tenantInfo && <span> ({tenantInfo.name})</span>}
                     </div>
                 )}
 
