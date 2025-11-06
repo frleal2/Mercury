@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import BASE_URL from '../config';
 import FileUploadField from '../components/FileUploadField';
@@ -57,6 +58,7 @@ const US_STATES = [
 ];
 
 const ApplicationForm = () => {
+    const [searchParams] = useSearchParams();
     const [formData, setFormData] = useState({
         first_name: '',
         middle_name: '',
@@ -69,10 +71,97 @@ const ApplicationForm = () => {
         cdla_experience: false,
         drivers_license: null,
         medical_certificate: null,
+        company: null, // Will be auto-populated from URL
     });
     const [submitting, setSubmitting] = useState(false);
     const [message, setMessage] = useState(null);
     const [fileErrors, setFileErrors] = useState({});
+    const [companyInfo, setCompanyInfo] = useState(null);
+    const [tenantInfo, setTenantInfo] = useState(null);
+    const [loadingCompany, setLoadingCompany] = useState(false);
+
+    // Function to extract tenant domain from hostname
+    const extractTenantDomain = () => {
+        const hostname = window.location.hostname;
+        // If hostname is like "abc-logistics.mercuryfleet.com", extract "abc-logistics"
+        // For development, might be "localhost" so we'll handle both cases
+        if (hostname.includes('.') && !hostname.startsWith('localhost')) {
+            return hostname.split('.')[0];
+        }
+        // For development/testing, check if there's a tenant parameter
+        return searchParams.get('tenant') || null;
+    };
+
+    // Function to extract company slug from URL parameters
+    const extractCompanySlug = () => {
+        // Check for company slug in URL params (e.g., ?company=east-coast)
+        return searchParams.get('company') || null;
+    };
+
+    // Run company resolution when component mounts or URL params change
+    useEffect(() => {
+        const resolveCompany = async () => {
+            const tenantDomain = extractTenantDomain();
+            const companySlug = extractCompanySlug();
+
+            if (!tenantDomain) {
+                console.log('No tenant domain found in URL');
+                return;
+            }
+
+            setLoadingCompany(true);
+            try {
+                let url = `${BASE_URL}/api/resolve/${tenantDomain}/`;
+                if (companySlug) {
+                    url += `${companySlug}/`;
+                }
+
+                console.log('Resolving company from URL:', url);
+                const response = await axios.get(url);
+                
+                if (response.data.tenant) {
+                    setTenantInfo(response.data.tenant);
+                }
+                
+                if (response.data.company) {
+                    setCompanyInfo(response.data.company);
+                    // Auto-populate the company field
+                    setFormData(prev => ({
+                        ...prev,
+                        company: response.data.company.id
+                    }));
+                    setMessage({ 
+                        type: 'success', 
+                        text: `Applying to ${response.data.company.name}` 
+                    });
+                } else if (response.data.companies && response.data.companies.length === 1) {
+                    // If only one company for this tenant, auto-select it
+                    const company = response.data.companies[0];
+                    setCompanyInfo(company);
+                    setFormData(prev => ({
+                        ...prev,
+                        company: company.id
+                    }));
+                    setMessage({ 
+                        type: 'success', 
+                        text: `Applying to ${company.name}` 
+                    });
+                }
+            } catch (error) {
+                console.error('Error resolving company from URL:', error);
+                if (error.response?.status === 404) {
+                    setMessage({ 
+                        type: 'error', 
+                        text: 'Company not found. Please check the URL.' 
+                    });
+                }
+            } finally {
+                setLoadingCompany(false);
+            }
+        };
+
+        resolveCompany();
+    }, [searchParams]); // Only depend on searchParams
 
     const handleChange = (e) => {
         const { name, type, value, checked } = e.target;
@@ -156,6 +245,7 @@ const ApplicationForm = () => {
                 cdla_experience: false,
                 drivers_license: null,
                 medical_certificate: null,
+                company: formData.company, // Keep the company selected
             });
         } catch (error) {
             console.error('Submission error:', error);
@@ -188,6 +278,7 @@ const ApplicationForm = () => {
                 .app-alert { grid-column:1 / -1; border-radius:12px; padding:12px 16px; border:1px solid transparent; }
                 .app-alert.success { background:#ecfdf5; color:#065f46; border-color:#10b981; }
                 .app-alert.error { background:#fef2f2; color:#991b1b; border-color:#ef4444; }
+                .app-alert.info { background:#eff6ff; color:#1e40af; border-color:#3b82f6; }
                 .app-col-12 { grid-column: 1 / -1; }
                 .app-col-4 { grid-column: span 12; }
                 @media (min-width: 768px) {
@@ -198,6 +289,19 @@ const ApplicationForm = () => {
             <div className="app-card">
                 <h2 className="app-title">Driver Application</h2>
                 <p className="app-subtitle">Please provide your details to get started.</p>
+
+                {loadingCompany && (
+                    <div className="app-alert info">
+                        Loading company information...
+                    </div>
+                )}
+
+                {companyInfo && (
+                    <div className="app-alert info">
+                        <strong>Applying to:</strong> {companyInfo.name}
+                        {tenantInfo && <span> ({tenantInfo.name})</span>}
+                    </div>
+                )}
 
                 {message && (
                     <div className={`app-alert ${message.type}`}>
