@@ -12,7 +12,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework_simplejwt.views import TokenObtainPairView
-from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument
+from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Tenant
 from rest_framework.serializers import ValidationError
 from rest_framework import serializers
 from django.core.files.storage import default_storage
@@ -22,6 +22,78 @@ import mimetypes
 import os
 
 logger = logging.getLogger(__name__)
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def resolve_tenant_company(request, tenant_domain=None, company_slug=None):
+    """
+    Resolve tenant and company from URL parameters.
+    Used for Quick Apply form to determine which company user is applying to.
+    """
+    try:
+        result = {}
+        
+        # If tenant_domain is provided, look it up
+        if tenant_domain:
+            try:
+                tenant = Tenant.objects.get(domain=tenant_domain, is_active=True)
+                result['tenant'] = {
+                    'id': tenant.id,
+                    'name': tenant.name,
+                    'domain': tenant.domain
+                }
+                
+                # If company_slug is also provided, look up the company within this tenant
+                if company_slug:
+                    try:
+                        company = Company.objects.get(
+                            slug=company_slug, 
+                            tenant=tenant, 
+                            active=True
+                        )
+                        result['company'] = {
+                            'id': company.id,
+                            'name': company.name,
+                            'slug': company.slug,
+                            'tenant_id': company.tenant.id
+                        }
+                    except Company.DoesNotExist:
+                        return Response(
+                            {'error': f'Company "{company_slug}" not found for tenant "{tenant_domain}"'}, 
+                            status=status.HTTP_404_NOT_FOUND
+                        )
+                else:
+                    # Return all companies for this tenant
+                    companies = Company.objects.filter(tenant=tenant, active=True)
+                    result['companies'] = [
+                        {
+                            'id': company.id,
+                            'name': company.name,
+                            'slug': company.slug,
+                        }
+                        for company in companies
+                    ]
+                    
+            except Tenant.DoesNotExist:
+                return Response(
+                    {'error': f'Tenant "{tenant_domain}" not found'}, 
+                    status=status.HTTP_404_NOT_FOUND
+                )
+        else:
+            # No tenant specified - return error or list of available tenants
+            return Response(
+                {'error': 'No tenant domain specified'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        return Response(result, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        logger.error(f"Error resolving tenant/company: {str(e)}")
+        return Response(
+            {'error': 'Internal server error'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
 
 class FileUploadView(APIView):
     """

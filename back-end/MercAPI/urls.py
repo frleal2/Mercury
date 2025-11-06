@@ -47,6 +47,9 @@ urlpatterns = [
     path('api/upload/driver-document/', DriverDocumentUploadView.as_view(), name='upload_driver_document'),
     path('api/applications-with-files/', views.list_applications_with_files, name='list_applications_with_files'),
     path('api/applications/<int:application_id>/download/<str:file_type>/', views.download_application_file, name='download_application_file'),
+    path('api/resolve/', views.resolve_tenant_company, name='resolve_tenant_company'),
+    path('api/resolve/<str:tenant_domain>/', views.resolve_tenant_company, name='resolve_tenant'),
+    path('api/resolve/<str:tenant_domain>/<str:company_slug>/', views.resolve_tenant_company, name='resolve_tenant_company'),
 ]
 
 # Serve media files during development
