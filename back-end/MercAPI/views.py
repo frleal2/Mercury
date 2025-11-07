@@ -1,5 +1,6 @@
 import logging
 import boto3
+from django.utils.text import slugify
 from botocore.exceptions import NoCredentialsError
 from django.conf import settings
 from .serializers import UserSerializer, DriverSerializer, TruckSerializer, CompanySerializer, TrailerSerializer, DriverTestSerializer, DriverHOSSerializer, DriverApplicationSerializer, MaintenanceCategorySerializer, MaintenanceTypeSerializer, MaintenanceRecordSerializer, MaintenanceAttachmentSerializer, DriverDocumentSerializer, InspectionSerializer, InspectionItemSerializer, TripsSerializer
@@ -696,6 +697,31 @@ class CompanyViewSet(CompanyFilterMixin, ModelViewSet):
     queryset = Company.objects.all()
     serializer_class = CompanySerializer
     permission_classes = [IsAuthenticated]
+    
+    def create(self, request, *args, **kwargs):
+        # Auto-assign tenant and generate slug
+        data = request.data.copy()
+        
+        # Set tenant to current user's tenant
+        if hasattr(request.user, 'profile') and request.user.profile.tenant:
+            data['tenant'] = request.user.profile.tenant.id
+        
+        # Generate slug from company name
+        if 'name' in data and not data.get('slug'):
+            base_slug = slugify(data['name'])
+            slug = base_slug
+            counter = 1
+            while Company.objects.filter(slug=slug).exists():
+                slug = f"{base_slug}-{counter}"
+                counter += 1
+            data['slug'] = slug
+        
+        # Use the modified data
+        serializer = self.get_serializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
 class TrailerViewSet(CompanyFilterMixin, ModelViewSet):
     queryset = Trailer.objects.all()
