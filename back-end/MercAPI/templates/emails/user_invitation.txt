@@ -1,22 +1,22 @@
-You've been invited to Mercury Fleet Management!
+You've been invited to Fleetly!
 
 Hi {{ user.first_name }} {{ user.last_name }},
 
-{{ admin_name }} has invited you to join {{ tenant_name }} on Mercury Fleet Management.
+{{ admin_name }} has invited you to join {{ tenant_name }} on Fleetly.
 
 You'll have access to the following companies:
 {% for company in companies %}- {{ company.name }}
 {% endfor %}
 
-Mercury Fleet Management helps you track drivers, vehicles, maintenance, and compliance all in one place.
+Fleetly helps you track drivers, vehicles, maintenance, and compliance all in one place.
 
 Accept your invitation and set your password:
 {{ activation_url }}
 
 ⏰ This invitation expires in 7 days ({{ expiration_date }}).
 
-If you have any questions, please contact {{ admin_name }} at {{ admin_email }}.
+If you have any questions, please contact {{ admin_name }} at felipe.leal@myfleetly.com.
 
 ---
-This invitation was sent by {{ tenant_name }} via Mercury Fleet Management.
+This invitation was sent by {{ tenant_name }} via Fleetly.
 If you didn't expect this invitation, you can safely ignore this email.
