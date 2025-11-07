@@ -1,18 +1,29 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import BASE_URL from '../config';
 import { useSession } from '../providers/SessionProvider';
+import Header from '../components/Header';
+import BASE_URL from '../config';
+import { PencilIcon, TrashIcon, XMarkIcon } from '@heroicons/react/24/outline';
 
-const UserManagement = () => {
+function UserManagement() {
     const { session, refreshAccessToken } = useSession();
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [editingUser, setEditingUser] = useState(null);
     const [companies, setCompanies] = useState([]);
+    const [tenantInfo, setTenantInfo] = useState(null);
     const [inviteForm, setInviteForm] = useState({
         email: '',
         first_name: '',
         last_name: '',
+        company_ids: []
+    });
+    const [editForm, setEditForm] = useState({
+        first_name: '',
+        last_name: '',
+        email: '',
         company_ids: []
     });
     const [message, setMessage] = useState(null);
@@ -30,6 +41,7 @@ const UserManagement = () => {
                 headers: { 'Authorization': `Bearer ${session.accessToken}` }
             });
             setUsers(response.data.users);
+            setTenantInfo(response.data.tenant);
         } catch (error) {
             console.error('Error fetching users:', error);
             if (error.response?.status === 401) {
@@ -79,6 +91,64 @@ const UserManagement = () => {
                 ? [...prev.company_ids, companyId]
                 : prev.company_ids.filter(id => id !== companyId)
         }));
+    };
+
+    const handleEditCompanyChange = (companyId, isChecked) => {
+        setEditForm(prev => ({
+            ...prev,
+            company_ids: isChecked 
+                ? [...prev.company_ids, companyId]
+                : prev.company_ids.filter(id => id !== companyId)
+        }));
+    };
+
+    const handleEditUser = (user) => {
+        setEditingUser(user);
+        setEditForm({
+            first_name: user.first_name,
+            last_name: user.last_name,
+            email: user.email,
+            company_ids: user.companies.map(company => company.id)
+        });
+        setIsEditModalOpen(true);
+    };
+
+    const handleUpdateUser = async (e) => {
+        e.preventDefault();
+        try {
+            const response = await axios.put(`${BASE_URL}/api/users/${editingUser.id}/`, editForm, {
+                headers: { 'Authorization': `Bearer ${session.accessToken}` }
+            });
+            setMessage({ type: 'success', text: 'User updated successfully!' });
+            setIsEditModalOpen(false);
+            setEditingUser(null);
+            setEditForm({ first_name: '', last_name: '', email: '', company_ids: [] });
+            fetchUsers(); // Refresh user list
+        } catch (error) {
+            console.error('Error updating user:', error);
+            setMessage({ 
+                type: 'error', 
+                text: error.response?.data?.error || 'Failed to update user' 
+            });
+        }
+    };
+
+    const handleRemoveUser = async (userId) => {
+        if (window.confirm('Are you sure you want to remove this user?')) {
+            try {
+                await axios.delete(`${BASE_URL}/api/users/${userId}/`, {
+                    headers: { 'Authorization': `Bearer ${session.accessToken}` }
+                });
+                setMessage({ type: 'success', text: 'User removed successfully!' });
+                fetchUsers(); // Refresh user list
+            } catch (error) {
+                console.error('Error removing user:', error);
+                setMessage({ 
+                    type: 'error', 
+                    text: error.response?.data?.error || 'Failed to remove user' 
+                });
+            }
+        }
     };
 
     if (loading) {
@@ -186,12 +256,22 @@ const UserManagement = () => {
                                     </span>
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                    <button className="text-blue-600 hover:text-blue-900 mr-3">
-                                        Edit
-                                    </button>
-                                    <button className="text-red-600 hover:text-red-900">
-                                        Remove
-                                    </button>
+                                    <div className="flex space-x-2">
+                                        <button 
+                                            onClick={() => handleEditUser(user)}
+                                            className="p-2 text-indigo-600 hover:text-indigo-900 hover:bg-indigo-50 rounded-full transition-colors"
+                                            title="Edit User"
+                                        >
+                                            <PencilIcon className="h-4 w-4" />
+                                        </button>
+                                        <button 
+                                            onClick={() => handleRemoveUser(user.id)}
+                                            className="p-2 text-red-600 hover:text-red-900 hover:bg-red-50 rounded-full transition-colors"
+                                            title="Remove User"
+                                        >
+                                            <TrashIcon className="h-4 w-4" />
+                                        </button>
+                                    </div>
                                 </td>
                             </tr>
                         ))}
@@ -279,6 +359,127 @@ const UserManagement = () => {
                                 </div>
                             </form>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Edit User Modal */}
+            {isEditModalOpen && editingUser && (
+                <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+                    <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-lg font-medium text-gray-900">Edit User</h3>
+                            <button
+                                onClick={() => setIsEditModalOpen(false)}
+                                className="text-gray-400 hover:text-gray-600"
+                            >
+                                <XMarkIcon className="h-6 w-6" />
+                            </button>
+                        </div>
+                        <form onSubmit={handleUpdateUser}>
+                            <div className="mb-4">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Email
+                                </label>
+                                <input
+                                    type="email"
+                                    required
+                                    value={editForm.email}
+                                    onChange={(e) => setEditForm({...editForm, email: e.target.value})}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4 mb-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        First Name
+                                    </label>
+                                    <input
+                                        type="text"
+                                        required
+                                        value={editForm.first_name}
+                                        onChange={(e) => setEditForm({...editForm, first_name: e.target.value})}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Last Name
+                                    </label>
+                                    <input
+                                        type="text"
+                                        required
+                                        value={editForm.last_name}
+                                        onChange={(e) => setEditForm({...editForm, last_name: e.target.value})}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    />
+                                </div>
+                            </div>
+                            
+                            <div className="mb-4">
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    User Information
+                                </label>
+                                <div className="bg-gray-50 p-3 rounded-md space-y-2">
+                                    <div className="flex justify-between">
+                                        <span className="text-sm text-gray-600">Tenant:</span>
+                                        <span className="text-sm font-medium">{tenantInfo?.name || 'N/A'}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-sm text-gray-600">Username:</span>
+                                        <span className="text-sm font-medium">{editingUser.username}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-sm text-gray-600">Role:</span>
+                                        <span className="text-sm font-medium">
+                                            {editingUser.is_company_admin ? 'Admin' : 'User'}
+                                        </span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-sm text-gray-600">Status:</span>
+                                        <span className={`text-sm font-medium ${
+                                            editingUser.is_active ? 'text-green-600' : 'text-red-600'
+                                        }`}>
+                                            {editingUser.is_active ? 'Active' : 'Pending'}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="mb-6">
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Assign to Companies
+                                </label>
+                                <div className="space-y-2 max-h-32 overflow-y-auto">
+                                    {companies.map((company) => (
+                                        <label key={company.id} className="flex items-center">
+                                            <input
+                                                type="checkbox"
+                                                checked={editForm.company_ids.includes(company.id)}
+                                                onChange={(e) => handleEditCompanyChange(company.id, e.target.checked)}
+                                                className="mr-2"
+                                            />
+                                            <span className="text-sm">{company.name}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+                            <div className="flex justify-end space-x-3">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsEditModalOpen(false)}
+                                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
+                                >
+                                    Update User
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             )}

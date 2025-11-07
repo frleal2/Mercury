@@ -654,6 +654,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             if profile.tenant:
                 token['tenant_id'] = profile.tenant.id
                 token['tenant_name'] = profile.tenant.name
+                token['tenant_domain'] = profile.tenant.domain
             
             # Add company information
             companies = profile.companies.all()

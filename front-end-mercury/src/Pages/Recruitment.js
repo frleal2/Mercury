@@ -109,12 +109,60 @@ const Recruitment = () => {
     fetchApplications();
   }, []);
 
+  // Get company information from session
+  const userCompanies = session?.userInfo?.companies || [];
+  const tenantDomain = session?.userInfo?.tenantDomain || 'demo';
+  
+  // Generate application links for each company
+  const generateApplicationLink = (company) => {
+    const baseUrl = window.location.origin;
+    return `${baseUrl}/QuickApply?tenant=${tenantDomain}&company=${company.slug}`;
+  };
+
+  const copyToClipboard = (text) => {
+    navigator.clipboard.writeText(text).then(() => {
+      alert('Application link copied to clipboard!');
+    }).catch(() => {
+      alert('Failed to copy link to clipboard');
+    });
+  };
+
   return (
     <div className="p-6">
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Driver Recruitment</h1>
         <p className="text-gray-600">Manage and review driver applications</p>
       </div>
+
+      {/* Company Application Links */}
+      {userCompanies.length > 0 && (
+        <div className="mb-4 flex items-center gap-3 text-sm text-gray-600">
+          <span>📋 Application Link:</span>
+          {userCompanies.map((company, index) => {
+            const applicationLink = generateApplicationLink(company);
+            return (
+              <div key={company.id} className="flex items-center gap-2">
+                {userCompanies.length > 1 && <span className="text-xs text-gray-500">{company.name}:</span>}
+                <button
+                  onClick={() => copyToClipboard(applicationLink)}
+                  className="text-blue-600 hover:text-blue-800 underline"
+                  title={`Copy application link for ${company.name}`}
+                >
+                  Copy Link
+                </button>
+                <button
+                  onClick={() => window.open(applicationLink, '_blank')}
+                  className="text-green-600 hover:text-green-800 underline"
+                  title={`Preview application form for ${company.name}`}
+                >
+                  Preview
+                </button>
+                {index < userCompanies.length - 1 && <span className="text-gray-300">|</span>}
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Filters and Search */}
       <div className="mb-6 flex flex-col sm:flex-row gap-4">

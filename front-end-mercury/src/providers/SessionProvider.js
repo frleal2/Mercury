@@ -45,6 +45,7 @@ export const SessionProvider = ({ children }) => {
           username: decoded.username,
           tenantId: decoded.tenant_id,
           tenantName: decoded.tenant_name,
+          tenantDomain: decoded.tenant_domain,
           companies: decoded.companies || [],
           isCompanyAdmin: decoded.is_company_admin || false,
           exp: decoded.exp
