@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>You're Invited to Mercury Fleet Management</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f9fafb;
+        }
+        .container {
+            background-color: white;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .logo {
+            font-size: 24px;
+            font-weight: bold;
+            color: #2563eb;
+            margin-bottom: 10px;
+        }
+        .title {
+            color: #1f2937;
+            font-size: 20px;
+            margin-bottom: 20px;
+        }
+        .content {
+            margin-bottom: 30px;
+        }
+        .companies {
+            background-color: #f3f4f6;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 20px 0;
+        }
+        .company-badge {
+            display: inline-block;
+            background-color: #2563eb;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            margin: 2px;
+        }
+        .cta-button {
+            display: inline-block;
+            background-color: #2563eb;
+            color: white;
+            padding: 12px 24px;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 600;
+            margin: 20px 0;
+        }
+        .cta-button:hover {
+            background-color: #1d4ed8;
+        }
+        .footer {
+            text-align: center;
+            color: #6b7280;
+            font-size: 14px;
+            border-top: 1px solid #e5e7eb;
+            padding-top: 20px;
+            margin-top: 30px;
+        }
+        .help-text {
+            background-color: #fef3c7;
+            border: 1px solid #f59e0b;
+            border-radius: 6px;
+            padding: 15px;
+            margin: 20px 0;
+            color: #92400e;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">🚛 Mercury Fleet Management</div>
+            <h1 class="title">You've been invited!</h1>
+        </div>
+        
+        <div class="content">
+            <p>Hi <strong>{{ user.first_name }} {{ user.last_name }}</strong>,</p>
+            
+            <p><strong>{{ admin_name }}</strong> has invited you to join <strong>{{ tenant_name }}</strong> on Mercury Fleet Management.</p>
+            
+            <p>You'll have access to the following companies:</p>
+            <div class="companies">
+                {% for company in companies %}
+                    <span class="company-badge">{{ company.name }}</span>
+                {% endfor %}
+            </div>
+            
+            <p>Mercury Fleet Management helps you track drivers, vehicles, maintenance, and compliance all in one place.</p>
+            
+            <div style="text-align: center;">
+                <a href="{{ activation_url }}" class="cta-button">Accept Invitation & Set Password</a>
+            </div>
+            
+            <div class="help-text">
+                <strong>⏰ This invitation expires in 7 days.</strong><br>
+                If you don't accept by {{ expiration_date }}, you'll need to request a new invitation.
+            </div>
+            
+            <p>If you have any questions, please contact <strong>{{ admin_name }}</strong> at <a href="mailto:{{ admin_email }}">{{ admin_email }}</a>.</p>
+        </div>
+        
+        <div class="footer">
+            <p>This invitation was sent by {{ tenant_name }} via Mercury Fleet Management</p>
+            <p>If you didn't expect this invitation, you can safely ignore this email.</p>
+        </div>
+    </div>
+</body>
+</html>

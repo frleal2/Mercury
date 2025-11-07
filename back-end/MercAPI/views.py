@@ -3,6 +3,11 @@ import boto3
 from django.utils.text import slugify
 from botocore.exceptions import NoCredentialsError
 from django.conf import settings
+from django.core.mail import send_mail
+from django.template.loader import render_to_string
+from django.utils.html import strip_tags
+from datetime import datetime, timedelta
+from urllib.parse import urlencode
 from .serializers import UserSerializer, DriverSerializer, TruckSerializer, CompanySerializer, TrailerSerializer, DriverTestSerializer, DriverHOSSerializer, DriverApplicationSerializer, MaintenanceCategorySerializer, MaintenanceTypeSerializer, MaintenanceRecordSerializer, MaintenanceAttachmentSerializer, DriverDocumentSerializer, InspectionSerializer, InspectionItemSerializer, TripsSerializer
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.viewsets import ModelViewSet
@@ -310,8 +315,44 @@ def invite_user(request):
         profile.save()
         profile.companies.set(requested_companies)
         
-        # TODO: Send invitation email (for now just return success)
-        # In production, you'd send an email with a secure token link
+        # Send invitation email
+        try:
+            # Create activation URL (for now, just a placeholder)
+            # In a full implementation, you'd generate a secure token
+            activation_url = f"{request.build_absolute_uri('/').rstrip('/')}/activate-account/?email={data['email']}"
+            
+            # Calculate expiration date
+            expiration_date = (datetime.now() + timedelta(days=7)).strftime('%B %d, %Y')
+            
+            # Prepare email context
+            email_context = {
+                'user': new_user,
+                'admin_name': f"{request.user.first_name} {request.user.last_name}",
+                'admin_email': request.user.email,
+                'tenant_name': request.user.profile.tenant.name,
+                'companies': requested_companies,
+                'activation_url': activation_url,
+                'expiration_date': expiration_date,
+            }
+            
+            # Render email templates
+            html_message = render_to_string('emails/user_invitation.html', email_context)
+            plain_message = render_to_string('emails/user_invitation.txt', email_context)
+            
+            # Send email
+            send_mail(
+                subject=f'You\'re invited to {request.user.profile.tenant.name} - Mercury Fleet Management',
+                message=plain_message,
+                html_message=html_message,
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[new_user.email],
+                fail_silently=False,
+            )
+            
+        except Exception as email_error:
+            logger.error(f"Failed to send invitation email: {str(email_error)}")
+            # Don't fail the entire invitation if email fails
+            # The user was still created successfully
         
         return Response({
             'message': 'User invited successfully',

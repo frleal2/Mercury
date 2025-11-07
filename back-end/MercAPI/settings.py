@@ -17,12 +17,21 @@ import os
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent  # Ensure this points to the correct base directory
 
+# Load environment variables from .env file in development
+try:
+    from dotenv import load_dotenv
+    if os.path.exists(BASE_DIR / '.env'):
+        load_dotenv(BASE_DIR / '.env')
+except ImportError:
+    # python-dotenv not installed, skip loading .env file
+    pass
+
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-qz1)yz!cec-9g9@@z_nd9b1&u2yb0^4=&mf8$e&m=b17)=n&s0'
+SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-qz1)yz!cec-9g9@@z_nd9b1&u2yb0^4=&mf8$e&m=b17)=n&s0')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -64,7 +73,7 @@ ROOT_URLCONF = 'MercAPI.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR / 'MercAPI' / 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -253,3 +262,18 @@ SIMPLE_JWT = {
     'SLIDING_TOKEN_LIFETIME': timedelta(minutes=60),
     'SLIDING_TOKEN_REFRESH_LIFETIME': timedelta(days=1),
 }
+
+# Email Configuration for Google Workspace
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')  # Your Google Workspace email
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')  # App-specific password
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', os.getenv('EMAIL_HOST_USER'))
+SERVER_EMAIL = DEFAULT_FROM_EMAIL
+
+# Email settings for development
+EMAIL_DEBUG = os.getenv('EMAIL_DEBUG', 'False').lower() == 'true'
+if EMAIL_DEBUG:
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
