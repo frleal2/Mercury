@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Inspection, InspectionItem, Trips
+from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Inspection, InspectionItem, Trips, UserProfile
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -19,6 +19,20 @@ class UserSerializer(serializers.ModelSerializer):
             last_name=validated_data.get('last_name', '')
         )
         return user
+
+
+class UserProfileSerializer(serializers.ModelSerializer):
+    username = serializers.CharField(source='user.username', read_only=True)
+    email = serializers.CharField(source='user.email', read_only=True)
+    first_name = serializers.CharField(source='user.first_name', read_only=True)
+    last_name = serializers.CharField(source='user.last_name', read_only=True)
+    role_display = serializers.CharField(source='get_role_display', read_only=True)
+    
+    class Meta:
+        model = UserProfile
+        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'role', 'role_display', 
+                 'tenant', 'companies', 'is_company_admin', 'profile_image', 'created_at']
+        read_only_fields = ['id', 'created_at']
 
 
 class DriverTestSerializer(serializers.ModelSerializer):
@@ -42,6 +56,9 @@ class DriverDocumentSerializer(serializers.ModelSerializer):
 class DriverSerializer(serializers.ModelSerializer):
     tests = DriverTestSerializer(many=True, read_only=True)  # Include related DriverTest data
     documents = DriverDocumentSerializer(many=True, read_only=True)  # Include driver documents
+    has_user_account = serializers.BooleanField(read_only=True)
+    can_access_portal = serializers.BooleanField(read_only=True)
+    username = serializers.CharField(source='user_account.username', read_only=True)
 
     class Meta:
         model = Driver

@@ -74,6 +74,12 @@ class UserProfile(models.Model):
     Extends Django's User model to add company relationships.
     A user can belong to multiple companies within their tenant's ecosystem.
     """
+    ROLE_CHOICES = [
+        ('admin', 'Admin - Full tenant management access'),
+        ('user', 'User - Company management access (cannot create companies/users)'),
+        ('driver', 'Driver - Inspection and trip access only'),
+    ]
+    
     user = models.OneToOneField(
         'auth.User',
         on_delete=models.CASCADE,
@@ -92,9 +98,15 @@ class UserProfile(models.Model):
         blank=True,
         help_text="Primary tenant this user belongs to"
     )
+    role = models.CharField(
+        max_length=20,
+        choices=ROLE_CHOICES,
+        default='user',
+        help_text="User's role level within the tenant"
+    )
     is_company_admin = models.BooleanField(
         default=False,
-        help_text="Can this user manage company settings and other users?"
+        help_text="Can this user manage company settings and other users? (deprecated - use role field)"
     )
     profile_image = models.FileField(
         upload_to='profile_photos/%Y/%m/%d/',
@@ -118,6 +130,36 @@ class UserProfile(models.Model):
     def has_company_access(self, company):
         """Check if user has access to a specific company"""
         return self.companies.filter(id=company.id).exists()
+    
+    def is_admin(self):
+        """Check if user has admin role (full tenant access)"""
+        return self.role == 'admin'
+    
+    def is_user_or_above(self):
+        """Check if user has user role or above (company management access)"""
+        return self.role in ['admin', 'user']
+    
+    def is_driver(self):
+        """Check if user has driver role (inspection access only)"""
+        return self.role == 'driver'
+    
+    def can_manage_companies(self):
+        """Check if user can create/manage companies"""
+        return self.role == 'admin'
+    
+    def can_manage_users(self):
+        """Check if user can create/manage user accounts"""
+        return self.role == 'admin'
+    
+    def can_create_driver_accounts(self):
+        """Check if user can create driver accounts"""
+        return self.role in ['admin', 'user']
+    
+    def get_driver_record(self):
+        """Get the Driver record associated with this user (if any)"""
+        if self.is_driver():
+            return getattr(self.user, 'driver_profile', None)
+        return None
 
 class Driver(models.Model):
     id = models.AutoField(primary_key=True)
@@ -137,8 +179,35 @@ class Driver(models.Model):
     active = models.BooleanField(default=True)
     random_test_required_this_year = models.BooleanField(default=True, editable=False)
     
+    # Optional link to user account for driver portal access
+    user_account = models.OneToOneField(
+        User, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        related_name='driver_profile',
+        help_text="Optional user account for driver portal access"
+    )
+    
     def __str__(self):
         return f"{self.first_name} {self.last_name}"  # Ensure this returns a clear identifier for the driver
+    
+    def has_user_account(self):
+        """Check if this driver has a user account for portal access"""
+        return self.user_account is not None
+    
+    def can_access_portal(self):
+        """Check if driver can access the driver portal"""
+        return (self.has_user_account() and 
+                self.active and 
+                hasattr(self.user_account, 'profile') and 
+                self.user_account.profile.is_driver())
+    
+    def get_user_profile(self):
+        """Get the UserProfile associated with this driver (if any)"""
+        if self.has_user_account():
+            return getattr(self.user_account, 'profile', None)
+        return None
 
 class DriverDocument(models.Model):
     DOCUMENT_TYPE_CHOICES = [
@@ -586,6 +655,10 @@ class InvitationToken(models.Model):
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)
     company = models.ForeignKey(Company, on_delete=models.CASCADE)
     invited_by = models.ForeignKey(User, on_delete=models.CASCADE)
+    invitation_data = models.JSONField(
+        default=dict,
+        help_text="Additional invitation data (role, company_ids, driver_id, etc.)"
+    )
     is_used = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     expires_at = models.DateTimeField()

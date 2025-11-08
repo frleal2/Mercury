@@ -83,6 +83,78 @@ class CompanyFilterMixin:
         # For models that don't have a company field, return all (maintenance categories, etc.)
         return queryset
 
+
+class AdminOnlyMixin:
+    """
+    Mixin to restrict access to admin users only.
+    Admin users can manage everything including companies and user accounts.
+    """
+    def get_permissions(self):
+        permissions = super().get_permissions()
+        permissions.append(IsAuthenticated())
+        return permissions
+    
+    def check_permissions(self, request):
+        super().check_permissions(request)
+        
+        if not hasattr(request.user, 'profile'):
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("User profile not found")
+        
+        if not request.user.profile.is_admin():
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Admin access required")
+
+
+class UserOrAboveMixin:
+    """
+    Mixin to restrict access to user role and above (user + admin).
+    These users can manage company data but not create companies or user accounts.
+    """
+    def get_permissions(self):
+        permissions = super().get_permissions()
+        permissions.append(IsAuthenticated())
+        return permissions
+    
+    def check_permissions(self, request):
+        super().check_permissions(request)
+        
+        if not hasattr(request.user, 'profile'):
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("User profile not found")
+        
+        if not request.user.profile.is_user_or_above():
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("User access or above required")
+
+
+class DriverFilterMixin:
+    """
+    Mixin to filter data for driver users - only shows their assigned trips and related data.
+    """
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        
+        if not self.request.user.is_authenticated:
+            return queryset.none()
+        
+        if not hasattr(self.request.user, 'profile'):
+            return queryset.none()
+        
+        profile = self.request.user.profile
+        
+        # If user is driver, filter to only their data
+        if profile.is_driver():
+            # For now, drivers can see all data in their companies
+            # This will be further restricted when we implement trip assignments
+            user_companies = profile.companies.all()
+            if hasattr(queryset.model, 'company'):
+                return queryset.filter(company__in=user_companies)
+        
+        # For non-driver users, use regular company filtering
+        return queryset
+
+
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def resolve_tenant_company(request, tenant_domain=None, company_slug=None):
@@ -262,25 +334,60 @@ def tenant_signup(request):
 @permission_classes([IsAuthenticated])
 def invite_user(request):
     """
-    Allow company admin to invite a new user to their tenant/companies.
-    Sends invitation email with signup link.
+    Role-based user invitation system.
+    - Admin can invite: admin, user, driver
+    - User can invite: driver only
+    - Driver cannot invite anyone
     """
     try:
-        # Check if user is company admin
-        if not hasattr(request.user, 'profile') or not request.user.profile.is_company_admin:
+        # Check if user has profile
+        if not hasattr(request.user, 'profile'):
             return Response(
-                {'error': 'Only company admins can invite users'}, 
+                {'error': 'User profile not found'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        profile = request.user.profile
+        
+        # Check basic permission to invite users
+        if not profile.can_create_driver_accounts():  # This covers admin and user roles
+            return Response(
+                {'error': 'You do not have permission to invite users'}, 
                 status=status.HTTP_403_FORBIDDEN
             )
         
         data = request.data
-        required_fields = ['email', 'first_name', 'last_name', 'company_ids']
+        required_fields = ['email', 'first_name', 'last_name', 'role', 'company_ids']
         for field in required_fields:
             if not data.get(field):
                 return Response(
                     {'error': f'{field} is required'}, 
                     status=status.HTTP_400_BAD_REQUEST
                 )
+        
+        # Validate role choice
+        role = data.get('role')
+        valid_roles = ['admin', 'user', 'driver']
+        if role not in valid_roles:
+            return Response(
+                {'error': f'Invalid role. Must be one of: {", ".join(valid_roles)}'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Role-based permission checks
+        if role == 'admin' and not profile.is_admin():
+            return Response(
+                {'error': 'Only admins can create admin accounts'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        if role == 'user' and not profile.is_admin():
+            return Response(
+                {'error': 'Only admins can create user accounts'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Users and admins can create driver accounts (already checked above)
         
         # Check if email already exists
         if User.objects.filter(email=data['email']).exists():
@@ -296,26 +403,90 @@ def invite_user(request):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # Verify admin can access all requested companies
-        admin_companies = request.user.profile.companies.all()
+        # Verify user can access all requested companies
+        user_companies = profile.companies.all()
         company_ids = data['company_ids']
         requested_companies = Company.objects.filter(id__in=company_ids)
         
         for company in requested_companies:
-            if company not in admin_companies:
+            if company not in user_companies:
                 return Response(
                     {'error': f'You do not have access to company: {company.name}'}, 
                     status=status.HTTP_403_FORBIDDEN
                 )
         
+        # Additional validation for driver accounts
+        driver_id = data.get('driver_id')  # Optional: link to existing driver record
+        create_new_driver = data.get('create_new_driver', False)  # Option 3: Create new driver
+        driver_data = data.get('driver_data', {})  # Driver details for new driver creation
+        driver = None
+        
+        if role == 'driver':
+            if driver_id and create_new_driver:
+                return Response(
+                    {'error': 'Cannot both link to existing driver and create new driver'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            if driver_id:
+                # Option 1: Link to existing driver
+                try:
+                    driver = Driver.objects.get(id=driver_id, company__in=user_companies)
+                    if driver.has_user_account():
+                        return Response(
+                            {'error': f'Driver {driver.first_name} {driver.last_name} already has a user account'}, 
+                            status=status.HTTP_400_BAD_REQUEST
+                        )
+                except Driver.DoesNotExist:
+                    return Response(
+                        {'error': 'Driver not found or you do not have access to this driver'}, 
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+            
+            elif create_new_driver:
+                # Option 3: Create new driver - validate required driver fields
+                required_driver_fields = ['phone', 'company_id']
+                for field in required_driver_fields:
+                    if not driver_data.get(field):
+                        return Response(
+                            {'error': f'driver_data.{field} is required when creating a new driver'}, 
+                            status=status.HTTP_400_BAD_REQUEST
+                        )
+                
+                # Verify company access for new driver
+                driver_company_id = driver_data.get('company_id')
+                if driver_company_id not in company_ids:
+                    return Response(
+                        {'error': 'Driver company must be one of the selected companies'}, 
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                
+                try:
+                    driver_company = Company.objects.get(id=driver_company_id, id__in=[c.id for c in user_companies])
+                except Company.DoesNotExist:
+                    return Response(
+                        {'error': 'You do not have access to the specified driver company'}, 
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+        
         # Send invitation email
         try:
-            # Create secure invitation token
+            # Create secure invitation token with role information
             invitation_token = InvitationToken.objects.create(
                 email=data['email'],
-                tenant=request.user.profile.tenant,
+                tenant=profile.tenant,
                 company=requested_companies.first(),  # Use first company as primary
-                invited_by=request.user
+                invited_by=request.user,
+                # Store additional invitation data as JSON
+                invitation_data={
+                    'role': role,
+                    'company_ids': company_ids,
+                    'driver_id': driver_id if role == 'driver' and driver_id else None,
+                    'create_new_driver': create_new_driver if role == 'driver' else False,
+                    'driver_data': driver_data if role == 'driver' and create_new_driver else {},
+                    'first_name': data['first_name'],
+                    'last_name': data['last_name']
+                }
             )
             
             # Create secure activation URL with token (points to frontend)
@@ -330,12 +501,16 @@ def invite_user(request):
                 'email': data['email'],
                 'first_name': data['first_name'],
                 'last_name': data['last_name'],
-                'admin_name': f"{request.user.first_name} {request.user.last_name}",
-                'admin_email': request.user.email,
-                'tenant_name': request.user.profile.tenant.name,
+                'role': role,
+                'role_display': dict([('admin', 'Administrator'), ('user', 'User'), ('driver', 'Driver')])[role],
+                'inviter_name': f"{request.user.first_name} {request.user.last_name}",
+                'inviter_email': request.user.email,
+                'tenant_name': profile.tenant.name,
                 'companies': requested_companies,
                 'activation_url': activation_url,
                 'expiration_date': expiration_date,
+                'is_driver_account': role == 'driver',
+                'driver_name': f"{driver.first_name} {driver.last_name}" if role == 'driver' and driver_id else None,
             }
             
             # Render email templates
@@ -363,7 +538,10 @@ def invite_user(request):
                 'email': data['email'],
                 'first_name': data['first_name'],
                 'last_name': data['last_name'],
+                'role': role,
                 'companies': [{'id': c.id, 'name': c.name} for c in requested_companies],
+                'driver_id': driver_id if role == 'driver' and driver_id else None,
+                'driver_name': f"{driver.first_name} {driver.last_name}" if driver else None,
                 'expires_at': invitation_token.expires_at.isoformat()
             }
         }, status=status.HTTP_201_CREATED)
@@ -712,15 +890,19 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
                 for company in companies
             ]
             
-            # Add admin status
+            # Add admin status (deprecated - use role instead)
             token['is_company_admin'] = profile.is_company_admin
+            
+            # Add role information
+            token['role'] = profile.role
+            token['role_display'] = profile.get_role_display()
         
         return token
 
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
 
-class DriverViewSet(CompanyFilterMixin, ModelViewSet):
+class DriverViewSet(UserOrAboveMixin, CompanyFilterMixin, ModelViewSet):
     queryset = Driver.objects.all()
     serializer_class = DriverSerializer
     permission_classes = [IsAuthenticated]
@@ -732,12 +914,12 @@ class DriverViewSet(CompanyFilterMixin, ModelViewSet):
     def create(self, request, *args, **kwargs):
         return super().create(request, *args, **kwargs)
 
-class TruckViewSet(CompanyFilterMixin, ModelViewSet):
+class TruckViewSet(UserOrAboveMixin, CompanyFilterMixin, ModelViewSet):
     queryset = Truck.objects.all()
     serializer_class = TruckSerializer
     permission_classes = [IsAuthenticated]
 
-class CompanyViewSet(CompanyFilterMixin, ModelViewSet):
+class CompanyViewSet(AdminOnlyMixin, CompanyFilterMixin, ModelViewSet):
     queryset = Company.objects.all()
     serializer_class = CompanySerializer
     permission_classes = [IsAuthenticated]
@@ -772,7 +954,7 @@ class CompanyViewSet(CompanyFilterMixin, ModelViewSet):
         headers = self.get_success_headers(serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
-class TrailerViewSet(CompanyFilterMixin, ModelViewSet):
+class TrailerViewSet(UserOrAboveMixin, CompanyFilterMixin, ModelViewSet):
     queryset = Trailer.objects.all()
     serializer_class = TrailerSerializer
     permission_classes = [IsAuthenticated]
@@ -809,27 +991,27 @@ class DriverApplicationViewSet(CompanyFilterMixin, ModelViewSet):
             logger.error(f"Traceback: {traceback.format_exc()}")
             raise
 
-class DriverTestViewSet(CompanyFilterMixin, ModelViewSet):
+class DriverTestViewSet(UserOrAboveMixin, CompanyFilterMixin, ModelViewSet):
     queryset = DriverTest.objects.all()
     serializer_class = DriverTestSerializer
     permission_classes = [IsAuthenticated]
 
-class DriverHOSViewSet(CompanyFilterMixin, ModelViewSet):
+class DriverHOSViewSet(UserOrAboveMixin, CompanyFilterMixin, ModelViewSet):
     queryset = DriverHOS.objects.all()
     serializer_class = DriverHOSSerializer
     permission_classes = [IsAuthenticated]
 
-class MaintenanceCategoryViewSet(CompanyFilterMixin, ModelViewSet):
+class MaintenanceCategoryViewSet(UserOrAboveMixin, CompanyFilterMixin, ModelViewSet):
     queryset = MaintenanceCategory.objects.all()
     serializer_class = MaintenanceCategorySerializer
     permission_classes = [IsAuthenticated]
 
-class MaintenanceTypeViewSet(CompanyFilterMixin, ModelViewSet):
+class MaintenanceTypeViewSet(UserOrAboveMixin, CompanyFilterMixin, ModelViewSet):
     queryset = MaintenanceType.objects.all()
     serializer_class = MaintenanceTypeSerializer
     permission_classes = [IsAuthenticated]
 
-class MaintenanceRecordViewSet(CompanyFilterMixin, ModelViewSet):
+class MaintenanceRecordViewSet(UserOrAboveMixin, CompanyFilterMixin, ModelViewSet):
     queryset = MaintenanceRecord.objects.all()
     serializer_class = MaintenanceRecordSerializer
     permission_classes = [IsAuthenticated]
@@ -886,12 +1068,12 @@ class MaintenanceRecordViewSet(CompanyFilterMixin, ModelViewSet):
             
         return queryset
 
-class MaintenanceAttachmentViewSet(CompanyFilterMixin, ModelViewSet):
+class MaintenanceAttachmentViewSet(UserOrAboveMixin, CompanyFilterMixin, ModelViewSet):
     queryset = MaintenanceAttachment.objects.all()
     serializer_class = MaintenanceAttachmentSerializer
     permission_classes = [IsAuthenticated]
 
-class DriverDocumentViewSet(CompanyFilterMixin, ModelViewSet):
+class DriverDocumentViewSet(UserOrAboveMixin, CompanyFilterMixin, ModelViewSet):
     queryset = DriverDocument.objects.all()
     serializer_class = DriverDocumentSerializer
     permission_classes = [IsAuthenticated]
@@ -914,6 +1096,8 @@ class DriverDocumentViewSet(CompanyFilterMixin, ModelViewSet):
 
 
 class InspectionViewSet(CompanyFilterMixin, ModelViewSet):
+    # TODO: Will need DriverFilterMixin when trip system is implemented
+    # Drivers need to create pre/post trip inspections
     queryset = Inspection.objects.all()
     serializer_class = InspectionSerializer
     permission_classes = [IsAuthenticated]
@@ -940,6 +1124,8 @@ class InspectionViewSet(CompanyFilterMixin, ModelViewSet):
 
 
 class InspectionItemViewSet(CompanyFilterMixin, ModelViewSet):
+    # TODO: Will need DriverFilterMixin when trip system is implemented
+    # Drivers need to create inspection items
     queryset = InspectionItem.objects.all()
     serializer_class = InspectionItemSerializer
     permission_classes = [IsAuthenticated]
@@ -965,7 +1151,9 @@ class InspectionItemViewSet(CompanyFilterMixin, ModelViewSet):
         return queryset
 
 
-class TripsViewSet(CompanyFilterMixin, ModelViewSet):
+class TripsViewSet(UserOrAboveMixin, CompanyFilterMixin, ModelViewSet):
+    # Trips management restricted to admin/user roles
+    # Drivers will have separate endpoints for viewing their assigned trips
     queryset = Trips.objects.all()
     serializer_class = TripsSerializer
     permission_classes = [IsAuthenticated]
@@ -1133,9 +1321,19 @@ def validate_invitation(request, token):
                     status=status.HTTP_400_BAD_REQUEST
                 )
         
+        # Extract invitation data
+        invitation_data = invitation.invitation_data or {}
+        role = invitation_data.get('role', 'user')
+        first_name = invitation_data.get('first_name', '')
+        last_name = invitation_data.get('last_name', '')
+        
         return Response({
             'valid': True,
             'email': invitation.email,
+            'first_name': first_name,
+            'last_name': last_name,
+            'role': role,
+            'role_display': dict([('admin', 'Administrator'), ('user', 'User'), ('driver', 'Driver')])[role],
             'tenant_name': invitation.tenant.name,
             'company_name': invitation.company.name,
             'expires_at': invitation.expires_at.isoformat()
@@ -1209,11 +1407,70 @@ def accept_invitation(request, token):
             is_active=True
         )
         
-        # Set up user profile
+        # Extract invitation data
+        invitation_data = invitation.invitation_data or {}
+        role = invitation_data.get('role', 'user')  # Default to user if not specified
+        company_ids = invitation_data.get('company_ids', [invitation.company.id])
+        driver_id = invitation_data.get('driver_id')
+        create_new_driver = invitation_data.get('create_new_driver', False)
+        driver_data = invitation_data.get('driver_data', {})
+        
+        # Set up user profile with role
         profile = new_user.profile
         profile.tenant = invitation.tenant
+        profile.role = role
         profile.save()
-        profile.companies.add(invitation.company)
+        
+        # Add user to specified companies
+        companies = Company.objects.filter(id__in=company_ids, tenant=invitation.tenant)
+        profile.companies.set(companies)
+        
+        driver_created = False
+        driver_linked = False
+        
+        # Handle driver account creation or linking
+        if role == 'driver':
+            if driver_id:
+                # Link to existing driver record
+                try:
+                    driver = Driver.objects.get(id=driver_id, company__in=companies)
+                    driver.user_account = new_user
+                    driver.save()
+                    driver_linked = True
+                except Driver.DoesNotExist:
+                    logger.warning(f"Driver {driver_id} not found when accepting invitation for {invitation.email}")
+                    # Don't fail the invitation, just log the warning
+                    
+            elif create_new_driver and driver_data:
+                # Create new driver record (Option 3: Simultaneous creation)
+                try:
+                    driver_company = companies.get(id=driver_data.get('company_id'))
+                    new_driver = Driver.objects.create(
+                        first_name=new_user.first_name,
+                        last_name=new_user.last_name,
+                        email=new_user.email,
+                        phone=driver_data.get('phone'),
+                        company=driver_company,
+                        user_account=new_user,
+                        # Optional fields with defaults
+                        address=driver_data.get('address', ''),
+                        city=driver_data.get('city', ''),
+                        state=driver_data.get('state', ''),
+                        zip_code=driver_data.get('zip_code', ''),
+                        date_hired=driver_data.get('date_hired'),
+                        license_number=driver_data.get('license_number', ''),
+                        license_state=driver_data.get('license_state', ''),
+                        license_expiry=driver_data.get('license_expiry'),
+                        medical_cert_expiry=driver_data.get('medical_cert_expiry'),
+                        # Default status
+                        status='active'
+                    )
+                    driver_created = True
+                    logger.info(f"Created new driver record {new_driver.id} for user {new_user.email}")
+                except Exception as e:
+                    logger.error(f"Failed to create driver record for {new_user.email}: {str(e)}")
+                    # Don't fail the invitation if driver creation fails, but log it
+                    # The user account was still created successfully
         
         # Mark invitation as used
         invitation.is_used = True
@@ -1228,8 +1485,11 @@ def accept_invitation(request, token):
                 'email': new_user.email,
                 'first_name': new_user.first_name,
                 'last_name': new_user.last_name,
+                'role': role,
                 'tenant': invitation.tenant.name,
-                'company': invitation.company.name
+                'companies': [{'id': c.id, 'name': c.name} for c in companies],
+                'driver_linked': driver_linked,
+                'driver_created': driver_created
             }
         }, status=status.HTTP_201_CREATED)
         
