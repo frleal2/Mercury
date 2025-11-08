@@ -2,7 +2,8 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.db.models.signals import post_save
 from django.dispatch import receiver
-from datetime import date, datetime  # Import date and datetime for default values
+from datetime import date, datetime, timedelta  # Import date and datetime for default values
+import uuid
 
 class Tenant(models.Model):
     """
@@ -567,4 +568,38 @@ class MaintenanceAttachment(models.Model):
         if self.file:
             self.file_size = self.file.size
         super().save(*args, **kwargs)
+
+
+class InvitationToken(models.Model):
+    """
+    Secure invitation tokens for user registration
+    """
+    token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    email = models.EmailField()
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)
+    company = models.ForeignKey(Company, on_delete=models.CASCADE)
+    invited_by = models.ForeignKey(User, on_delete=models.CASCADE)
+    is_used = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    used_at = models.DateTimeField(null=True, blank=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = "Invitation Token"
+        verbose_name_plural = "Invitation Tokens"
+    
+    def __str__(self):
+        return f"Invitation for {self.email} to {self.company.name}"
+    
+    def save(self, *args, **kwargs):
+        if not self.expires_at:
+            self.expires_at = datetime.now() + timedelta(days=7)  # 7 days expiration
+        super().save(*args, **kwargs)
+    
+    def is_expired(self):
+        return datetime.now() > self.expires_at
+    
+    def is_valid(self):
+        return not self.is_used and not self.is_expired()
 

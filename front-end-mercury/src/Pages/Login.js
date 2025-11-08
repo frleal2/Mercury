@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { useSession } from '../providers/SessionProvider';
 import BASE_URL from '../config';
@@ -11,7 +11,18 @@ const Login = () => {
     const [error, setError] = useState('');
     const [success, setSuccess] = useState(''); // Added success state
     const navigate = useNavigate();
+    const location = useLocation();
     const { setSession } = useSession();
+
+    useEffect(() => {
+        // Check if there's a success message from navigation state
+        if (location.state?.message) {
+            setSuccess(location.state.message);
+            if (location.state.email) {
+                setUsername(location.state.email);
+            }
+        }
+    }, [location.state]);
 
     const handleLogin = async (e) => {
         e.preventDefault();

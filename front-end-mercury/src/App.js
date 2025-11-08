@@ -12,6 +12,7 @@ import ApplicationForm from './Pages/ApplicationForm';
 import Maintenance from './Pages/Maintenance';
 import UserManagement from './Pages/UserManagement';
 import Signup from './Pages/Signup';
+import AcceptInvitation from './Pages/AcceptInvitation';
 
 function AppContent() {
     const { session } = useSession();
@@ -35,6 +36,7 @@ function AppContent() {
                 <>
                     <Route path="/login" element={<Login />} />
                     <Route path="/signup" element={<Signup />} />
+                    <Route path="/accept-invitation/:token" element={<AcceptInvitation />} />
                     <Route path="/QuickApply" element={<ApplicationForm />} /> {/* Allow access to Recruitment without login */}
                     <Route path="*" element={<Navigate to="/login" />} />
                 </>

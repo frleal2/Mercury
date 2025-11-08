@@ -19,7 +19,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework_simplejwt.views import TokenObtainPairView
-from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Tenant, UserProfile, Inspection, InspectionItem, Trips
+from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Tenant, UserProfile, Inspection, InspectionItem, Trips, InvitationToken
 from rest_framework.serializers import ValidationError
 from rest_framework import serializers
 from django.core.files.storage import default_storage
@@ -288,6 +288,13 @@ def invite_user(request):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
+        # Check if there's already a pending invitation for this email
+        if InvitationToken.objects.filter(email=data['email'], is_used=False).exists():
+            return Response(
+                {'error': 'There is already a pending invitation for this email'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
         # Verify admin can access all requested companies
         admin_companies = request.user.profile.companies.all()
         company_ids = data['company_ids']
@@ -300,33 +307,27 @@ def invite_user(request):
                     status=status.HTTP_403_FORBIDDEN
                 )
         
-        # Create inactive user (will be activated when they set password)
-        new_user = User.objects.create_user(
-            username=data['email'],
-            email=data['email'],
-            first_name=data['first_name'],
-            last_name=data['last_name'],
-            is_active=False  # User must activate via invite link
-        )
-        
-        # Set up user profile
-        profile = new_user.profile
-        profile.tenant = request.user.profile.tenant
-        profile.save()
-        profile.companies.set(requested_companies)
-        
         # Send invitation email
         try:
-            # Create activation URL (for now, just a placeholder)
-            # In a full implementation, you'd generate a secure token
-            activation_url = f"{request.build_absolute_uri('/').rstrip('/')}/activate-account/?email={data['email']}"
+            # Create secure invitation token
+            invitation_token = InvitationToken.objects.create(
+                email=data['email'],
+                tenant=request.user.profile.tenant,
+                company=requested_companies.first(),  # Use first company as primary
+                invited_by=request.user
+            )
+            
+            # Create secure activation URL with token
+            activation_url = f"{request.build_absolute_uri('/').rstrip('/')}/accept-invitation/{invitation_token.token}"
             
             # Calculate expiration date
             expiration_date = (datetime.now() + timedelta(days=7)).strftime('%B %d, %Y')
             
             # Prepare email context
             email_context = {
-                'user': new_user,
+                'email': data['email'],
+                'first_name': data['first_name'],
+                'last_name': data['last_name'],
                 'admin_name': f"{request.user.first_name} {request.user.last_name}",
                 'admin_email': request.user.email,
                 'tenant_name': request.user.profile.tenant.name,
@@ -341,11 +342,11 @@ def invite_user(request):
             
             # Send email
             send_mail(
-                subject=f'You\'re invited to {request.user.profile.tenant.name} - Mercury Fleet Management',
+                subject=f'You\'re invited to {request.user.profile.tenant.name} - Fleetly Fleet Management',
                 message=plain_message,
                 html_message=html_message,
                 from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[new_user.email],
+                recipient_list=[data['email']],
                 fail_silently=False,
             )
             
@@ -356,12 +357,12 @@ def invite_user(request):
         
         return Response({
             'message': 'User invited successfully',
-            'user': {
-                'id': new_user.id,
-                'email': new_user.email,
-                'first_name': new_user.first_name,
-                'last_name': new_user.last_name,
-                'companies': [{'id': c.id, 'name': c.name} for c in requested_companies]
+            'invitation': {
+                'email': data['email'],
+                'first_name': data['first_name'],
+                'last_name': data['last_name'],
+                'companies': [{'id': c.id, 'name': c.name} for c in requested_companies],
+                'expires_at': invitation_token.expires_at.isoformat()
             }
         }, status=status.HTTP_201_CREATED)
         
@@ -1102,4 +1103,130 @@ def get_latest_driver_test(request, driver_id):
         return Response(serializer.data, status=status.HTTP_200_OK)
     except Exception as e:
         return Response({"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])  # Public endpoint
+def validate_invitation(request, token):
+    """
+    Validate an invitation token and return invitation details
+    """
+    try:
+        invitation = InvitationToken.objects.get(token=token)
+        
+        if not invitation.is_valid():
+            if invitation.is_expired():
+                return Response(
+                    {'error': 'This invitation has expired'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            else:
+                return Response(
+                    {'error': 'This invitation has already been used'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        
+        return Response({
+            'valid': True,
+            'email': invitation.email,
+            'tenant_name': invitation.tenant.name,
+            'company_name': invitation.company.name,
+            'expires_at': invitation.expires_at.isoformat()
+        }, status=status.HTTP_200_OK)
+        
+    except InvitationToken.DoesNotExist:
+        return Response(
+            {'error': 'Invalid invitation token'}, 
+            status=status.HTTP_404_NOT_FOUND
+        )
+    except Exception as e:
+        logger.error(f"Error validating invitation: {str(e)}")
+        return Response(
+            {'error': 'Internal server error'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])  # Public endpoint
+def accept_invitation(request, token):
+    """
+    Accept an invitation and create the user account
+    """
+    try:
+        invitation = InvitationToken.objects.get(token=token)
+        
+        if not invitation.is_valid():
+            if invitation.is_expired():
+                return Response(
+                    {'error': 'This invitation has expired'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            else:
+                return Response(
+                    {'error': 'This invitation has already been used'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        
+        # Get required fields from request
+        data = request.data
+        required_fields = ['password', 'first_name', 'last_name']
+        for field in required_fields:
+            if not data.get(field):
+                return Response(
+                    {'error': f'{field} is required'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        
+        # Check if user already exists (shouldn't happen, but safety check)
+        if User.objects.filter(email=invitation.email).exists():
+            return Response(
+                {'error': 'User with this email already exists'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Create the user
+        new_user = User.objects.create_user(
+            username=invitation.email,
+            email=invitation.email,
+            first_name=data['first_name'],
+            last_name=data['last_name'],
+            password=data['password'],
+            is_active=True
+        )
+        
+        # Set up user profile
+        profile = new_user.profile
+        profile.tenant = invitation.tenant
+        profile.save()
+        profile.companies.add(invitation.company)
+        
+        # Mark invitation as used
+        invitation.is_used = True
+        invitation.used_at = datetime.now()
+        invitation.save()
+        
+        return Response({
+            'message': 'Account created successfully',
+            'user': {
+                'id': new_user.id,
+                'email': new_user.email,
+                'first_name': new_user.first_name,
+                'last_name': new_user.last_name,
+                'tenant': invitation.tenant.name,
+                'company': invitation.company.name
+            }
+        }, status=status.HTTP_201_CREATED)
+        
+    except InvitationToken.DoesNotExist:
+        return Response(
+            {'error': 'Invalid invitation token'}, 
+            status=status.HTTP_404_NOT_FOUND
+        )
+    except Exception as e:
+        logger.error(f"Error accepting invitation: {str(e)}")
+        return Response(
+            {'error': 'Internal server error'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
 

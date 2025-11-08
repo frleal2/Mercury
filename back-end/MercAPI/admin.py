@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib.auth.models import User
-from .models import Driver, Company, DriverTest, Truck, Trailer, Inspection, InspectionItem, Trips, DriverHOS, DriverApplication, Tenant, UserProfile  # Import the UserProfile model
+from .models import Driver, Company, DriverTest, Truck, Trailer, Inspection, InspectionItem, Trips, DriverHOS, DriverApplication, Tenant, UserProfile, InvitationToken  # Import the UserProfile model
 
 @admin.register(Tenant)
 class TenantAdmin(admin.ModelAdmin):
@@ -186,3 +186,22 @@ class DriverHOSAdmin(admin.ModelAdmin):
     list_display = ('hos_id', 'driver', 'duty_date', 'duty_status', 'start_time', 'end_time', 'duration_minutes', 'miles_driven')
     list_filter = ('duty_status', 'duty_date')
     search_fields = ('driver__first_name', 'driver__last_name', 'duty_date')
+
+@admin.register(InvitationToken)
+class InvitationTokenAdmin(admin.ModelAdmin):
+    list_display = ('email', 'tenant', 'company', 'invited_by', 'is_used', 'created_at', 'expires_at')
+    list_filter = ('is_used', 'tenant', 'company', 'created_at')
+    search_fields = ('email', 'tenant__name', 'company__name', 'invited_by__email')
+    readonly_fields = ('token', 'created_at', 'used_at')
+    
+    fieldsets = (
+        ('Invitation Details', {
+            'fields': ('email', 'tenant', 'company', 'invited_by')
+        }),
+        ('Token Information', {
+            'fields': ('token', 'expires_at')
+        }),
+        ('Status', {
+            'fields': ('is_used', 'created_at', 'used_at')
+        }),
+    )

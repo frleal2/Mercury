@@ -1,6 +1,6 @@
 You've been invited to Fleetly!
 
-Hi {{ user.first_name }} {{ user.last_name }},
+Hi {{ first_name }} {{ last_name }},
 
 {{ admin_name }} has invited you to join {{ tenant_name }} on Fleetly.
 
