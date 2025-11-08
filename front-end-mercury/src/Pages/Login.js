@@ -18,7 +18,9 @@ const Login = () => {
         // Check if there's a success message from navigation state
         if (location.state?.message) {
             setSuccess(location.state.message);
-            if (location.state.email) {
+            if (location.state.username) {
+                setUsername(location.state.username);
+            } else if (location.state.email) {
                 setUsername(location.state.email);
             }
         }

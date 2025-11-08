@@ -1172,7 +1172,7 @@ def accept_invitation(request, token):
         
         # Get required fields from request
         data = request.data
-        required_fields = ['password', 'first_name', 'last_name']
+        required_fields = ['username', 'password', 'first_name', 'last_name']
         for field in required_fields:
             if not data.get(field):
                 return Response(
@@ -1187,9 +1187,16 @@ def accept_invitation(request, token):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
+        # Check if username is already taken
+        if User.objects.filter(username=data['username']).exists():
+            return Response(
+                {'error': 'Username is already taken. Please choose a different username.'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
         # Create the user
         new_user = User.objects.create_user(
-            username=invitation.email,
+            username=data['username'],
             email=invitation.email,
             first_name=data['first_name'],
             last_name=data['last_name'],
@@ -1212,6 +1219,7 @@ def accept_invitation(request, token):
             'message': 'Account created successfully',
             'user': {
                 'id': new_user.id,
+                'username': new_user.username,
                 'email': new_user.email,
                 'first_name': new_user.first_name,
                 'last_name': new_user.last_name,

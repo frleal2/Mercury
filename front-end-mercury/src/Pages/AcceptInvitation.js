@@ -11,6 +11,7 @@ const AcceptInvitation = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [formData, setFormData] = useState({
+        username: '',
         first_name: '',
         last_name: '',
         password: '',
@@ -46,7 +47,7 @@ const AcceptInvitation = () => {
         setError('');
 
         // Validate form
-        if (!formData.first_name || !formData.last_name || !formData.password || !formData.confirmPassword) {
+        if (!formData.username || !formData.first_name || !formData.last_name || !formData.password || !formData.confirmPassword) {
             setError('All fields are required');
             return;
         }
@@ -61,10 +62,21 @@ const AcceptInvitation = () => {
             return;
         }
 
+        if (formData.username.length < 3) {
+            setError('Username must be at least 3 characters long');
+            return;
+        }
+
+        if (!/^[a-zA-Z0-9_]+$/.test(formData.username)) {
+            setError('Username can only contain letters, numbers, and underscores');
+            return;
+        }
+
         setSubmitting(true);
 
         try {
             const response = await axios.post(`${BASE_URL}/api/accept-invitation/${token}/`, {
+                username: formData.username,
                 first_name: formData.first_name,
                 last_name: formData.last_name,
                 password: formData.password
@@ -74,7 +86,7 @@ const AcceptInvitation = () => {
             navigate('/login', { 
                 state: { 
                     message: 'Account created successfully! Please log in with your credentials.',
-                    email: invitationData.email
+                    username: formData.username
                 }
             });
 
@@ -142,6 +154,22 @@ const AcceptInvitation = () => {
 
                 <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
                     <div className="space-y-4">
+                        <div>
+                            <label htmlFor="username" className="block text-sm font-medium text-gray-700">
+                                Username
+                            </label>
+                            <input
+                                id="username"
+                                name="username"
+                                type="text"
+                                required
+                                value={formData.username}
+                                onChange={handleInputChange}
+                                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                                placeholder="Choose a unique username"
+                            />
+                        </div>
+
                         <div>
                             <label htmlFor="first_name" className="block text-sm font-medium text-gray-700">
                                 First Name
