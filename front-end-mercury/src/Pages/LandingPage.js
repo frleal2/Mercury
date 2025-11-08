@@ -160,18 +160,12 @@ const LandingPage = () => {
                         Join hundreds of fleet managers who have streamlined their operations with Fleetly.
                         Start your free trial today – no credit card required.
                     </p>
-                    <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                    <div className="flex justify-center">
                         <button 
                             onClick={() => navigate('/signup')}
                             className="px-8 py-4 bg-white text-blue-600 text-lg font-semibold rounded-lg hover:bg-gray-100 transform hover:scale-105 transition-all duration-200 shadow-lg"
                         >
                             Start Free Trial
-                        </button>
-                        <button 
-                            onClick={() => navigate('/QuickApply')}
-                            className="px-8 py-4 bg-transparent text-white text-lg font-semibold rounded-lg border-2 border-white hover:bg-white hover:text-blue-600 transition-colors"
-                        >
-                            Driver Application
                         </button>
                     </div>
                 </div>

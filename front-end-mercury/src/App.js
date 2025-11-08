@@ -14,6 +14,7 @@ import UserManagement from './Pages/UserManagement';
 import Signup from './Pages/Signup';
 import AcceptInvitation from './Pages/AcceptInvitation';
 import LandingPage from './Pages/LandingPage';
+import Settings from './Pages/Settings';
 
 function AppContent() {
     const { session } = useSession();
@@ -31,6 +32,7 @@ function AppContent() {
                     <Route path="/Maintenance" element={<><Header /><Maintenance /></>} />
                     <Route path="/Recruitment" element={<><Header /><Recruitment /></>} /> {/* Added Recruitment route */}
                     <Route path="/UserManagement" element={<><Header /><UserManagement /></>} /> {/* Added User Management route */}
+                    <Route path="/Settings" element={<><Header /><Settings /></>} /> {/* Added Settings route */}
                     <Route path="/QuickApply" element={<ApplicationForm />} /> {/* Allow access to Recruitment without login */}
                 </>
             ) : (

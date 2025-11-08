@@ -59,6 +59,7 @@ urlpatterns = [
     path('api/invite-user/', views.invite_user, name='invite_user'),
     path('api/validate-invitation/<uuid:token>/', views.validate_invitation, name='validate_invitation'),
     path('api/accept-invitation/<uuid:token>/', views.accept_invitation, name='accept_invitation'),
+    path('api/user/profile/', views.user_profile, name='user_profile'),
     path('api/tenant-users/', views.list_tenant_users, name='list_tenant_users'),
     path('api/users/<int:user_id>/companies/', views.update_user_companies, name='update_user_companies'),
 ]

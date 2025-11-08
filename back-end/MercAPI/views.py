@@ -1240,3 +1240,86 @@ def accept_invitation(request, token):
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
+
+@api_view(['GET', 'PATCH'])
+@permission_classes([IsAuthenticated])
+def user_profile(request):
+    """
+    Get or update user profile information
+    """
+    try:
+        if request.method == 'GET':
+            user = request.user
+            profile_photo_url = None
+            if hasattr(user, 'profile') and user.profile.profile_image:
+                profile_photo_url = user.profile.profile_image.url
+                
+            return Response({
+                'id': user.id,
+                'username': user.username,
+                'email': user.email,
+                'first_name': user.first_name,
+                'last_name': user.last_name,
+                'date_joined': user.date_joined.isoformat(),
+                'profile_photo': profile_photo_url,
+                'tenant': user.profile.tenant.name if hasattr(user, 'profile') and user.profile.tenant else None,
+                'companies': [{'id': c.id, 'name': c.name, 'active': c.active} for c in user.profile.companies.all()] if hasattr(user, 'profile') else []
+            }, status=status.HTTP_200_OK)
+        
+        elif request.method == 'PATCH':
+            user = request.user
+            data = request.data
+            
+            # Update basic user fields
+            if 'first_name' in data:
+                user.first_name = data['first_name']
+            if 'last_name' in data:
+                user.last_name = data['last_name']
+            if 'email' in data:
+                # Check if email is already taken by another user
+                if User.objects.filter(email=data['email']).exclude(id=user.id).exists():
+                    return Response(
+                        {'email': ['Email is already in use by another user']}, 
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                user.email = data['email']
+            if 'username' in data:
+                # Check if username is already taken by another user
+                if User.objects.filter(username=data['username']).exclude(id=user.id).exists():
+                    return Response(
+                        {'username': ['Username is already taken']}, 
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                user.username = data['username']
+            
+            user.save()
+            
+            # Handle profile photo file upload
+            if 'profile_image' in request.FILES:
+                if hasattr(user, 'profile'):
+                    user.profile.profile_image = request.FILES['profile_image']
+                    user.profile.save()
+            
+            profile_photo_url = None
+            if hasattr(user, 'profile') and user.profile.profile_image:
+                profile_photo_url = user.profile.profile_image.url
+            
+            return Response({
+                'id': user.id,
+                'username': user.username,
+                'email': user.email,
+                'first_name': user.first_name,
+                'last_name': user.last_name,
+                'date_joined': user.date_joined.isoformat(),
+                'profile_photo': profile_photo_url,
+                'tenant': user.profile.tenant.name if hasattr(user, 'profile') and user.profile.tenant else None,
+                'companies': [{'id': c.id, 'name': c.name, 'active': c.active} for c in user.profile.companies.all()] if hasattr(user, 'profile') else []
+            }, status=status.HTTP_200_OK)
+            
+    except Exception as e:
+        logger.error(f"Error in user profile endpoint: {str(e)}")
+        return Response(
+            {'error': 'Internal server error'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+

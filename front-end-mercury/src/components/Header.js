@@ -1,7 +1,10 @@
 import { Disclosure, DisclosureButton, DisclosurePanel, Menu, MenuButton, MenuItem, MenuItems } from '@headlessui/react'
-import { Bars3Icon, BellIcon, XMarkIcon } from '@heroicons/react/24/outline'
+import { Bars3Icon, BellIcon, XMarkIcon, UserIcon } from '@heroicons/react/24/outline'
 import logo from '../images/fleetlyWhite.png';
 import { useSession } from '../providers/SessionProvider'; // Import useSession
+import { useState, useEffect } from 'react'
+import axios from 'axios'
+import BASE_URL from '../config'
 
 const navigation = [
   { name: 'Safety Compliance', href: '#', current: true, dropdown: true, options: [
@@ -28,7 +31,25 @@ function handleSignOut(setSession) {
 }
 
 export default function Example() {
-  const { setSession } = useSession(); // Access setSession from SessionProvider
+  const { session, setSession } = useSession(); // Access session and setSession from SessionProvider
+  const [userProfile, setUserProfile] = useState(null);
+
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      if (session.accessToken) {
+        try {
+          const response = await axios.get(`${BASE_URL}/api/user/profile/`, {
+            headers: { 'Authorization': `Bearer ${session.accessToken}` }
+          });
+          setUserProfile(response.data);
+        } catch (error) {
+          console.error('Error fetching user profile:', error);
+        }
+      }
+    };
+
+    fetchUserProfile();
+  }, [session.accessToken]);
   return (
     <Disclosure as="nav" className="bg-gray-800">
       <div className="mx-auto max-w-7xl px-2 sm:px-6 lg:px-8">
@@ -107,11 +128,24 @@ export default function Example() {
                 <MenuButton className="relative flex rounded-full bg-gray-800 text-sm focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-gray-800 focus:outline-hidden">
                   <span className="absolute -inset-1.5" />
                   <span className="sr-only">Open user menu</span>
-                  <img
-                    alt=""
-                    src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80"
-                    className="size-8 rounded-full"
-                  />
+                  <div className="size-8 rounded-full overflow-hidden bg-gray-600 flex items-center justify-center">
+                    {userProfile?.profile_photo ? (
+                      <>
+                        <img
+                          alt="Profile"
+                          src={userProfile.profile_photo}
+                          className="size-8 rounded-full object-cover"
+                          onError={(e) => {
+                            e.target.style.display = 'none';
+                            e.target.nextSibling.style.display = 'block';
+                          }}
+                        />
+                        <UserIcon className="size-5 text-gray-300 hidden" />
+                      </>
+                    ) : (
+                      <UserIcon className="size-5 text-gray-300" />
+                    )}
+                  </div>
                 </MenuButton>
               </div>
               <MenuItems
@@ -128,7 +162,7 @@ export default function Example() {
                 </MenuItem>
                 <MenuItem>
                   <a
-                    href="#"
+                    href="/Settings"
                     className="block px-4 py-2 text-sm text-gray-700 data-focus:bg-gray-100 data-focus:outline-hidden"
                   >
                     Settings

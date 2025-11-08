@@ -96,6 +96,12 @@ class UserProfile(models.Model):
         default=False,
         help_text="Can this user manage company settings and other users?"
     )
+    profile_image = models.FileField(
+        upload_to='profile_photos/%Y/%m/%d/',
+        null=True,
+        blank=True,
+        help_text="User's profile photo file"
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

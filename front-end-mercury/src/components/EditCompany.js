@@ -144,11 +144,11 @@ function EditCompany({ company, onClose }) {
                 type="text"
                 name="name"
                 value={formData.name}
-                onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                readOnly
+                className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-600 cursor-not-allowed"
                 placeholder="Enter company name"
               />
-              {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name}</p>}
+              <p className="text-gray-500 text-xs mt-1">Company name cannot be changed</p>
             </div>
 
             <div>
@@ -157,12 +157,11 @@ function EditCompany({ company, onClose }) {
                 type="text"
                 name="slug"
                 value={formData.slug}
-                onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                readOnly
+                className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-600 cursor-not-allowed"
                 placeholder="url-friendly-name"
               />
-              {errors.slug && <p className="text-red-500 text-xs mt-1">{errors.slug}</p>}
-              <p className="text-gray-500 text-xs mt-1">Used in application links</p>
+              <p className="text-gray-500 text-xs mt-1">URL slug cannot be changed (used in application links)</p>
             </div>
           </div>
 
