@@ -39,8 +39,6 @@ function InviteUser({ onClose }) {
   // Role options based on current user's role
   const getRoleOptions = () => {
     const userRole = session?.userInfo?.role;
-    console.log('🔍 InviteUser - Current user role:', userRole);
-    console.log('🔍 InviteUser - Full session userInfo:', session?.userInfo);
     
     if (userRole === 'admin') {
       return [

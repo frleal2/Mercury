@@ -919,12 +919,44 @@ class TruckViewSet(UserOrAboveMixin, CompanyFilterMixin, ModelViewSet):
     serializer_class = TruckSerializer
     permission_classes = [IsAuthenticated]
 
-class CompanyViewSet(AdminOnlyMixin, CompanyFilterMixin, ModelViewSet):
+class CompanyViewSet(UserOrAboveMixin, CompanyFilterMixin, ModelViewSet):
     queryset = Company.objects.all()
     serializer_class = CompanySerializer
     permission_classes = [IsAuthenticated]
     
     def create(self, request, *args, **kwargs):
+        # Only admins can create companies
+        if not hasattr(request.user, 'profile') or not request.user.profile.is_admin():
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Only admins can create companies")
+    
+        return self._handle_company_create_update(request, *args, **kwargs)
+    
+    def update(self, request, *args, **kwargs):
+        # Only admins can update companies
+        if not hasattr(request.user, 'profile') or not request.user.profile.is_admin():
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Only admins can update companies")
+        
+        return super().update(request, *args, **kwargs)
+    
+    def partial_update(self, request, *args, **kwargs):
+        # Only admins can update companies
+        if not hasattr(request.user, 'profile') or not request.user.profile.is_admin():
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Only admins can update companies")
+        
+        return super().partial_update(request, *args, **kwargs)
+    
+    def destroy(self, request, *args, **kwargs):
+        # Only admins can delete companies
+        if not hasattr(request.user, 'profile') or not request.user.profile.is_admin():
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Only admins can delete companies")
+        
+        return super().destroy(request, *args, **kwargs)
+    
+    def _handle_company_create_update(self, request, *args, **kwargs):
         # Auto-assign tenant and generate slug
         data = request.data.copy()
         
