@@ -94,6 +94,9 @@ CORS_ALLOWED_ORIGINS = [
     'https://mercury-337x.onrender.com',
 ]
 
+# Frontend URL for invitation links
+FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:3000')
+
 STATIC_ROOT = BASE_DIR / 'staticfiles'  # Directory where static files will be collected
 
 

@@ -26,6 +26,9 @@ CORS_ALLOWED_ORIGINS = [
     'https://mercury-337x.onrender.com',
 ]
 
+# Frontend URL for invitation links
+FRONTEND_URL = os.environ.get('FRONTEND_URL', 'https://mercury-337x.onrender.com')
+
 # AWS S3 Configuration for Production
 USE_S3 = os.environ.get('USE_S3', 'False').lower() == 'true'
 

@@ -317,8 +317,9 @@ def invite_user(request):
                 invited_by=request.user
             )
             
-            # Create secure activation URL with token
-            activation_url = f"{request.build_absolute_uri('/').rstrip('/')}/accept-invitation/{invitation_token.token}"
+            # Create secure activation URL with token (points to frontend)
+            frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:3000')
+            activation_url = f"{frontend_url}/accept-invitation/{invitation_token.token}"
             
             # Calculate expiration date
             expiration_date = (datetime.now() + timedelta(days=7)).strftime('%B %d, %Y')
