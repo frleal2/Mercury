@@ -57,7 +57,7 @@ class UserProfileInline(admin.StackedInline):
             'fields': ('companies', 'tenant')
         }),
         ('Permissions', {
-            'fields': ('is_company_admin',)
+            'fields': ('role', 'is_company_admin')
         }),
     )
 
@@ -71,8 +71,8 @@ admin.site.register(User, UserAdmin)
 
 @admin.register(UserProfile)
 class UserProfileAdmin(admin.ModelAdmin):
-    list_display = ('user', 'tenant', 'is_company_admin', 'company_count', 'created_at')
-    list_filter = ('tenant', 'is_company_admin', 'created_at')
+    list_display = ('user', 'tenant', 'role', 'is_company_admin', 'company_count', 'created_at')
+    list_filter = ('tenant', 'role', 'is_company_admin', 'created_at')
     search_fields = ('user__username', 'user__email', 'user__first_name', 'user__last_name')
     filter_horizontal = ('companies',)
     
@@ -85,7 +85,10 @@ class UserProfileAdmin(admin.ModelAdmin):
             'fields': ('user',)
         }),
         ('Access Control', {
-            'fields': ('tenant', 'companies', 'is_company_admin')
+            'fields': ('tenant', 'companies', 'role', 'is_company_admin')
+        }),
+        ('Profile', {
+            'fields': ('profile_image',)
         }),
         ('Timestamps', {
             'fields': ('created_at', 'updated_at'),
