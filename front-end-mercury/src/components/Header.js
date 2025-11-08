@@ -107,22 +107,13 @@ export default function Example() {
                 <MenuButton className="relative flex rounded-full bg-gray-800 text-sm focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-gray-800 focus:outline-hidden">
                   <span className="absolute -inset-1.5" />
                   <span className="sr-only">Open user menu</span>
-                  <div className="size-8 rounded-full overflow-hidden bg-gray-600 flex items-center justify-center">
-                    {userProfile?.profile_photo ? (
-                      <>
-                        <img
-                          alt="Profile"
-                          src={userProfile.profile_photo}
-                          className="size-8 rounded-full object-cover"
-                          onError={(e) => {
-                            e.target.style.display = 'none';
-                            e.target.nextSibling.style.display = 'block';
-                          }}
-                        />
-                        <UserIcon className="size-5 text-gray-300 hidden" />
-                      </>
+                  <div className="size-8 rounded-full bg-blue-100 flex items-center justify-center">
+                    {userProfile?.first_name || userProfile?.last_name ? (
+                      <span className="text-xs font-medium text-blue-800">
+                        {userProfile.first_name?.charAt(0) || ''}{userProfile.last_name?.charAt(0) || ''}
+                      </span>
                     ) : (
-                      <UserIcon className="size-5 text-gray-300" />
+                      <UserIcon className="size-5 text-gray-400" />
                     )}
                   </div>
                 </MenuButton>

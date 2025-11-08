@@ -13,8 +13,7 @@ const Settings = () => {
         email: '',
         username: ''
     });
-    const [profilePhoto, setProfilePhoto] = useState(null);
-    const [profilePhotoPreview, setProfilePhotoPreview] = useState(null);
+
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
@@ -39,9 +38,7 @@ const Settings = () => {
                 email: user.email || '',
                 username: user.username || ''
             });
-            if (user.profile_photo) {
-                setProfilePhotoPreview(user.profile_photo);
-            }
+
             setLoading(false);
         } catch (error) {
             console.error('Error fetching user profile:', error);
@@ -77,35 +74,7 @@ const Settings = () => {
         if (success) setSuccess('');
     };
 
-    const handlePhotoChange = (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            // Validate file type
-            if (!file.type.startsWith('image/')) {
-                setError('Please select a valid image file');
-                return;
-            }
-            
-            // Validate file size (5MB max)
-            if (file.size > 5 * 1024 * 1024) {
-                setError('File size must be less than 5MB');
-                return;
-            }
-            
-            setProfilePhoto(file);
-            
-            // Create preview URL
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                setProfilePhotoPreview(e.target.result);
-            };
-            reader.readAsDataURL(file);
-        }
-        
-        // Clear messages
-        if (error) setError('');
-        if (success) setSuccess('');
-    };
+
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -114,22 +83,10 @@ const Settings = () => {
         setSuccess('');
 
         try {
-            // Create FormData for file upload
-            const submitData = new FormData();
-            Object.keys(formData).forEach(key => {
-                if (formData[key]) {
-                    submitData.append(key, formData[key]);
-                }
-            });
-            
-            if (profilePhoto) {
-                submitData.append('profile_image', profilePhoto);
-            }
-
-            const response = await axios.patch(`${BASE_URL}/api/user/profile/`, submitData, {
+            const response = await axios.patch(`${BASE_URL}/api/user/profile/`, formData, {
                 headers: { 
                     'Authorization': `Bearer ${session.accessToken}`,
-                    'Content-Type': 'multipart/form-data'
+                    'Content-Type': 'application/json'
                 }
             });
             
@@ -198,41 +155,18 @@ const Settings = () => {
                             </div>
                             
                             <form onSubmit={handleSubmit} className="px-6 py-4 space-y-4">
-                                {/* Profile Photo */}
+                                {/* Profile Avatar */}
                                 <div className="flex flex-col items-center space-y-4 pb-4 border-b border-gray-200">
-                                    <div className="relative">
-                                        <div className="w-24 h-24 rounded-full overflow-hidden bg-gray-200 flex items-center justify-center">
-                                            {profilePhotoPreview ? (
-                                                <>
-                                                    <img
-                                                        src={profilePhotoPreview}
-                                                        alt="Profile"
-                                                        className="w-full h-full object-cover"
-                                                        onError={(e) => {
-                                                            e.target.style.display = 'none';
-                                                            e.target.nextSibling.style.display = 'flex';
-                                                        }}
-                                                    />
-                                                    <UserIcon className="w-12 h-12 text-gray-400 hidden" />
-                                                </>
-                                            ) : (
-                                                <UserIcon className="w-12 h-12 text-gray-400" />
-                                            )}
-                                        </div>
+                                    <div className="w-24 h-24 rounded-full bg-blue-100 flex items-center justify-center">
+                                        {formData.first_name || formData.last_name ? (
+                                            <span className="text-2xl font-medium text-blue-800">
+                                                {formData.first_name?.charAt(0) || ''}{formData.last_name?.charAt(0) || ''}
+                                            </span>
+                                        ) : (
+                                            <UserIcon className="w-12 h-12 text-gray-400" />
+                                        )}
                                     </div>
-                                    <div className="w-full max-w-sm">
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                                            Profile Photo
-                                        </label>
-                                        <input
-                                            type="file"
-                                            accept="image/*"
-                                            onChange={handlePhotoChange}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 file:mr-4 file:py-1 file:px-4 file:rounded file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                                        />
-                                        <p className="text-xs text-gray-500 mt-1">Choose an image file (max 5MB)</p>
-                                    </div>
-
+                                    <p className="text-sm text-gray-500">Your profile avatar is based on your initials</p>
                                 </div>
 
                                 {/* Name Fields */}

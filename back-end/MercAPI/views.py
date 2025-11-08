@@ -1255,9 +1255,6 @@ def user_profile(request):
     try:
         if request.method == 'GET':
             user = request.user
-            profile_photo_url = None
-            if hasattr(user, 'profile') and user.profile.profile_image:
-                profile_photo_url = user.profile.profile_image.url
                 
             return Response({
                 'id': user.id,
@@ -1266,7 +1263,6 @@ def user_profile(request):
                 'first_name': user.first_name,
                 'last_name': user.last_name,
                 'date_joined': user.date_joined.isoformat(),
-                'profile_photo': profile_photo_url,
                 'tenant': user.profile.tenant.name if hasattr(user, 'profile') and user.profile.tenant else None,
                 'companies': [{'id': c.id, 'name': c.name, 'active': c.active} for c in user.profile.companies.all()] if hasattr(user, 'profile') else []
             }, status=status.HTTP_200_OK)
@@ -1299,15 +1295,7 @@ def user_profile(request):
             
             user.save()
             
-            # Handle profile photo file upload
-            if 'profile_image' in request.FILES:
-                if hasattr(user, 'profile'):
-                    user.profile.profile_image = request.FILES['profile_image']
-                    user.profile.save()
-            
-            profile_photo_url = None
-            if hasattr(user, 'profile') and user.profile.profile_image:
-                profile_photo_url = user.profile.profile_image.url
+
             
             return Response({
                 'id': user.id,
@@ -1316,7 +1304,6 @@ def user_profile(request):
                 'first_name': user.first_name,
                 'last_name': user.last_name,
                 'date_joined': user.date_joined.isoformat(),
-                'profile_photo': profile_photo_url,
                 'tenant': user.profile.tenant.name if hasattr(user, 'profile') and user.profile.tenant else None,
                 'companies': [{'id': c.id, 'name': c.name, 'active': c.active} for c in user.profile.companies.all()] if hasattr(user, 'profile') else []
             }, status=status.HTTP_200_OK)
