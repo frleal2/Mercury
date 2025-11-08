@@ -2,9 +2,6 @@ import { Disclosure, DisclosureButton, DisclosurePanel, Menu, MenuButton, MenuIt
 import { Bars3Icon, BellIcon, XMarkIcon, UserIcon } from '@heroicons/react/24/outline'
 import logo from '../images/fleetlyWhite.png';
 import { useSession } from '../providers/SessionProvider'; // Import useSession
-import { useState, useEffect } from 'react'
-import axios from 'axios'
-import BASE_URL from '../config'
 
 const navigation = [
   { name: 'Safety Compliance', href: '#', current: true, dropdown: true, options: [
@@ -31,25 +28,7 @@ function handleSignOut(setSession) {
 }
 
 export default function Example() {
-  const { session, setSession } = useSession(); // Access session and setSession from SessionProvider
-  const [userProfile, setUserProfile] = useState(null);
-
-  useEffect(() => {
-    const fetchUserProfile = async () => {
-      if (session.accessToken) {
-        try {
-          const response = await axios.get(`${BASE_URL}/api/user/profile/`, {
-            headers: { 'Authorization': `Bearer ${session.accessToken}` }
-          });
-          setUserProfile(response.data);
-        } catch (error) {
-          console.error('Error fetching user profile:', error);
-        }
-      }
-    };
-
-    fetchUserProfile();
-  }, [session.accessToken]);
+  const { session, setSession, userProfile } = useSession(); // Access session, setSession, and userProfile from SessionProvider
   return (
     <Disclosure as="nav" className="bg-gray-800">
       <div className="mx-auto max-w-7xl px-2 sm:px-6 lg:px-8">
@@ -152,14 +131,6 @@ export default function Example() {
                 transition
                 className="absolute right-0 z-10 mt-2 w-48 origin-top-right rounded-md bg-white py-1 shadow-lg ring-1 ring-black/5 transition focus:outline-hidden data-closed:scale-95 data-closed:transform data-closed:opacity-0 data-enter:duration-100 data-enter:ease-out data-leave:duration-75 data-leave:ease-in"
               >
-                <MenuItem>
-                  <a
-                    href="#"
-                    className="block px-4 py-2 text-sm text-gray-700 data-focus:bg-gray-100 data-focus:outline-hidden"
-                  >
-                    Your Profile
-                  </a>
-                </MenuItem>
                 <MenuItem>
                   <a
                     href="/Settings"

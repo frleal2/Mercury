@@ -764,6 +764,11 @@ class CompanyViewSet(CompanyFilterMixin, ModelViewSet):
         serializer = self.get_serializer(data=data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
+        
+        # Add the newly created company to the user's companies
+        if hasattr(request.user, 'profile'):
+            request.user.profile.companies.add(serializer.instance)
+        
         headers = self.get_success_headers(serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 

@@ -5,7 +5,7 @@ import BASE_URL from '../config';
 import { UserIcon, EnvelopeIcon, BuildingOfficeIcon, CheckIcon } from '@heroicons/react/24/outline';
 
 const Settings = () => {
-    const { session, refreshAccessToken } = useSession();
+    const { session, refreshAccessToken, refreshUserProfile } = useSession();
     const [userProfile, setUserProfile] = useState(null);
     const [formData, setFormData] = useState({
         first_name: '',
@@ -135,6 +135,11 @@ const Settings = () => {
             
             setSuccess('Profile updated successfully!');
             setUserProfile(response.data);
+            
+            // Refresh the global user profile so Header updates
+            if (refreshUserProfile) {
+                refreshUserProfile();
+            }
             
             // Clear success message after 3 seconds
             setTimeout(() => setSuccess(''), 3000);

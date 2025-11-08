@@ -32,6 +32,8 @@ export const SessionProvider = ({ children }) => {
     return { accessToken: '', refreshToken: '' };
   });
 
+  const [userProfile, setUserProfile] = useState(null);
+
   const [isRefreshing, setIsRefreshing] = useState(false);
   const failedQueue = useRef([]);
 
@@ -319,8 +321,31 @@ export const SessionProvider = ({ children }) => {
     };
   }, [refreshAccessToken]);
 
+  // Function to refresh user profile
+  const refreshUserProfile = useCallback(async () => {
+    if (session.accessToken) {
+      try {
+        const response = await axios.get(`${BASE_URL}/api/user/profile/`, {
+          headers: { 'Authorization': `Bearer ${session.accessToken}` }
+        });
+        setUserProfile(response.data);
+        return response.data;
+      } catch (error) {
+        console.error('Error fetching user profile:', error);
+        return null;
+      }
+    }
+  }, [session.accessToken]);
+
+  // Fetch user profile when session changes
+  useEffect(() => {
+    if (session.accessToken && !userProfile) {
+      refreshUserProfile();
+    }
+  }, [session.accessToken, refreshUserProfile, userProfile]);
+
   return (
-    <SessionContext.Provider value={{ session, setSession, refreshAccessToken, logout }}>
+    <SessionContext.Provider value={{ session, setSession, refreshAccessToken, logout, userProfile, refreshUserProfile }}>
       {children}
     </SessionContext.Provider>
   );
