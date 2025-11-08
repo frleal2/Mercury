@@ -92,6 +92,8 @@ CORS_ALLOWED_ORIGINS = [
     'http://localhost:5173',
     'http://localhost:3000',
     'https://mercury-337x.onrender.com',
+    'https://myfleetly.com',
+    'https://www.myfleetly.com',
 ]
 
 # Frontend URL for invitation links
