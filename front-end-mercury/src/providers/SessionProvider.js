@@ -21,6 +21,8 @@ export const SessionProvider = ({ children }) => {
             tenantName: decoded.tenant_name,
             companies: decoded.companies || [],
             isCompanyAdmin: decoded.is_company_admin || false,
+            role: decoded.role || 'user',
+            roleDisplay: decoded.role_display || 'User',
             exp: decoded.exp
           };
         } catch (error) {
@@ -50,6 +52,8 @@ export const SessionProvider = ({ children }) => {
           tenantDomain: decoded.tenant_domain,
           companies: decoded.companies || [],
           isCompanyAdmin: decoded.is_company_admin || false,
+          role: decoded.role || 'user',
+          roleDisplay: decoded.role_display || 'User',
           exp: decoded.exp
         };
       } catch (error) {
