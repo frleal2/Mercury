@@ -3,6 +3,7 @@ from django.contrib.auth.models import User
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from datetime import date, datetime, timedelta  # Import date and datetime for default values
+from django.utils import timezone
 import uuid
 
 class Tenant(models.Model):
@@ -594,11 +595,11 @@ class InvitationToken(models.Model):
     
     def save(self, *args, **kwargs):
         if not self.expires_at:
-            self.expires_at = datetime.now() + timedelta(days=7)  # 7 days expiration
+            self.expires_at = timezone.now() + timedelta(days=7)  # 7 days expiration
         super().save(*args, **kwargs)
     
     def is_expired(self):
-        return datetime.now() > self.expires_at
+        return timezone.now() > self.expires_at
     
     def is_valid(self):
         return not self.is_used and not self.is_expired()

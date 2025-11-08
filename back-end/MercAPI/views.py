@@ -7,6 +7,7 @@ from django.core.mail import send_mail
 from django.template.loader import render_to_string
 from django.utils.html import strip_tags
 from datetime import datetime, timedelta
+from django.utils import timezone
 from urllib.parse import urlencode
 from .serializers import UserSerializer, DriverSerializer, TruckSerializer, CompanySerializer, TrailerSerializer, DriverTestSerializer, DriverHOSSerializer, DriverApplicationSerializer, MaintenanceCategorySerializer, MaintenanceTypeSerializer, MaintenanceRecordSerializer, MaintenanceAttachmentSerializer, DriverDocumentSerializer, InspectionSerializer, InspectionItemSerializer, TripsSerializer
 from rest_framework.decorators import api_view, permission_classes
@@ -322,7 +323,7 @@ def invite_user(request):
             activation_url = f"{frontend_url}/accept-invitation/{invitation_token.token}"
             
             # Calculate expiration date
-            expiration_date = (datetime.now() + timedelta(days=7)).strftime('%B %d, %Y')
+            expiration_date = (timezone.now() + timedelta(days=7)).strftime('%B %d, %Y')
             
             # Prepare email context
             email_context = {
@@ -1204,7 +1205,7 @@ def accept_invitation(request, token):
         
         # Mark invitation as used
         invitation.is_used = True
-        invitation.used_at = datetime.now()
+        invitation.used_at = timezone.now()
         invitation.save()
         
         return Response({
