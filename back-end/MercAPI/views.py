@@ -561,10 +561,10 @@ def list_tenant_users(request):
     Only accessible by company admins.
     """
     try:
-        # Check if user is company admin
-        if not hasattr(request.user, 'profile') or not request.user.profile.is_company_admin:
+        # Check if user has permission to view users (admin or user role)
+        if not hasattr(request.user, 'profile') or not request.user.profile.is_user_or_above():
             return Response(
-                {'error': 'Only company admins can view users'}, 
+                {'error': 'You do not have permission to view users'}, 
                 status=status.HTTP_403_FORBIDDEN
             )
         
@@ -581,7 +581,8 @@ def list_tenant_users(request):
                 'first_name': user.first_name,
                 'last_name': user.last_name,
                 'is_active': user.is_active,
-                'is_company_admin': user.profile.is_company_admin,
+                'role': user.profile.role,
+                'is_company_admin': user.profile.is_company_admin,  # Keep for backward compatibility
                 'companies': [{'id': c.id, 'name': c.name, 'slug': c.slug} for c in user_companies],
                 'date_joined': user.date_joined
             })
