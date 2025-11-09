@@ -168,7 +168,7 @@ const AddTrip = ({ onClose }) => {
 
     setLoading(true);
     try {
-      await axios.post(`${BASE_URL}/api/trips/management/`, formData, {
+      await axios.post(`${BASE_URL}/api/trips/`, formData, {
         headers: { 
           'Authorization': `Bearer ${session.accessToken}`,
           'Content-Type': 'application/json'

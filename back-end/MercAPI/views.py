@@ -1754,6 +1754,28 @@ class TripsManagementViewSet(UserOrAboveMixin, CompanyFilterMixin, ModelViewSet)
             if user_companies:
                 serializer.validated_data['company'] = user_companies
         
+        # Map frontend field names to model field names
+        if serializer.validated_data.get('planned_departure'):
+            serializer.validated_data['start_time'] = serializer.validated_data.pop('planned_departure')
+            serializer.validated_data['scheduled_start_date'] = serializer.validated_data['start_time']
+        
+        if serializer.validated_data.get('planned_arrival'):
+            serializer.validated_data['scheduled_end_date'] = serializer.validated_data.pop('planned_arrival')
+        
+        if serializer.validated_data.get('origin'):
+            serializer.validated_data['start_location'] = serializer.validated_data.pop('origin')
+        
+        if serializer.validated_data.get('destination'):
+            serializer.validated_data['end_location'] = serializer.validated_data.pop('destination')
+        
+        if serializer.validated_data.get('load_description'):
+            # Store load_description in notes if notes is empty
+            if not serializer.validated_data.get('notes'):
+                serializer.validated_data['notes'] = serializer.validated_data.pop('load_description')
+            else:
+                load_desc = serializer.validated_data.pop('load_description')
+                serializer.validated_data['notes'] = f"Load: {load_desc}\n{serializer.validated_data['notes']}"
+        
         serializer.save(created_by=self.request.user)
 
 
