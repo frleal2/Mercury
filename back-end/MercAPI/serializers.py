@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Inspection, InspectionItem, Trips, UserProfile
+from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Inspection, InspectionItem, Trips, UserProfile, TripInspection, TripDocument
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -180,6 +180,63 @@ class InspectionSerializer(serializers.ModelSerializer):
 
 
 class TripsSerializer(serializers.ModelSerializer):
+    driver_name = serializers.CharField(source='driver.get_full_name', read_only=True)
+    truck_number = serializers.CharField(source='truck.truck_number', read_only=True)
+    trailer_number = serializers.CharField(source='trailer.trailer_number', read_only=True)
+    company_name = serializers.CharField(source='company.name', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    origin_display = serializers.CharField(source='get_origin_display', read_only=True)
+    destination_display = serializers.CharField(source='get_destination_display', read_only=True)
+    duration_hours = serializers.SerializerMethodField()
+    total_miles = serializers.SerializerMethodField()
+    can_start = serializers.SerializerMethodField()
+    can_complete = serializers.SerializerMethodField()
+    
     class Meta:
         model = Trips
         fields = '__all__'
+    
+    def get_duration_hours(self, obj):
+        return obj.get_duration_hours()
+    
+    def get_total_miles(self, obj):
+        return obj.get_total_miles()
+    
+    def get_can_start(self, obj):
+        return obj.can_start_trip()
+    
+    def get_can_complete(self, obj):
+        return obj.can_complete_trip()
+
+
+class TripInspectionSerializer(serializers.ModelSerializer):
+    trip_number = serializers.CharField(source='trip.trip_number', read_only=True)
+    trip_id = serializers.CharField(source='trip.id', read_only=True)
+    inspection_type_display = serializers.CharField(source='get_inspection_type_display', read_only=True)
+    completed_by_name = serializers.CharField(source='completed_by.get_full_name', read_only=True)
+    is_inspection_passed = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = TripInspection
+        fields = '__all__'
+        read_only_fields = ['completed_at', 'completed_by']
+    
+    def get_is_inspection_passed(self, obj):
+        return obj.is_passed()
+
+
+class TripDocumentSerializer(serializers.ModelSerializer):
+    trip_number = serializers.CharField(source='trip.trip_number', read_only=True)
+    document_type_display = serializers.CharField(source='get_document_type_display', read_only=True)
+    uploaded_by_name = serializers.CharField(source='uploaded_by.get_full_name', read_only=True)
+    file_url = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = TripDocument
+        fields = '__all__'
+        read_only_fields = ['uploaded_at', 'uploaded_by']
+    
+    def get_file_url(self, obj):
+        if obj.file:
+            return obj.file.url
+        return None

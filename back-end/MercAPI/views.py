@@ -9,7 +9,7 @@ from django.utils.html import strip_tags
 from datetime import datetime, timedelta
 from django.utils import timezone
 from urllib.parse import urlencode
-from .serializers import UserSerializer, DriverSerializer, TruckSerializer, CompanySerializer, TrailerSerializer, DriverTestSerializer, DriverHOSSerializer, DriverApplicationSerializer, MaintenanceCategorySerializer, MaintenanceTypeSerializer, MaintenanceRecordSerializer, MaintenanceAttachmentSerializer, DriverDocumentSerializer, InspectionSerializer, InspectionItemSerializer, TripsSerializer
+from .serializers import UserSerializer, DriverSerializer, TruckSerializer, CompanySerializer, TrailerSerializer, DriverTestSerializer, DriverHOSSerializer, DriverApplicationSerializer, MaintenanceCategorySerializer, MaintenanceTypeSerializer, MaintenanceRecordSerializer, MaintenanceAttachmentSerializer, DriverDocumentSerializer, InspectionSerializer, InspectionItemSerializer, TripsSerializer, TripInspectionSerializer, TripDocumentSerializer
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -20,7 +20,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework_simplejwt.views import TokenObtainPairView
-from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Tenant, UserProfile, Inspection, InspectionItem, Trips, InvitationToken
+from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Tenant, UserProfile, Inspection, InspectionItem, Trips, InvitationToken, TripInspection, TripDocument
 from rest_framework.serializers import ValidationError
 from rest_framework import serializers
 from django.core.files.storage import default_storage
@@ -1709,6 +1709,326 @@ def user_profile(request):
             
     except Exception as e:
         logger.error(f"Error in user profile endpoint: {str(e)}")
+        return Response(
+            {'error': 'Internal server error'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+# ==================== TRIPS MANAGEMENT VIEWSETS ====================
+
+class TripsManagementViewSet(UserOrAboveMixin, CompanyFilterMixin, ModelViewSet):
+    """
+    ViewSet for comprehensive trips management
+    Users can create trips and assign drivers, trucks, and trailers
+    """
+    serializer_class = TripsSerializer
+    
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        
+        # Filter by user role
+        user_role = self.request.user.profile.role
+        
+        if user_role == 'driver':
+            # Drivers only see their own trips
+            queryset = queryset.filter(driver__user_account=self.request.user)
+        elif user_role in ['user', 'admin']:
+            # Users and admins see trips for their companies
+            user_companies = self.request.user.profile.companies.all()
+            queryset = queryset.filter(company__in=user_companies)
+        
+        return queryset.order_by('-scheduled_start_date', '-start_time')
+    
+    def perform_create(self, serializer):
+        # Auto-generate trip number if not provided
+        if not serializer.validated_data.get('trip_number'):
+            trip_count = Trips.objects.count() + 1
+            trip_number = f"TRIP-{trip_count:06d}"
+            serializer.validated_data['trip_number'] = trip_number
+        
+        # Set the company from the user's companies if not specified
+        if not serializer.validated_data.get('company'):
+            user_companies = self.request.user.profile.companies.first()
+            if user_companies:
+                serializer.validated_data['company'] = user_companies
+        
+        serializer.save(created_by=self.request.user)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def start_trip(request, trip_id):
+    """
+    Start a trip (driver can start if pre-trip inspection is completed)
+    """
+    try:
+        trip = Trips.objects.get(id=trip_id)
+        user_role = request.user.profile.role
+        
+        # Check permissions
+        if user_role == 'driver':
+            if trip.driver.user_account != request.user:
+                return Response(
+                    {'error': 'You can only start your own trips'}, 
+                    status=status.HTTP_403_FORBIDDEN
+                )
+        elif user_role in ['user', 'admin']:
+            user_companies = request.user.profile.companies.all()
+            if trip.company not in user_companies:
+                return Response(
+                    {'error': 'Trip not in your company'}, 
+                    status=status.HTTP_403_FORBIDDEN
+                )
+        
+        # Check if trip can be started
+        if not trip.can_start_trip():
+            return Response(
+                {'error': 'Trip cannot be started. Pre-trip inspection must be completed first.'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Start the trip
+        trip.status = 'in_progress'
+        trip.actual_start_date = timezone.now()
+        
+        # Set mileage start if provided
+        if 'mileage_start' in request.data:
+            trip.mileage_start = request.data['mileage_start']
+        
+        trip.save()
+        
+        return Response({
+            'message': 'Trip started successfully',
+            'trip_id': trip.id,
+            'status': trip.status,
+            'actual_start_date': trip.actual_start_date
+        }, status=status.HTTP_200_OK)
+        
+    except Trips.DoesNotExist:
+        return Response(
+            {'error': 'Trip not found'}, 
+            status=status.HTTP_404_NOT_FOUND
+        )
+    except Exception as e:
+        logger.error(f"Error starting trip: {str(e)}")
+        return Response(
+            {'error': 'Internal server error'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def complete_trip(request, trip_id):
+    """
+    Complete a trip (driver can complete if post-trip inspection is done)
+    """
+    try:
+        trip = Trips.objects.get(id=trip_id)
+        user_role = request.user.profile.role
+        
+        # Check permissions
+        if user_role == 'driver':
+            if trip.driver.user_account != request.user:
+                return Response(
+                    {'error': 'You can only complete your own trips'}, 
+                    status=status.HTTP_403_FORBIDDEN
+                )
+        elif user_role in ['user', 'admin']:
+            user_companies = request.user.profile.companies.all()
+            if trip.company not in user_companies:
+                return Response(
+                    {'error': 'Trip not in your company'}, 
+                    status=status.HTTP_403_FORBIDDEN
+                )
+        
+        # Check if trip can be completed
+        if not trip.can_complete_trip():
+            return Response(
+                {'error': 'Trip cannot be completed. Trip must be in progress.'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Check if post-trip inspection is completed
+        if not trip.post_trip_inspection_completed:
+            return Response(
+                {'error': 'Post-trip inspection must be completed before finishing the trip.'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Complete the trip
+        trip.status = 'completed'
+        trip.actual_end_date = timezone.now()
+        
+        # Set mileage end if provided
+        if 'mileage_end' in request.data:
+            trip.mileage_end = request.data['mileage_end']
+            
+        # Calculate miles driven if both start and end mileage are available
+        if trip.mileage_start and trip.mileage_end:
+            trip.miles_driven = trip.mileage_end - trip.mileage_start
+        
+        trip.save()
+        
+        return Response({
+            'message': 'Trip completed successfully',
+            'trip_id': trip.id,
+            'status': trip.status,
+            'actual_end_date': trip.actual_end_date,
+            'total_miles': trip.get_total_miles()
+        }, status=status.HTTP_200_OK)
+        
+    except Trips.DoesNotExist:
+        return Response(
+            {'error': 'Trip not found'}, 
+            status=status.HTTP_404_NOT_FOUND
+        )
+    except Exception as e:
+        logger.error(f"Error completing trip: {str(e)}")
+        return Response(
+            {'error': 'Internal server error'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def driver_active_trips(request):
+    """
+    Get active trips for the logged-in driver
+    """
+    try:
+        # Check if user is a driver
+        if request.user.profile.role != 'driver':
+            return Response(
+                {'error': 'This endpoint is only for drivers'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Get driver's active trips
+        active_trips = Trips.objects.filter(
+            driver__user_account=request.user,
+            status__in=['scheduled', 'in_progress']
+        ).order_by('-scheduled_start_date', '-start_time')
+        
+        serializer = TripsSerializer(active_trips, many=True)
+        return Response({
+            'trips': serializer.data,
+            'count': active_trips.count()
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        logger.error(f"Error fetching driver active trips: {str(e)}")
+        return Response(
+            {'error': 'Internal server error'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+class TripInspectionViewSet(ModelViewSet):
+    """
+    ViewSet for trip inspections (pre-trip and post-trip)
+    """
+    serializer_class = TripInspectionSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        user_role = self.request.user.profile.role
+        
+        if user_role == 'driver':
+            # Drivers only see inspections for their trips
+            return TripInspection.objects.filter(
+                trip__driver__user_account=self.request.user
+            )
+        elif user_role in ['user', 'admin']:
+            # Users and admins see inspections for their company trips
+            user_companies = self.request.user.profile.companies.all()
+            return TripInspection.objects.filter(
+                trip__company__in=user_companies
+            )
+        
+        return TripInspection.objects.none()
+    
+    def perform_create(self, serializer):
+        trip = serializer.validated_data['trip']
+        inspection_type = serializer.validated_data['inspection_type']
+        
+        serializer.save(completed_by=self.request.user)
+        
+        # Update trip inspection flags
+        if inspection_type == 'pre_trip':
+            trip.pre_trip_inspection_completed = True
+        elif inspection_type == 'post_trip':
+            trip.post_trip_inspection_completed = True
+        
+        trip.save()
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def submit_inspection(request, trip_id, inspection_type):
+    """
+    Submit a trip inspection (pre-trip or post-trip)
+    """
+    try:
+        trip = Trips.objects.get(id=trip_id)
+        
+        # Check permissions
+        user_role = request.user.profile.role
+        if user_role == 'driver':
+            if trip.driver.user_account != request.user:
+                return Response(
+                    {'error': 'You can only inspect your own trips'}, 
+                    status=status.HTTP_403_FORBIDDEN
+                )
+        
+        # Validate inspection type
+        if inspection_type not in ['pre_trip', 'post_trip']:
+            return Response(
+                {'error': 'Invalid inspection type'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Check if inspection already exists
+        if TripInspection.objects.filter(trip=trip, inspection_type=inspection_type).exists():
+            return Response(
+                {'error': f'{inspection_type.replace("_", "-").title()} inspection already completed'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Create inspection
+        inspection_data = request.data.copy()
+        inspection_data['trip'] = trip.id
+        inspection_data['inspection_type'] = inspection_type
+        
+        serializer = TripInspectionSerializer(data=inspection_data)
+        if serializer.is_valid():
+            inspection = serializer.save(completed_by=request.user)
+            
+            # Update trip inspection flags
+            if inspection_type == 'pre_trip':
+                trip.pre_trip_inspection_completed = True
+            elif inspection_type == 'post_trip':
+                trip.post_trip_inspection_completed = True
+            
+            trip.save()
+            
+            return Response({
+                'message': f'{inspection_type.replace("_", "-").title()} inspection submitted successfully',
+                'inspection_id': inspection.id,
+                'inspection_passed': inspection.is_passed()
+            }, status=status.HTTP_201_CREATED)
+        else:
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+    except Trips.DoesNotExist:
+        return Response(
+            {'error': 'Trip not found'}, 
+            status=status.HTTP_404_NOT_FOUND
+        )
+    except Exception as e:
+        logger.error(f"Error submitting inspection: {str(e)}")
         return Response(
             {'error': 'Internal server error'}, 
             status=status.HTTP_500_INTERNAL_SERVER_ERROR

@@ -424,20 +424,100 @@ class InspectionItem(models.Model):
         return f"Item {self.item_id} - {self.component} ({self.condition})"
 
 class Trips(models.Model):
+    """
+    Enhanced Trips model for comprehensive trip management
+    """
+    TRIP_STATUS_CHOICES = [
+        ('scheduled', 'Scheduled'),
+        ('in_progress', 'In Progress'),
+        ('completed', 'Completed'),
+        ('cancelled', 'Cancelled'),
+    ]
+    
     id = models.AutoField(primary_key=True)
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name='company_trips', null=True, blank=True)
     driver = models.ForeignKey(Driver, on_delete=models.CASCADE, related_name="trips")
     truck = models.ForeignKey(Truck, on_delete=models.CASCADE, related_name="trips")
+    trailer = models.ForeignKey(Trailer, on_delete=models.CASCADE, related_name="trips", null=True, blank=True)
+    
+    # Trip identification and details
+    trip_number = models.CharField(max_length=50, unique=True, null=True, blank=True)
+    origin = models.CharField(max_length=255, null=True, blank=True)
+    destination = models.CharField(max_length=255, null=True, blank=True)
+    
+    # Existing fields (keep for backward compatibility)
     pre_trip_inspection = models.ForeignKey(Inspection, on_delete=models.SET_NULL, null=True, blank=True, related_name="pre_trip_trips")
     post_trip_inspection = models.ForeignKey(Inspection, on_delete=models.SET_NULL, null=True, blank=True, related_name="post_trip_trips")
     start_time = models.DateTimeField()
     end_time = models.DateTimeField(null=True, blank=True)
     start_location = models.TextField()
     end_location = models.TextField(null=True, blank=True)
-    miles_driven = models.DecimalField(max_digits=10, decimal_places=2)
+    miles_driven = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     notes = models.TextField(null=True, blank=True)
+    
+    # New enhanced fields
+    scheduled_start_date = models.DateTimeField(null=True, blank=True)
+    scheduled_end_date = models.DateTimeField(null=True, blank=True)
+    actual_start_date = models.DateTimeField(null=True, blank=True)
+    actual_end_date = models.DateTimeField(null=True, blank=True)
+    
+    # Status and workflow
+    status = models.CharField(max_length=20, choices=TRIP_STATUS_CHOICES, default='scheduled')
+    
+    # Inspection flags
+    pre_trip_inspection_completed = models.BooleanField(default=False)
+    post_trip_inspection_completed = models.BooleanField(default=False)
+    
+    # Mileage tracking
+    mileage_start = models.IntegerField(null=True, blank=True)
+    mileage_end = models.IntegerField(null=True, blank=True)
+    
+    # Audit fields
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_trips', null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True, null=True, blank=True)
+    
+    class Meta:
+        ordering = ['-scheduled_start_date', '-start_time']
+        verbose_name = "Trip"
+        verbose_name_plural = "Trips"
 
     def __str__(self):
-        return f"Trip {self.id} - Driver {self.driver} - Truck {self.truck}"
+        trip_id = self.trip_number or f"#{self.id}"
+        return f"Trip {trip_id} - {self.driver.first_name} {self.driver.last_name}"
+    
+    def get_duration_hours(self):
+        """Calculate trip duration in hours"""
+        start = self.actual_start_date or self.start_time
+        end = self.actual_end_date or self.end_time
+        if start and end:
+            delta = end - start
+            return round(delta.total_seconds() / 3600, 2)
+        return None
+    
+    def get_total_miles(self):
+        """Calculate total miles driven"""
+        if self.mileage_start and self.mileage_end:
+            return self.mileage_end - self.mileage_start
+        elif self.miles_driven:
+            return float(self.miles_driven)
+        return None
+    
+    def can_start_trip(self):
+        """Check if trip can be started (pre-trip inspection done)"""
+        return self.status == 'scheduled' and self.pre_trip_inspection_completed
+    
+    def can_complete_trip(self):
+        """Check if trip can be completed (in progress status)"""
+        return self.status == 'in_progress'
+    
+    def get_origin_display(self):
+        """Get display name for origin"""
+        return self.origin or self.start_location
+    
+    def get_destination_display(self):
+        """Get display name for destination"""
+        return self.destination or self.end_location
 
 class DriverHOS(models.Model):
     hos_id = models.AutoField(primary_key=True)
@@ -682,4 +762,98 @@ class InvitationToken(models.Model):
     
     def is_valid(self):
         return not self.is_used and not self.is_expired()
+
+
+class TripInspection(models.Model):
+    """
+    Represents pre-trip and post-trip inspections
+    """
+    INSPECTION_TYPE_CHOICES = [
+        ('pre_trip', 'Pre-Trip'),
+        ('post_trip', 'Post-Trip'),
+    ]
+    
+    trip = models.ForeignKey(Trips, on_delete=models.CASCADE, related_name='trip_inspections')
+    inspection_type = models.CharField(max_length=20, choices=INSPECTION_TYPE_CHOICES)
+    
+    # Vehicle checks
+    vehicle_exterior_condition = models.BooleanField(default=False, help_text="No visible damage, clean")
+    lights_working = models.BooleanField(default=False, help_text="All lights functional")
+    tires_condition = models.BooleanField(default=False, help_text="Proper pressure, no damage")
+    brakes_working = models.BooleanField(default=False, help_text="Brakes responsive")
+    engine_fluids_ok = models.BooleanField(default=False, help_text="Oil, coolant, brake fluid levels good")
+    
+    # Trailer checks (if applicable)
+    trailer_attached_properly = models.BooleanField(default=False, help_text="Securely connected")
+    trailer_lights_working = models.BooleanField(default=False, help_text="All trailer lights functional")
+    cargo_secured = models.BooleanField(default=False, help_text="Load properly secured")
+    
+    # Documentation
+    inspection_notes = models.TextField(blank=True, null=True)
+    issues_found = models.TextField(blank=True, null=True, help_text="Any problems discovered")
+    
+    # Signature and completion
+    completed_at = models.DateTimeField(auto_now_add=True)
+    completed_by = models.ForeignKey(User, on_delete=models.CASCADE)
+    
+    class Meta:
+        unique_together = ['trip', 'inspection_type']
+        ordering = ['-completed_at']
+        verbose_name = "Trip Inspection"
+        verbose_name_plural = "Trip Inspections"
+    
+    def __str__(self):
+        trip_id = self.trip.trip_number or f"#{self.trip.id}"
+        return f"{self.get_inspection_type_display()} - Trip {trip_id}"
+    
+    def is_passed(self):
+        """Check if all critical checks are passed"""
+        required_checks = [
+            self.vehicle_exterior_condition,
+            self.lights_working,
+            self.tires_condition,
+            self.brakes_working,
+            self.engine_fluids_ok,
+        ]
+        
+        # Add trailer checks if trailer is assigned
+        if self.trip.trailer:
+            required_checks.extend([
+                self.trailer_attached_properly,
+                self.trailer_lights_working,
+                self.cargo_secured,
+            ])
+        
+        return all(required_checks)
+
+
+class TripDocument(models.Model):
+    """
+    Store documents related to trips (BOL, receipts, etc.)
+    """
+    DOCUMENT_TYPE_CHOICES = [
+        ('bol', 'Bill of Lading'),
+        ('receipt', 'Receipt'),
+        ('photo', 'Photo'),
+        ('other', 'Other'),
+    ]
+    
+    trip = models.ForeignKey(Trips, on_delete=models.CASCADE, related_name='documents')
+    document_type = models.CharField(max_length=20, choices=DOCUMENT_TYPE_CHOICES)
+    file = models.FileField(upload_to='trip_documents/')
+    description = models.CharField(max_length=255, blank=True)
+    uploaded_by = models.ForeignKey(User, on_delete=models.CASCADE)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['-uploaded_at']
+        verbose_name = "Trip Document"
+        verbose_name_plural = "Trip Documents"
+    
+    def __str__(self):
+        trip_id = self.trip.trip_number or f"#{self.trip.id}"
+        return f"{self.get_document_type_display()} - Trip {trip_id}"
+
+
+
 

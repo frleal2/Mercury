@@ -22,7 +22,7 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from django.conf import settings
 from django.conf.urls.static import static
 from MercAPI import views  # Corrected to match the actual directory name
-from MercAPI.views import RegisterUserView, CustomTokenObtainPairView, DriverViewSet, TruckViewSet, CompanyViewSet, TrailerViewSet, DriverTestViewSet, DriverHOSViewSet, DriverApplicationViewSet, MaintenanceCategoryViewSet, MaintenanceTypeViewSet, MaintenanceRecordViewSet, MaintenanceAttachmentViewSet, DriverDocumentViewSet, MaintenanceAttachmentUploadView, DriverDocumentUploadView, InspectionViewSet, InspectionItemViewSet, TripsViewSet
+from MercAPI.views import RegisterUserView, CustomTokenObtainPairView, DriverViewSet, TruckViewSet, CompanyViewSet, TrailerViewSet, DriverTestViewSet, DriverHOSViewSet, DriverApplicationViewSet, MaintenanceCategoryViewSet, MaintenanceTypeViewSet, MaintenanceRecordViewSet, MaintenanceAttachmentViewSet, DriverDocumentViewSet, MaintenanceAttachmentUploadView, DriverDocumentUploadView, InspectionViewSet, InspectionItemViewSet, TripsViewSet, TripsManagementViewSet, TripInspectionViewSet
 
 router = DefaultRouter()
 router.register(r'drivers', DriverViewSet, basename='driver')  # Register DriverViewSet
@@ -39,7 +39,8 @@ router.register(r'maintenance-attachments', MaintenanceAttachmentViewSet, basena
 router.register(r'driver-documents', DriverDocumentViewSet, basename='driver-document')
 router.register(r'inspections', InspectionViewSet, basename='inspection')
 router.register(r'inspection-items', InspectionItemViewSet, basename='inspection-item')
-router.register(r'trips', TripsViewSet, basename='trips')
+router.register(r'trips', TripsManagementViewSet, basename='trips')
+router.register(r'trip-inspections', TripInspectionViewSet, basename='trip-inspection')
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -63,6 +64,11 @@ urlpatterns = [
     path('api/tenant-users/', views.list_tenant_users, name='list_tenant_users'),
     path('api/users/<int:user_id>/companies/', views.update_user_companies, name='update_user_companies'),
     path('api/users/<int:user_id>/', views.update_user, name='update_user'),
+    # Trip management endpoints
+    path('api/trips/<int:trip_id>/start/', views.start_trip, name='start_trip'),
+    path('api/trips/<int:trip_id>/complete/', views.complete_trip, name='complete_trip'),
+    path('api/driver/active-trips/', views.driver_active_trips, name='driver_active_trips'),
+    path('api/trips/<int:trip_id>/inspection/<str:inspection_type>/', views.submit_inspection, name='submit_inspection'),
 ]
 
 # Serve media and static files during development

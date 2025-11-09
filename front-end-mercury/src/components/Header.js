@@ -3,17 +3,29 @@ import { Bars3Icon, BellIcon, XMarkIcon, UserIcon } from '@heroicons/react/24/ou
 import logo from '../images/fleetlyWhite.png';
 import { useSession } from '../providers/SessionProvider'; // Import useSession
 
-const navigation = [
-  { name: 'Safety Compliance', href: '#', current: true, dropdown: true, options: [
-      { name: 'Companies', href: '/ActiveCompanies' },
-      { name: 'Drivers', href: '/ActiveDrivers' },
-      { name: 'Trucks', href: '/ActiveTrucks' },
-      { name: 'Trailers', href: '/ActiveTrailers' },
-    ] 
-  },
-  { name: 'Maintenance', href: '/Maintenance', current: false },
-  { name: 'Recruitment', href: '/Recruitment', current: false }, // Added Recruitment module
-]
+const getNavigationItems = (userRole) => {
+  // Driver role navigation
+  if (userRole === 'driver') {
+    return [
+      { name: 'My Trips', href: '/DriverDashboard', current: false },
+      { name: 'Trips', href: '/Trips', current: false },
+    ];
+  }
+  
+  // Admin/User role navigation
+  return [
+    { name: 'Safety Compliance', href: '#', current: true, dropdown: true, options: [
+        { name: 'Companies', href: '/ActiveCompanies' },
+        { name: 'Drivers', href: '/ActiveDrivers' },
+        { name: 'Trucks', href: '/ActiveTrucks' },
+        { name: 'Trailers', href: '/ActiveTrailers' },
+      ] 
+    },
+    { name: 'Trips', href: '/Trips', current: false },
+    { name: 'Maintenance', href: '/Maintenance', current: false },
+    { name: 'Recruitment', href: '/Recruitment', current: false },
+  ];
+};
 
 function classNames(...classes) {
   return classes.filter(Boolean).join(' ')
@@ -29,6 +41,9 @@ function handleSignOut(setSession) {
 
 export default function Example() {
   const { session, setSession, userProfile } = useSession(); // Access session, setSession, and userProfile from SessionProvider
+  const userRole = session?.userInfo?.role || 'user';
+  const navigation = getNavigationItems(userRole);
+  
   return (
     <Disclosure as="nav" className="bg-gray-800">
       <div className="mx-auto max-w-7xl px-2 sm:px-6 lg:px-8">
