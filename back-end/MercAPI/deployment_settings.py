@@ -31,6 +31,14 @@ CORS_ALLOWED_ORIGINS = [
 # Frontend URL for invitation links
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'https://myfleetly.com')
 
+# Static files configuration for production
+STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+# WhiteNoise configuration for better static file serving
+WHITENOISE_USE_FINDERS = True
+WHITENOISE_AUTOREFRESH = True
+
 # AWS S3 Configuration for Production
 USE_S3 = os.environ.get('USE_S3', 'False').lower() == 'true'
 
@@ -64,6 +72,9 @@ if USE_S3:
             'BACKEND': 'whitenoise.storage.CompressedStaticFilesStorage',
         },
     }
+    
+    # Static files are still served by WhiteNoise, not S3
+    STATIC_URL = '/static/'
 else:
     # Fallback to WhiteNoise for both static and media files
     STORAGES = {
@@ -74,6 +85,10 @@ else:
             'BACKEND': 'whitenoise.storage.CompressedStaticFilesStorage',
         },
     }
+    
+    # Local static and media URLs
+    STATIC_URL = '/static/'
+    MEDIA_URL = '/media/'
 
 DATABASES = {
     'default': dj_database_url.config(

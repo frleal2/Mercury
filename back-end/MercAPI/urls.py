@@ -64,9 +64,7 @@ urlpatterns = [
     path('api/users/<int:user_id>/companies/', views.update_user_companies, name='update_user_companies'),
 ]
 
-# Serve media files during development
-urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
-
-# Serve static files during development
+# Serve media and static files during development
 if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
