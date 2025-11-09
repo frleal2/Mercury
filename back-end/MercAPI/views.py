@@ -1756,11 +1756,27 @@ class TripsManagementViewSet(UserOrAboveMixin, CompanyFilterMixin, ModelViewSet)
         
         # Map frontend field names to model field names
         if serializer.validated_data.get('planned_departure'):
-            serializer.validated_data['start_time'] = serializer.validated_data.pop('planned_departure')
-            serializer.validated_data['scheduled_start_date'] = serializer.validated_data['start_time']
+            from datetime import datetime, time
+            planned_dep = serializer.validated_data.pop('planned_departure')
+            # If it's a date string, convert to datetime with default time (8:00 AM)
+            if isinstance(planned_dep, str):
+                from django.utils.dateparse import parse_date
+                date_obj = parse_date(planned_dep)
+                if date_obj:
+                    planned_dep = datetime.combine(date_obj, time(8, 0))  # 8:00 AM default
+            serializer.validated_data['start_time'] = planned_dep
+            serializer.validated_data['scheduled_start_date'] = planned_dep
         
         if serializer.validated_data.get('planned_arrival'):
-            serializer.validated_data['scheduled_end_date'] = serializer.validated_data.pop('planned_arrival')
+            from datetime import datetime, time
+            planned_arr = serializer.validated_data.pop('planned_arrival')
+            # If it's a date string, convert to datetime with default time (6:00 PM)
+            if isinstance(planned_arr, str):
+                from django.utils.dateparse import parse_date
+                date_obj = parse_date(planned_arr)
+                if date_obj:
+                    planned_arr = datetime.combine(date_obj, time(18, 0))  # 6:00 PM default
+            serializer.validated_data['scheduled_end_date'] = planned_arr
         
         if serializer.validated_data.get('origin'):
             serializer.validated_data['start_location'] = serializer.validated_data.pop('origin')

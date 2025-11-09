@@ -197,8 +197,8 @@ class TripsSerializer(serializers.ModelSerializer):
     can_complete = serializers.SerializerMethodField()
     
     # Frontend form fields (write-only for trip creation)
-    planned_departure = serializers.DateTimeField(write_only=True, required=False)
-    planned_arrival = serializers.DateTimeField(write_only=True, required=False)
+    planned_departure = serializers.CharField(write_only=True, required=False)  # Accept date string
+    planned_arrival = serializers.CharField(write_only=True, required=False)    # Accept date string
     origin = serializers.CharField(write_only=True, required=False)
     destination = serializers.CharField(write_only=True, required=False)
     load_description = serializers.CharField(write_only=True, required=False)

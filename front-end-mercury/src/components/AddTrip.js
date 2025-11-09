@@ -179,10 +179,13 @@ const AddTrip = ({ onClose }) => {
       onClose();
     } catch (error) {
       console.error('Error creating trip:', error);
+      console.error('Response data:', error.response?.data);
+      console.error('Request data:', formData);
       if (error.response?.status === 401) {
         await refreshAccessToken();
       } else if (error.response?.data) {
         setErrors(error.response.data);
+        console.error('Validation errors:', error.response.data);
       } else {
         alert('Failed to create trip. Please try again.');
       }
