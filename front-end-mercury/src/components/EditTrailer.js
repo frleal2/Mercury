@@ -9,6 +9,7 @@ function EditTrailer({ trailer, onClose, onTrailerUpdated }) {
   const { session, refreshAccessToken } = useSession();
   const [companies, setCompanies] = useState([]);
   const [trucks, setTrucks] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState({ 
     ...trailer,
     active: trailer.active !== undefined ? trailer.active : true
@@ -19,6 +20,7 @@ function EditTrailer({ trailer, onClose, onTrailerUpdated }) {
   useEffect(() => {
     const fetchData = async () => {
       try {
+        setLoading(true);
         const [companiesResponse, trucksResponse] = await Promise.all([
           axios.get(`${BASE_URL}/api/companies/`, {
             headers: { Authorization: `Bearer ${session.accessToken}` },
@@ -32,6 +34,8 @@ function EditTrailer({ trailer, onClose, onTrailerUpdated }) {
       } catch (error) {
         console.error('Error fetching data:', error);
         alert('Failed to load data.');
+      } finally {
+        setLoading(false);
       }
     };
     fetchData();
@@ -120,6 +124,19 @@ function EditTrailer({ trailer, onClose, onTrailerUpdated }) {
       setSubmitting(false);
     }
   };
+
+  if (loading) {
+    return (
+      <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+        <div className="relative top-10 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-1/2 xl:w-1/3 shadow-lg rounded-md bg-white">
+          <div className="flex justify-center items-center h-48">
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <p className="ml-3 text-gray-600">Loading trailer data...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">

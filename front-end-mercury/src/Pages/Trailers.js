@@ -198,10 +198,17 @@ function Trailers() {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {trailer.truck_license_plate ? (
+                      {trailer.truck_unit_number || trailer.truck_license_plate ? (
                         <div className="flex items-center">
                           <TruckIcon className="h-4 w-4 text-gray-400 mr-2" />
-                          {trailer.truck_license_plate}
+                          <div>
+                            <div className="font-medium">
+                              {trailer.truck_unit_number || 'Unknown Unit'}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {trailer.truck_license_plate}
+                            </div>
+                          </div>
                         </div>
                       ) : (
                         <span className="text-gray-400">Not assigned</span>

@@ -80,6 +80,10 @@ class CompanySerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class TrailerSerializer(serializers.ModelSerializer):
+    company_name = serializers.CharField(source='company.name', read_only=True)
+    truck_license_plate = serializers.CharField(source='truck.license_plate', read_only=True)
+    truck_unit_number = serializers.CharField(source='truck.unit_number', read_only=True)
+    
     class Meta:
         model = Trailer
         fields = '__all__'

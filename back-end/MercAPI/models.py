@@ -304,7 +304,9 @@ class Trailer(models.Model):
     id = models.AutoField(primary_key=True)
     company = models.ForeignKey(Company, on_delete=models.CASCADE)
     truck = models.OneToOneField(Truck, on_delete=models.SET_NULL, null=True, blank=True)
+    unit_number = models.CharField(max_length=50, unique=True, default="UNKNOWN")
     license_plate = models.CharField(max_length=20)
+    trailer_type = models.CharField(max_length=100, default="Standard")
     model = models.CharField(max_length=255)
     active = models.BooleanField(default=True)
 

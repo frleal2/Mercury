@@ -1094,7 +1094,7 @@ class CompanyViewSet(UserOrAboveMixin, CompanyFilterMixin, ModelViewSet):
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
 class TrailerViewSet(UserOrAboveMixin, CompanyFilterMixin, ModelViewSet):
-    queryset = Trailer.objects.all()
+    queryset = Trailer.objects.select_related('company', 'truck').all()
     serializer_class = TrailerSerializer
     permission_classes = [IsAuthenticated]
 

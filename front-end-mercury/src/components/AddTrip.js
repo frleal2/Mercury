@@ -1,17 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from '@headlessui/react';
-import { XMarkIcon } from '@heroicons/react/24/outline';
+import { XMarkIcon, TruckIcon } from '@heroicons/react/24/outline';
 import axios from 'axios';
 import { useSession } from '../providers/SessionProvider';
 import BASE_URL from '../config';
 
-const AddTrip = ({ isOpen, onClose, onTripAdded }) => {
+const AddTrip = ({ onClose }) => {
   const { session, refreshAccessToken } = useSession();
   const [loading, setLoading] = useState(false);
   const [companies, setCompanies] = useState([]);
-  const [drivers, setDrivers] = useState([]);
-  const [trucks, setTrucks] = useState([]);
-  const [trailers, setTrailers] = useState([]);
+  const [allDrivers, setAllDrivers] = useState([]);
+  const [allTrucks, setAllTrucks] = useState([]);
+  const [allTrailers, setAllTrailers] = useState([]);
+  const [filteredDrivers, setFilteredDrivers] = useState([]);
   
   const [formData, setFormData] = useState({
     company: '',
@@ -29,43 +29,113 @@ const AddTrip = ({ isOpen, onClose, onTripAdded }) => {
   const [errors, setErrors] = useState({});
 
   useEffect(() => {
-    if (isOpen) {
-      fetchFormData();
+    fetchFormData();
+  }, []);
+
+  // Initialize filtered drivers when company is pre-selected
+  useEffect(() => {
+    if (formData.company && allDrivers.length > 0) {
+      const companyDrivers = allDrivers.filter(driver => 
+        driver.company === parseInt(formData.company) || driver.company?.id === parseInt(formData.company)
+      );
+      setFilteredDrivers(companyDrivers);
+    } else {
+      setFilteredDrivers([]);
     }
-  }, [isOpen]);
+  }, [formData.company, allDrivers]);
 
   const fetchFormData = async () => {
     try {
       const [companiesRes, driversRes, trucksRes, trailersRes] = await Promise.all([
-        axios.get(`${BASE_URL}/api/Company/`, {
+        axios.get(`${BASE_URL}/api/companies/`, {
           headers: { 'Authorization': `Bearer ${session.accessToken}` }
         }),
-        axios.get(`${BASE_URL}/api/Driver/`, {
+        axios.get(`${BASE_URL}/api/drivers/`, {
           headers: { 'Authorization': `Bearer ${session.accessToken}` }
         }),
-        axios.get(`${BASE_URL}/api/Truck/`, {
+        axios.get(`${BASE_URL}/api/trucks/`, {
           headers: { 'Authorization': `Bearer ${session.accessToken}` }
         }),
-        axios.get(`${BASE_URL}/api/Trailer/`, {
+        axios.get(`${BASE_URL}/api/trailers/`, {
           headers: { 'Authorization': `Bearer ${session.accessToken}` }
         })
       ]);
 
       setCompanies(companiesRes.data);
-      setDrivers(driversRes.data);
-      setTrucks(trucksRes.data);
-      setTrailers(trailersRes.data);
+      setAllDrivers(driversRes.data);
+      setAllTrucks(trucksRes.data);
+      setAllTrailers(trailersRes.data);
     } catch (error) {
       console.error('Error fetching form data:', error);
+      if (error.response?.status === 401) {
+        await refreshAccessToken();
+      }
     }
   };
 
-  const handleInputChange = (e) => {
+  const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    
+    if (name === 'company') {
+      // Filter drivers by selected company
+      const companyDrivers = allDrivers.filter(driver => 
+        driver.company === parseInt(value) || driver.company?.id === parseInt(value)
+      );
+      setFilteredDrivers(companyDrivers);
+      
+      // Reset dependent fields
+      setFormData(prev => ({
+        ...prev,
+        company: value,
+        driver: '',
+        truck: '',
+        trailer: ''
+      }));
+    } else if (name === 'driver') {
+      // Find the selected driver
+      const selectedDriver = allDrivers.find(driver => driver.id === parseInt(value));
+      
+      if (selectedDriver) {
+        // Find the truck assigned to this driver
+        const assignedTruck = allTrucks.find(truck => 
+          truck.driver === selectedDriver.id || truck.driver?.id === selectedDriver.id
+        );
+        
+        if (assignedTruck) {
+          // Find the trailer assigned to this truck
+          const assignedTrailer = allTrailers.find(trailer => 
+            trailer.truck === assignedTruck.id || trailer.truck?.id === assignedTruck.id
+          );
+          
+          setFormData(prev => ({
+            ...prev,
+            driver: value,
+            truck: assignedTruck.id.toString(),
+            trailer: assignedTrailer ? assignedTrailer.id.toString() : ''
+          }));
+        } else {
+          setFormData(prev => ({
+            ...prev,
+            driver: value,
+            truck: '',
+            trailer: ''
+          }));
+        }
+      } else {
+        setFormData(prev => ({
+          ...prev,
+          driver: value,
+          truck: '',
+          trailer: ''
+        }));
+      }
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        [name]: value
+      }));
+    }
+    
     // Clear error when user starts typing
     if (errors[name]) {
       setErrors(prev => ({
@@ -99,15 +169,22 @@ const AddTrip = ({ isOpen, onClose, onTripAdded }) => {
     setLoading(true);
     try {
       await axios.post(`${BASE_URL}/api/trips/management/`, formData, {
-        headers: { 'Authorization': `Bearer ${session.accessToken}` }
+        headers: { 
+          'Authorization': `Bearer ${session.accessToken}`,
+          'Content-Type': 'application/json'
+        }
       });
       
-      onTripAdded();
-      handleClose();
+      alert('Trip created successfully!');
+      onClose();
     } catch (error) {
       console.error('Error creating trip:', error);
-      if (error.response && error.response.status === 401) {
+      if (error.response?.status === 401) {
         await refreshAccessToken();
+      } else if (error.response?.data) {
+        setErrors(error.response.data);
+      } else {
+        alert('Failed to create trip. Please try again.');
       }
     } finally {
       setLoading(false);
@@ -132,238 +209,227 @@ const AddTrip = ({ isOpen, onClose, onTripAdded }) => {
   };
 
   return (
-    <Dialog open={isOpen} onClose={handleClose} className="relative z-50">
-      <DialogBackdrop className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" />
-      
-      <div className="fixed inset-0 z-10 w-screen overflow-y-auto">
-        <div className="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
-          <DialogPanel className="relative transform overflow-hidden rounded-lg bg-white px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-2xl sm:p-6">
-            <div className="absolute right-0 top-0 hidden pr-4 pt-4 sm:block">
-              <button
-                type="button"
-                onClick={handleClose}
-                className="rounded-md bg-white text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-              >
-                <span className="sr-only">Close</span>
-                <XMarkIcon className="h-6 w-6" />
-              </button>
-            </div>
-            
-            <div className="sm:flex sm:items-start">
-              <div className="mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left w-full">
-                <DialogTitle as="h3" className="text-base font-semibold leading-6 text-gray-900">
-                  Create New Trip
-                </DialogTitle>
-                
-                <form onSubmit={handleSubmit} className="mt-6 space-y-6">
-                  <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-                    {/* Company Selection */}
-                    <div>
-                      <label htmlFor="company" className="block text-sm font-medium text-gray-700">
-                        Company *
-                      </label>
-                      <select
-                        id="company"
-                        name="company"
-                        value={formData.company}
-                        onChange={handleInputChange}
-                        className={`mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm ${errors.company ? 'border-red-300' : ''}`}
-                      >
-                        <option value="">Select Company</option>
-                        {companies.map(company => (
-                          <option key={company.id} value={company.id}>
-                            {company.name}
-                          </option>
-                        ))}
-                      </select>
-                      {errors.company && <p className="mt-1 text-sm text-red-600">{errors.company}</p>}
-                    </div>
+    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+      <div className="relative top-10 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-2/3 xl:w-1/2 shadow-lg rounded-md bg-white max-h-[90vh] overflow-y-auto">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-lg font-medium text-gray-900 flex items-center">
+            <TruckIcon className="h-6 w-6 mr-2 text-blue-600" />
+            Create New Trip
+          </h3>
+          <button
+            onClick={handleClose}
+            className="text-gray-400 hover:text-gray-600"
+          >
+            <XMarkIcon className="h-6 w-6" />
+          </button>
+        </div>
 
-                    {/* Driver Selection */}
-                    <div>
-                      <label htmlFor="driver" className="block text-sm font-medium text-gray-700">
-                        Driver *
-                      </label>
-                      <select
-                        id="driver"
-                        name="driver"
-                        value={formData.driver}
-                        onChange={handleInputChange}
-                        className={`mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm ${errors.driver ? 'border-red-300' : ''}`}
-                      >
-                        <option value="">Select Driver</option>
-                        {drivers.map(driver => (
-                          <option key={driver.id} value={driver.id}>
-                            {driver.first_name} {driver.last_name}
-                          </option>
-                        ))}
-                      </select>
-                      {errors.driver && <p className="mt-1 text-sm text-red-600">{errors.driver}</p>}
-                    </div>
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Assignment Information */}
+          <div>
+            <h4 className="text-md font-medium text-gray-900 mb-3">Assignment Information</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Company *</label>
+                <select
+                  name="company"
+                  value={formData.company}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="">Select Company</option>
+                  {companies.map(company => (
+                    <option key={company.id} value={company.id}>
+                      {company.name}
+                    </option>
+                  ))}
+                </select>
+                {errors.company && <p className="text-red-500 text-xs mt-1">{errors.company}</p>}
+              </div>
 
-                    {/* Truck Selection */}
-                    <div>
-                      <label htmlFor="truck" className="block text-sm font-medium text-gray-700">
-                        Truck *
-                      </label>
-                      <select
-                        id="truck"
-                        name="truck"
-                        value={formData.truck}
-                        onChange={handleInputChange}
-                        className={`mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm ${errors.truck ? 'border-red-300' : ''}`}
-                      >
-                        <option value="">Select Truck</option>
-                        {trucks.map(truck => (
-                          <option key={truck.id} value={truck.id}>
-                            {truck.unit_number} - {truck.make} {truck.model}
-                          </option>
-                        ))}
-                      </select>
-                      {errors.truck && <p className="mt-1 text-sm text-red-600">{errors.truck}</p>}
-                    </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Driver *</label>
+                <select
+                  name="driver"
+                  value={formData.driver}
+                  onChange={handleChange}
+                  disabled={!formData.company}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                >
+                  <option value="">
+                    {!formData.company ? "Select Company First" : "Select Driver"}
+                  </option>
+                  {filteredDrivers.map(driver => (
+                    <option key={driver.id} value={driver.id}>
+                      {driver.first_name} {driver.last_name}
+                    </option>
+                  ))}
+                </select>
+                {errors.driver && <p className="text-red-500 text-xs mt-1">{errors.driver}</p>}
+              </div>
 
-                    {/* Trailer Selection */}
-                    <div>
-                      <label htmlFor="trailer" className="block text-sm font-medium text-gray-700">
-                        Trailer
-                      </label>
-                      <select
-                        id="trailer"
-                        name="trailer"
-                        value={formData.trailer}
-                        onChange={handleInputChange}
-                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                      >
-                        <option value="">Select Trailer (Optional)</option>
-                        {trailers.map(trailer => (
-                          <option key={trailer.id} value={trailer.id}>
-                            {trailer.unit_number} - {trailer.trailer_type}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Truck * (Auto-assigned)</label>
+                <select
+                  name="truck"
+                  value={formData.truck}
+                  onChange={handleChange}
+                  disabled={true}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-gray-100 cursor-not-allowed"
+                >
+                  <option value="">
+                    {!formData.driver ? "Select Driver First" : "No Truck Assigned"}
+                  </option>
+                  {allTrucks.map(truck => (
+                    <option key={truck.id} value={truck.id}>
+                      {truck.unit_number} - {truck.make} {truck.model}
+                    </option>
+                  ))}
+                </select>
+                {formData.truck && (
+                  <p className="text-green-600 text-xs mt-1">
+                    ✓ Truck automatically assigned to selected driver
+                  </p>
+                )}
+                {errors.truck && <p className="text-red-500 text-xs mt-1">{errors.truck}</p>}
+              </div>
 
-                  {/* Trip Details */}
-                  <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-                    <div>
-                      <label htmlFor="origin" className="block text-sm font-medium text-gray-700">
-                        Origin *
-                      </label>
-                      <input
-                        type="text"
-                        id="origin"
-                        name="origin"
-                        value={formData.origin}
-                        onChange={handleInputChange}
-                        placeholder="Origin address or location"
-                        className={`mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm ${errors.origin ? 'border-red-300' : ''}`}
-                      />
-                      {errors.origin && <p className="mt-1 text-sm text-red-600">{errors.origin}</p>}
-                    </div>
-
-                    <div>
-                      <label htmlFor="destination" className="block text-sm font-medium text-gray-700">
-                        Destination *
-                      </label>
-                      <input
-                        type="text"
-                        id="destination"
-                        name="destination"
-                        value={formData.destination}
-                        onChange={handleInputChange}
-                        placeholder="Destination address or location"
-                        className={`mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm ${errors.destination ? 'border-red-300' : ''}`}
-                      />
-                      {errors.destination && <p className="mt-1 text-sm text-red-600">{errors.destination}</p>}
-                    </div>
-
-                    <div>
-                      <label htmlFor="planned_departure" className="block text-sm font-medium text-gray-700">
-                        Planned Departure *
-                      </label>
-                      <input
-                        type="datetime-local"
-                        id="planned_departure"
-                        name="planned_departure"
-                        value={formData.planned_departure}
-                        onChange={handleInputChange}
-                        className={`mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm ${errors.planned_departure ? 'border-red-300' : ''}`}
-                      />
-                      {errors.planned_departure && <p className="mt-1 text-sm text-red-600">{errors.planned_departure}</p>}
-                    </div>
-
-                    <div>
-                      <label htmlFor="planned_arrival" className="block text-sm font-medium text-gray-700">
-                        Planned Arrival
-                      </label>
-                      <input
-                        type="datetime-local"
-                        id="planned_arrival"
-                        name="planned_arrival"
-                        value={formData.planned_arrival}
-                        onChange={handleInputChange}
-                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Load Description */}
-                  <div>
-                    <label htmlFor="load_description" className="block text-sm font-medium text-gray-700">
-                      Load Description
-                    </label>
-                    <textarea
-                      id="load_description"
-                      name="load_description"
-                      rows={3}
-                      value={formData.load_description}
-                      onChange={handleInputChange}
-                      placeholder="Describe the load/cargo for this trip"
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                    />
-                  </div>
-
-                  {/* Notes */}
-                  <div>
-                    <label htmlFor="notes" className="block text-sm font-medium text-gray-700">
-                      Notes
-                    </label>
-                    <textarea
-                      id="notes"
-                      name="notes"
-                      rows={3}
-                      value={formData.notes}
-                      onChange={handleInputChange}
-                      placeholder="Additional notes or special instructions"
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                    />
-                  </div>
-
-                  <div className="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse">
-                    <button
-                      type="submit"
-                      disabled={loading}
-                      className="inline-flex w-full justify-center rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 sm:ml-3 sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {loading ? 'Creating...' : 'Create Trip'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleClose}
-                      className="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 sm:mt-0 sm:w-auto"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </form>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Trailer (Auto-assigned)</label>
+                <select
+                  name="trailer"
+                  value={formData.trailer}
+                  onChange={handleChange}
+                  disabled={true}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-gray-100 cursor-not-allowed"
+                >
+                  <option value="">
+                    {!formData.truck ? "Select Driver/Truck First" : "No Trailer Assigned"}
+                  </option>
+                  {allTrailers.map(trailer => (
+                    <option key={trailer.id} value={trailer.id}>
+                      {trailer.unit_number} - {trailer.trailer_type}
+                    </option>
+                  ))}
+                </select>
+                {formData.trailer && (
+                  <p className="text-green-600 text-xs mt-1">
+                    ✓ Trailer automatically assigned to selected truck
+                  </p>
+                )}
+                {!formData.trailer && formData.truck && (
+                  <p className="text-blue-600 text-xs mt-1">
+                    ℹ No trailer assigned to this truck
+                  </p>
+                )}
               </div>
             </div>
-          </DialogPanel>
-        </div>
+          </div>
+
+          {/* Trip Details */}
+          <div>
+            <h4 className="text-md font-medium text-gray-900 mb-3">Trip Details</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Origin *</label>
+                <input
+                  type="text"
+                  name="origin"
+                  value={formData.origin}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Origin address or location"
+                />
+                {errors.origin && <p className="text-red-500 text-xs mt-1">{errors.origin}</p>}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Destination *</label>
+                <input
+                  type="text"
+                  name="destination"
+                  value={formData.destination}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Destination address or location"
+                />
+                {errors.destination && <p className="text-red-500 text-xs mt-1">{errors.destination}</p>}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Planned Departure *</label>
+                <input
+                  type="datetime-local"
+                  name="planned_departure"
+                  value={formData.planned_departure}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+                {errors.planned_departure && <p className="text-red-500 text-xs mt-1">{errors.planned_departure}</p>}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Planned Arrival</label>
+                <input
+                  type="datetime-local"
+                  name="planned_arrival"
+                  value={formData.planned_arrival}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Additional Information */}
+          <div>
+            <h4 className="text-md font-medium text-gray-900 mb-3">Additional Information</h4>
+            <div className="grid grid-cols-1 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Load Description</label>
+                <textarea
+                  name="load_description"
+                  value={formData.load_description}
+                  onChange={handleChange}
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Describe the load/cargo for this trip"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                <textarea
+                  name="notes"
+                  value={formData.notes}
+                  onChange={handleChange}
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Additional notes or special instructions"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-end space-x-3 pt-4">
+            <button
+              type="button"
+              onClick={handleClose}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading ? 'Creating...' : 'Create Trip'}
+            </button>
+          </div>
+        </form>
       </div>
-    </Dialog>
+    </div>
   );
 };
 

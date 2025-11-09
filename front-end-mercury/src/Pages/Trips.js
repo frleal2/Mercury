@@ -51,6 +51,7 @@ function Trips() {
 
   const handleCloseCreateTrip = () => {
     setIsCreateTripOpen(false);
+    fetchTrips(); // Refresh trips after creation
   };
 
   const getStatusColor = (status) => {
@@ -302,11 +303,11 @@ function Trips() {
       </div>
 
       {/* Create Trip Modal */}
-      <AddTrip
-        isOpen={isCreateTripOpen}
-        onClose={handleCloseCreateTrip}
-        onTripAdded={fetchTrips}
-      />
+      {isCreateTripOpen && (
+        <AddTrip
+          onClose={handleCloseCreateTrip}
+        />
+      )}
     </div>
   );
 }
