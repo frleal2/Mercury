@@ -308,7 +308,7 @@ const AddTrip = ({ onClose }) => {
                   </option>
                   {allTrailers.map(trailer => (
                     <option key={trailer.id} value={trailer.id}>
-                      {trailer.unit_number} - {trailer.trailer_type}
+                      {trailer.license_plate} - {trailer.model || 'Standard Trailer'}
                     </option>
                   ))}
                 </select>
