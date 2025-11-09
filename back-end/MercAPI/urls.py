@@ -62,6 +62,7 @@ urlpatterns = [
     path('api/user/profile/', views.user_profile, name='user_profile'),
     path('api/tenant-users/', views.list_tenant_users, name='list_tenant_users'),
     path('api/users/<int:user_id>/companies/', views.update_user_companies, name='update_user_companies'),
+    path('api/users/<int:user_id>/', views.update_user, name='update_user'),
 ]
 
 # Serve media and static files during development

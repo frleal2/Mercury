@@ -664,6 +664,112 @@ def update_user_companies(request, user_id):
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
+@api_view(['PUT'])
+@permission_classes([IsAuthenticated])
+def update_user(request, user_id):
+    """
+    Update a user's profile information.
+    Only accessible by users with admin or user role within the same tenant.
+    """
+    try:
+        # Check if user has permission (admin or user role)
+        if not hasattr(request.user, 'profile') or not request.user.profile.is_user_or_above():
+            return Response(
+                {'error': 'Only admins and users can edit user profiles'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Get target user
+        try:
+            target_user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return Response(
+                {'error': 'User not found'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Verify target user is in same tenant
+        if target_user.profile.tenant != request.user.profile.tenant:
+            return Response(
+                {'error': 'User not in your tenant'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Get request data
+        email = request.data.get('email')
+        role = request.data.get('role')
+        is_active = request.data.get('is_active')
+        company_ids = request.data.get('companies', [])
+        
+        # Validate email
+        if email and email != target_user.email:
+            if User.objects.filter(email=email).exclude(id=target_user.id).exists():
+                return Response(
+                    {'error': 'Email already exists'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            target_user.email = email
+            target_user.username = email  # Keep username in sync
+        
+        # Validate role
+        if role and role not in ['admin', 'user', 'driver']:
+            return Response(
+                {'error': 'Invalid role'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Update is_active status
+        if is_active is not None:
+            target_user.is_active = is_active
+        
+        # Update role
+        if role:
+            target_user.profile.role = role
+        
+        # Verify admin can access all requested companies
+        if company_ids:
+            admin_companies = request.user.profile.companies.all()
+            requested_companies = Company.objects.filter(id__in=company_ids, tenant=request.user.profile.tenant)
+            
+            # Only check company access if not an admin
+            if not request.user.profile.is_admin():
+                for company in requested_companies:
+                    if company not in admin_companies:
+                        return Response(
+                            {'error': f'You do not have access to company: {company.name}'}, 
+                            status=status.HTTP_403_FORBIDDEN
+                        )
+            
+            # Update user's company assignments
+            target_user.profile.companies.set(requested_companies)
+        
+        # Save changes
+        target_user.save()
+        target_user.profile.save()
+        
+        # Return updated user data
+        user_companies = target_user.profile.companies.all()
+        return Response({
+            'message': 'User updated successfully',
+            'user': {
+                'id': target_user.id,
+                'email': target_user.email,
+                'first_name': target_user.first_name,
+                'last_name': target_user.last_name,
+                'is_active': target_user.is_active,
+                'role': target_user.profile.role,
+                'companies': [{'id': c.id, 'name': c.name, 'slug': c.slug} for c in user_companies],
+                'date_joined': target_user.date_joined
+            }
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        logger.error(f"Error updating user: {str(e)}")
+        return Response(
+            {'error': 'Internal server error'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
 class FileUploadView(APIView):
     """
     Base view for handling file uploads with validation
