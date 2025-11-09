@@ -359,7 +359,7 @@ const AddTrip = ({ onClose }) => {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Planned Departure *</label>
                 <input
-                  type="datetime-local"
+                  type="date"
                   name="planned_departure"
                   value={formData.planned_departure}
                   onChange={handleChange}
@@ -371,7 +371,7 @@ const AddTrip = ({ onClose }) => {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Planned Arrival</label>
                 <input
-                  type="datetime-local"
+                  type="date"
                   name="planned_arrival"
                   value={formData.planned_arrival}
                   onChange={handleChange}

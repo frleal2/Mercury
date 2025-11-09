@@ -1722,6 +1722,7 @@ class TripsManagementViewSet(UserOrAboveMixin, CompanyFilterMixin, ModelViewSet)
     ViewSet for comprehensive trips management
     Users can create trips and assign drivers, trucks, and trailers
     """
+    queryset = Trips.objects.all()
     serializer_class = TripsSerializer
     
     def get_queryset(self):
