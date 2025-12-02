@@ -2440,7 +2440,7 @@ def dashboard_overview(request):
         logger.info(f"Dashboard: Found {drivers.count()} drivers, {trucks.count()} trucks, {trailers.count()} trailers")
         
         total_drivers = drivers.count()
-        active_drivers = drivers.filter(status='active').count()
+        active_drivers = drivers.filter(active=True).count()  # Use 'active' boolean field
         total_vehicles = trucks.count() + trailers.count()
         active_vehicles = trucks.filter(status='active').count() + trailers.filter(status='active').count()
         
@@ -2640,19 +2640,19 @@ def calculate_driver_compliance(drivers):
         total_points = 5  # Total possible compliance points
         
         # Active status (1 point)
-        if driver.status == 'active':
+        if driver.active:
             compliance_points += 1
         
-        # Valid license (2 points)
-        if driver.license_expiry_date and driver.license_expiry_date > today:
+        # Valid CDL (2 points)
+        if driver.cdl_expiration_date and driver.cdl_expiration_date > today:
             compliance_points += 2
-        elif driver.license_expiry_date and driver.license_expiry_date > (today + thirty_days):
+        elif driver.cdl_expiration_date and driver.cdl_expiration_date > (today + thirty_days):
             compliance_points += 1  # Expiring soon, partial credit
         
-        # Medical certificate (2 points)
-        if driver.medical_cert_expiry and driver.medical_cert_expiry > today:
+        # DOT Physical (2 points)
+        if driver.physical_date and driver.physical_date > today:
             compliance_points += 2
-        elif driver.medical_cert_expiry and driver.medical_cert_expiry > (today + thirty_days):
+        elif driver.physical_date and driver.physical_date > (today + thirty_days):
             compliance_points += 1  # Expiring soon, partial credit
         
         # Driver is compliant if they have at least 4/5 points
@@ -2732,23 +2732,23 @@ def generate_critical_alerts(drivers, trucks, trailers, trips, maintenance_recor
     thirty_days = today + timezone.timedelta(days=30)
     
     try:
-        # Driver license expiring alerts
+        # Driver CDL expiring alerts
         expiring_licenses = drivers.filter(
-            license_expiry_date__isnull=False,
-            license_expiry_date__lte=thirty_days, 
-            license_expiry_date__gte=today
+            cdl_expiration_date__isnull=False,
+            cdl_expiration_date__lte=thirty_days, 
+            cdl_expiration_date__gte=today
         )
         
         for driver in expiring_licenses:
             try:
-                days_until_expiry = (driver.license_expiry_date - today).days
+                days_until_expiry = (driver.cdl_expiration_date - today).days
                 alerts.append({
                     'id': f'driver-license-{driver.id}',
                     'type': 'warning' if days_until_expiry > 7 else 'error',
-                    'title': 'License Expiring Soon',
-                    'message': f"{driver.first_name} {driver.last_name}'s license expires in {days_until_expiry} days",
+                    'title': 'CDL Expiring Soon',
+                    'message': f"{driver.first_name} {driver.last_name}'s CDL expires in {days_until_expiry} days",
                     'priority': 'high' if days_until_expiry <= 7 else 'medium',
-                    'date': driver.license_expiry_date.isoformat(),
+                    'date': driver.cdl_expiration_date.isoformat(),
                     'action_url': '/ActiveDrivers'
                 })
             except Exception as e:
@@ -2758,27 +2758,27 @@ def generate_critical_alerts(drivers, trucks, trailers, trips, maintenance_recor
         logger.error(f"Error processing driver license alerts: {str(e)}")
     
     try:
-        # Medical certificate expiring alerts  
-        expiring_medical = drivers.filter(
-            medical_cert_expiry__isnull=False,
-            medical_cert_expiry__lte=thirty_days, 
-            medical_cert_expiry__gte=today
+        # Physical/Medical certificate expiring alerts  
+        expiring_physical = drivers.filter(
+            physical_date__isnull=False,
+            physical_date__lte=thirty_days, 
+            physical_date__gte=today
         )
         
-        for driver in expiring_medical:
+        for driver in expiring_physical:
             try:
-                days_until_expiry = (driver.medical_cert_expiry - today).days
+                days_until_expiry = (driver.physical_date - today).days
                 alerts.append({
-                    'id': f'driver-medical-{driver.id}',
+                    'id': f'driver-physical-{driver.id}',
                     'type': 'warning' if days_until_expiry > 7 else 'error',
-                    'title': 'Medical Certificate Expiring',
+                    'title': 'DOT Physical Expiring',
                     'message': f"{driver.first_name} {driver.last_name}'s DOT physical expires in {days_until_expiry} days",
                     'priority': 'high' if days_until_expiry <= 7 else 'medium',
-                    'date': driver.medical_cert_expiry.isoformat(),
+                    'date': driver.physical_date.isoformat(),
                     'action_url': '/ActiveDrivers'
                 })
             except Exception as e:
-                logger.error(f"Error processing medical cert alert for driver {driver.id}: {str(e)}")
+                logger.error(f"Error processing physical date alert for driver {driver.id}: {str(e)}")
                 continue
     except Exception as e:
         logger.error(f"Error processing medical certificate alerts: {str(e)}")
@@ -2838,15 +2838,15 @@ def generate_action_items(drivers, trucks, trailers, maintenance_records, inspec
                 'id': driver.id,
                 'first_name': driver.first_name,
                 'last_name': driver.last_name,
-                'license_expiry_date': driver.license_expiry_date.isoformat() if driver.license_expiry_date else None,
-                'medical_cert_expiry': driver.medical_cert_expiry.isoformat() if driver.medical_cert_expiry else None,
-                'status': driver.status,
-                'action_needed': 'License renewal' if driver.license_expiry_date and driver.license_expiry_date <= sixty_days else 'Medical renewal'
+                'cdl_expiration_date': driver.cdl_expiration_date.isoformat() if driver.cdl_expiration_date else None,
+                'physical_date': driver.physical_date.isoformat() if driver.physical_date else None,
+                'active': driver.active,
+                'action_needed': 'CDL renewal' if driver.cdl_expiration_date and driver.cdl_expiration_date <= sixty_days else 'DOT Physical renewal'
             }
             for driver in drivers.filter(
-                Q(license_expiry_date__lte=sixty_days) | 
-                Q(medical_cert_expiry__lte=sixty_days) |
-                Q(status__in=['inactive', 'suspended'])
+                Q(cdl_expiration_date__lte=sixty_days) | 
+                Q(physical_date__lte=sixty_days) |
+                Q(active=False)
             )[:10]  # Limit to top 10
         ],
         'vehicles': [

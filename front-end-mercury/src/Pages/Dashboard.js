@@ -41,8 +41,8 @@ const Dashboard = () => {
                 console.error('Test API failed:', testError);
             }
             
-            // Try simple dashboard first
-            const response = await axios.get(`${BASE_URL}/api/dashboard/simple/`, {
+            // Fetch comprehensive dashboard data from the full API
+            const response = await axios.get(`${BASE_URL}/api/dashboard/overview/`, {
                 headers: { 'Authorization': `Bearer ${session.accessToken}` }
             });
 
