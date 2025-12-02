@@ -10,57 +10,21 @@ const PostTripInspection = ({ isOpen, onClose, tripId, onInspectionComplete }) =
   const [loading, setLoading] = useState(false);
   
   const [inspectionData, setInspectionData] = useState({
-    // Vehicle condition after trip
-    engine_condition_post: '',
-    engine_temperature_normal: '',
-    oil_leaks_check: '',
-    coolant_leaks_check: '',
-    fuel_level_check: '',
+    // Vehicle checks (matching backend model)
+    vehicle_exterior_condition: '',
+    lights_working: '',
+    tires_condition: '',
+    brakes_working: '',
+    engine_fluids_ok: '',
     
-    // Brake system post-trip
-    brake_performance: '',
-    brake_temperature: '',
-    brake_wear_check: '',
+    // Trailer checks (if applicable)
+    trailer_attached_properly: '',
+    trailer_lights_working: '',
+    cargo_secured: '',
     
-    // Tires post-trip
-    tire_wear_front: '',
-    tire_wear_rear: '',
-    tire_damage_check: '',
-    tire_pressure_post: '',
-    
-    // Lights post-trip
-    lights_functionality_check: '',
-    damage_to_lights: '',
-    
-    // Body and exterior post-trip
-    body_damage_new: '',
-    mirrors_condition_post: '',
-    windshield_damage_new: '',
-    cargo_area_condition: '',
-    
-    // Trip completion details
-    odometer_end: '',
-    fuel_consumed: '',
-    trip_duration: '',
-    cargo_delivered_successfully: '',
-    delivery_issues: '',
-    
-    // Issues during trip
-    mechanical_issues_during_trip: '',
-    mechanical_issues_description: '',
-    traffic_incidents: '',
-    traffic_incidents_description: '',
-    weather_conditions: '',
-    road_conditions: '',
-    
-    // Overall assessment
-    vehicle_safe_for_next_trip: '',
-    maintenance_required: '',
-    maintenance_description: '',
-    defects_found: false,
-    defects_description: '',
-    inspector_signature: '',
-    inspection_notes: ''
+    // Documentation
+    inspection_notes: '',
+    issues_found: ''
   });
 
   const [defectPhotos, setDefectPhotos] = useState([]);
@@ -68,46 +32,21 @@ const PostTripInspection = ({ isOpen, onClose, tripId, onInspectionComplete }) =
 
   const inspectionItems = [
     {
-      category: 'Vehicle Condition After Trip',
+      category: 'Vehicle Safety Checks',
       items: [
-        { key: 'engine_condition_post', label: 'Engine Condition', description: 'Overall engine condition after trip completion' },
-        { key: 'engine_temperature_normal', label: 'Engine Temperature', description: 'Engine temperature within normal range' },
-        { key: 'oil_leaks_check', label: 'Oil Leaks', description: 'Check for new oil leaks' },
-        { key: 'coolant_leaks_check', label: 'Coolant Leaks', description: 'Check for coolant leaks' },
-        { key: 'fuel_level_check', label: 'Fuel Level', description: 'Record final fuel level' }
+        { key: 'vehicle_exterior_condition', label: 'Vehicle Exterior', description: 'Check for damage, cleanliness, and overall condition' },
+        { key: 'lights_working', label: 'Lights', description: 'Test all lights (headlights, taillights, turn signals, hazards)' },
+        { key: 'tires_condition', label: 'Tires', description: 'Check tire pressure, tread depth, and sidewall condition' },
+        { key: 'brakes_working', label: 'Brakes', description: 'Test brake responsiveness and check brake fluid' },
+        { key: 'engine_fluids_ok', label: 'Engine Fluids', description: 'Check oil, coolant, and brake fluid levels' }
       ]
     },
     {
-      category: 'Brake System Post-Trip',
+      category: 'Trailer Checks (if applicable)',
       items: [
-        { key: 'brake_performance', label: 'Brake Performance', description: 'Brake system performance during trip' },
-        { key: 'brake_temperature', label: 'Brake Temperature', description: 'Check brake temperature (if applicable)' },
-        { key: 'brake_wear_check', label: 'Brake Wear', description: 'Visual inspection for excessive brake wear' }
-      ]
-    },
-    {
-      category: 'Tires Post-Trip',
-      items: [
-        { key: 'tire_wear_front', label: 'Front Tire Wear', description: 'Check for unusual wear patterns' },
-        { key: 'tire_wear_rear', label: 'Rear Tire Wear', description: 'Check for unusual wear patterns' },
-        { key: 'tire_damage_check', label: 'Tire Damage', description: 'Check for cuts, punctures, or damage' },
-        { key: 'tire_pressure_post', label: 'Tire Pressure', description: 'Check tire pressure after trip' }
-      ]
-    },
-    {
-      category: 'Lights and Electrical',
-      items: [
-        { key: 'lights_functionality_check', label: 'Lights Functionality', description: 'All lights working properly' },
-        { key: 'damage_to_lights', label: 'Light Damage', description: 'Check for damage to lights or lenses' }
-      ]
-    },
-    {
-      category: 'Body and Exterior',
-      items: [
-        { key: 'body_damage_new', label: 'New Body Damage', description: 'Any new damage to vehicle body' },
-        { key: 'mirrors_condition_post', label: 'Mirror Condition', description: 'All mirrors intact and functional' },
-        { key: 'windshield_damage_new', label: 'Windshield Damage', description: 'Any new chips, cracks, or damage' },
-        { key: 'cargo_area_condition', label: 'Cargo Area', description: 'Condition of cargo area after unloading' }
+        { key: 'trailer_attached_properly', label: 'Trailer Attachment', description: 'Verify trailer is securely connected' },
+        { key: 'trailer_lights_working', label: 'Trailer Lights', description: 'Test all trailer lights and connections' },
+        { key: 'cargo_secured', label: 'Cargo Security', description: 'Ensure load is properly secured' }
       ]
     }
   ];

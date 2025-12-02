@@ -10,124 +10,42 @@ const PreTripInspection = ({ isOpen, onClose, tripId, onInspectionComplete }) =>
   const [loading, setLoading] = useState(false);
   
   const [inspectionData, setInspectionData] = useState({
-    // Engine checks
-    engine_oil_level: '',
-    engine_coolant_level: '',
-    engine_belts_condition: '',
-    engine_hoses_condition: '',
-    engine_leaks_check: '',
+    // Vehicle checks (matching backend model)
+    vehicle_exterior_condition: '',
+    lights_working: '',
+    tires_condition: '',
+    brakes_working: '',
+    engine_fluids_ok: '',
     
-    // Brake system
-    brake_pedal_feel: '',
-    brake_fluid_level: '',
-    brake_lines_condition: '',
-    air_pressure_gauge: '',
-    
-    // Tires and wheels
-    tire_condition_front: '',
-    tire_condition_rear: '',
-    tire_pressure_front: '',
-    tire_pressure_rear: '',
-    wheel_nuts_torque: '',
-    
-    // Lights and electrical
-    headlights_condition: '',
-    taillights_condition: '',
-    turn_signals_condition: '',
-    hazard_lights_condition: '',
-    interior_lights_condition: '',
-    
-    // Steering and suspension
-    steering_wheel_play: '',
-    steering_fluid_level: '',
-    suspension_condition: '',
-    
-    // Body and frame
-    mirrors_condition: '',
-    windshield_condition: '',
-    wipers_condition: '',
-    doors_condition: '',
-    body_damage_check: '',
+    // Trailer checks (if applicable)
+    trailer_attached_properly: '',
+    trailer_lights_working: '',
+    cargo_secured: '',
     
     // Documentation
-    registration_documents: '',
-    insurance_documents: '',
-    logbook_current: '',
-    
-    // Overall assessment
-    vehicle_safe_to_operate: '',
-    defects_found: false,
-    defects_description: '',
-    inspector_signature: '',
-    inspection_notes: ''
+    inspection_notes: '',
+    issues_found: ''
   });
 
   const [defectPhotos, setDefectPhotos] = useState([]);
 
   const inspectionItems = [
     {
-      category: 'Engine Checks',
+      category: 'Vehicle Safety Checks',
       items: [
-        { key: 'engine_oil_level', label: 'Oil Level', description: 'Check engine oil level using dipstick' },
-        { key: 'engine_coolant_level', label: 'Coolant Level', description: 'Check coolant reservoir level' },
-        { key: 'engine_belts_condition', label: 'Belt Condition', description: 'Inspect belts for cracks, fraying, or looseness' },
-        { key: 'engine_hoses_condition', label: 'Hose Condition', description: 'Check hoses for leaks, cracks, or damage' },
-        { key: 'engine_leaks_check', label: 'Leak Check', description: 'Look for oil, coolant, or fuel leaks' }
+        { key: 'vehicle_exterior_condition', label: 'Vehicle Exterior', description: 'Check for damage, cleanliness, and overall condition' },
+        { key: 'lights_working', label: 'Lights', description: 'Test all lights (headlights, taillights, turn signals, hazards)' },
+        { key: 'tires_condition', label: 'Tires', description: 'Check tire pressure, tread depth, and sidewall condition' },
+        { key: 'brakes_working', label: 'Brakes', description: 'Test brake responsiveness and check brake fluid' },
+        { key: 'engine_fluids_ok', label: 'Engine Fluids', description: 'Check oil, coolant, and brake fluid levels' }
       ]
     },
     {
-      category: 'Brake System',
+      category: 'Trailer Checks (if applicable)',
       items: [
-        { key: 'brake_pedal_feel', label: 'Brake Pedal Feel', description: 'Test brake pedal responsiveness' },
-        { key: 'brake_fluid_level', label: 'Brake Fluid Level', description: 'Check brake fluid reservoir' },
-        { key: 'brake_lines_condition', label: 'Brake Lines', description: 'Inspect brake lines for damage or leaks' },
-        { key: 'air_pressure_gauge', label: 'Air Pressure', description: 'Check air brake pressure gauge (if applicable)' }
-      ]
-    },
-    {
-      category: 'Tires and Wheels',
-      items: [
-        { key: 'tire_condition_front', label: 'Front Tires', description: 'Check tread depth and sidewall condition' },
-        { key: 'tire_condition_rear', label: 'Rear Tires', description: 'Check tread depth and sidewall condition' },
-        { key: 'tire_pressure_front', label: 'Front Tire Pressure', description: 'Verify tire pressure meets specifications' },
-        { key: 'tire_pressure_rear', label: 'Rear Tire Pressure', description: 'Verify tire pressure meets specifications' },
-        { key: 'wheel_nuts_torque', label: 'Wheel Nuts', description: 'Check wheel nuts are properly tightened' }
-      ]
-    },
-    {
-      category: 'Lights and Electrical',
-      items: [
-        { key: 'headlights_condition', label: 'Headlights', description: 'Test headlight operation and lens condition' },
-        { key: 'taillights_condition', label: 'Taillights', description: 'Test taillight operation' },
-        { key: 'turn_signals_condition', label: 'Turn Signals', description: 'Test all turn signal operations' },
-        { key: 'hazard_lights_condition', label: 'Hazard Lights', description: 'Test hazard light operation' },
-        { key: 'interior_lights_condition', label: 'Interior Lights', description: 'Check dashboard and cabin lights' }
-      ]
-    },
-    {
-      category: 'Steering and Suspension',
-      items: [
-        { key: 'steering_wheel_play', label: 'Steering Play', description: 'Check for excessive steering wheel play' },
-        { key: 'steering_fluid_level', label: 'Power Steering Fluid', description: 'Check power steering fluid level' },
-        { key: 'suspension_condition', label: 'Suspension', description: 'Visual inspection of suspension components' }
-      ]
-    },
-    {
-      category: 'Body and Frame',
-      items: [
-        { key: 'mirrors_condition', label: 'Mirrors', description: 'Check all mirrors for damage and proper adjustment' },
-        { key: 'windshield_condition', label: 'Windshield', description: 'Check for cracks, chips, or obstruction' },
-        { key: 'wipers_condition', label: 'Wipers', description: 'Test wiper operation and blade condition' },
-        { key: 'doors_condition', label: 'Doors', description: 'Check door operation and sealing' },
-        { key: 'body_damage_check', label: 'Body Damage', description: 'Visual inspection for dents, scratches, or damage' }
-      ]
-    },
-    {
-      category: 'Documentation',
-      items: [
-        { key: 'registration_documents', label: 'Registration', description: 'Verify vehicle registration is current' },
-        { key: 'insurance_documents', label: 'Insurance', description: 'Verify insurance documentation is current' },
-        { key: 'logbook_current', label: 'Logbook', description: 'Check driver logbook is up to date' }
+        { key: 'trailer_attached_properly', label: 'Trailer Attachment', description: 'Verify trailer is securely connected' },
+        { key: 'trailer_lights_working', label: 'Trailer Lights', description: 'Test all trailer lights and connections' },
+        { key: 'cargo_secured', label: 'Cargo Security', description: 'Ensure load is properly secured' }
       ]
     }
   ];
