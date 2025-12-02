@@ -8,7 +8,6 @@ const getNavigationItems = (userRole) => {
   if (userRole === 'driver') {
     return [
       { name: 'My Trips', href: '/DriverDashboard', current: false },
-      { name: 'Trips', href: '/Trips', current: false },
     ];
   }
   

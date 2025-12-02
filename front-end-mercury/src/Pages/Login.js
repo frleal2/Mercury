@@ -39,7 +39,21 @@ const Login = () => {
             const { access, refresh } = response.data;
             setSession({ accessToken: access, refreshToken: refresh });
             setSuccess('Login was successful!'); // Set success message
-            navigate('/ActiveDrivers'); // Redirect to ActiveDrivers page
+            
+            // Decode JWT to get user role and redirect accordingly
+            try {
+                const decoded = JSON.parse(atob(access.split('.')[1])); // Decode JWT payload
+                const userRole = decoded.role;
+                
+                if (userRole === 'driver') {
+                    navigate('/DriverDashboard'); // Redirect drivers to their dashboard
+                } else {
+                    navigate('/ActiveDrivers'); // Redirect admins/managers to main dashboard
+                }
+            } catch (decodeError) {
+                console.error('Error decoding JWT token:', decodeError);
+                navigate('/ActiveDrivers'); // Fallback to main dashboard
+            }
         } catch (err) {
             console.error('Login error:', err.response || err); // Log the full error response
             setError(err.response?.data?.detail || 'Login failed');

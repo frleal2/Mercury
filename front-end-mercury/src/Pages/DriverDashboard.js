@@ -137,31 +137,31 @@ function DriverDashboard() {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-64">
+      <div className="flex flex-col justify-center items-center h-64 px-4">
         <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-        <p className="ml-3 text-gray-600">Loading your trips...</p>
+        <p className="mt-3 text-sm sm:text-base text-gray-600 text-center">Loading your trips...</p>
       </div>
     );
   }
 
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">My Trips</h1>
-        <p className="text-gray-600">Your assigned trips and inspection workflows</p>
+    <div className="p-3 sm:p-6">
+      <div className="mb-4 sm:mb-6">
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">My Trips</h1>
+        <p className="text-sm sm:text-base text-gray-600">Your assigned trips and inspection workflows</p>
       </div>
 
       {message && (
-        <div className={`mb-4 p-4 rounded-md ${
+        <div className={`mb-3 sm:mb-4 p-3 sm:p-4 rounded-md ${
           message.type === 'success' 
             ? 'bg-green-50 text-green-700 border border-green-200' 
             : 'bg-red-50 text-red-700 border border-red-200'
         }`}>
-          <div className="flex justify-between items-center">
-            <span>{message.text}</span>
+          <div className="flex justify-between items-start">
+            <span className="text-sm sm:text-base pr-2">{message.text}</span>
             <button 
               onClick={clearMessage}
-              className="text-gray-500 hover:text-gray-700"
+              className="text-gray-500 hover:text-gray-700 flex-shrink-0 p-1"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -172,18 +172,18 @@ function DriverDashboard() {
       )}
 
       {/* Active Trips */}
-      <div className="bg-white shadow-sm rounded-lg overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h2 className="text-lg font-medium text-gray-900">
+      <div className="bg-white shadow-sm rounded-lg overflow-hidden mx-auto max-w-4xl">
+        <div className="px-3 sm:px-6 py-3 sm:py-4 border-b border-gray-200">
+          <h2 className="text-base sm:text-lg font-medium text-gray-900">
             {activeTrips.length} Active Trip{activeTrips.length !== 1 ? 's' : ''}
           </h2>
         </div>
         
         {activeTrips.length === 0 ? (
-          <div className="text-center py-8">
-            <TruckIcon className="mx-auto h-12 w-12 text-gray-400" />
-            <h3 className="mt-2 text-sm font-medium text-gray-900">No active trips</h3>
-            <p className="mt-1 text-sm text-gray-500">
+          <div className="text-center py-6 sm:py-8 px-3">
+            <TruckIcon className="mx-auto h-10 sm:h-12 w-10 sm:w-12 text-gray-400" />
+            <h3 className="mt-2 text-sm sm:text-base font-medium text-gray-900">No active trips</h3>
+            <p className="mt-1 text-xs sm:text-sm text-gray-500 max-w-sm mx-auto">
               You don't have any scheduled or in-progress trips at the moment.
             </p>
           </div>
@@ -193,35 +193,38 @@ function DriverDashboard() {
               const StatusIcon = getStatusIcon(trip.status);
               
               return (
-                <div key={trip.id} className="p-6 hover:bg-gray-50">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-4">
+                <div key={trip.id} className="p-3 sm:p-6 hover:bg-gray-50 active:bg-gray-100 transition-colors">
+                  {/* Mobile Layout - Stack vertically */}
+                  <div className="space-y-4 sm:space-y-0 sm:flex sm:items-start sm:justify-between">
+                    <div className="flex items-start space-x-3 sm:space-x-4">
                       <div className="flex-shrink-0">
-                        <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center">
-                          <TruckIcon className="h-6 w-6 text-blue-600" />
+                        <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-full bg-blue-100 flex items-center justify-center">
+                          <TruckIcon className="h-5 w-5 sm:h-6 sm:w-6 text-blue-600" />
                         </div>
                       </div>
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center space-x-3">
-                          <h3 className="text-lg font-medium text-gray-900">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-3 space-y-1 sm:space-y-0">
+                          <h3 className="text-base sm:text-lg font-medium text-gray-900">
                             {trip.trip_number || `Trip #${trip.id}`}
                           </h3>
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(trip.status)}`}>
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium w-fit ${getStatusColor(trip.status)}`}>
                             <StatusIcon className="h-3 w-3 mr-1" />
                             {trip.status_display}
                           </span>
                         </div>
                         
-                        <div className="mt-2 flex items-center space-x-6 text-sm text-gray-500">
+                        <div className="mt-2 flex flex-col sm:flex-row sm:items-center sm:space-x-6 space-y-1 sm:space-y-0 text-xs sm:text-sm text-gray-500">
                           <div className="flex items-center">
-                            <TruckIcon className="h-4 w-4 mr-1" />
-                            {trip.truck_number}
-                            {trip.trailer_number && (
-                              <span className="ml-1">+ {trip.trailer_number}</span>
-                            )}
+                            <TruckIcon className="h-4 w-4 mr-1 flex-shrink-0" />
+                            <span className="truncate">
+                              {trip.truck_number}
+                              {trip.trailer_number && (
+                                <span className="ml-1">+ {trip.trailer_number}</span>
+                              )}
+                            </span>
                           </div>
                           <div className="flex items-center">
-                            <ClockIcon className="h-4 w-4 mr-1" />
+                            <ClockIcon className="h-4 w-4 mr-1 flex-shrink-0" />
                             {trip.scheduled_start_date ? 
                               new Date(trip.scheduled_start_date).toLocaleDateString() :
                               new Date(trip.start_time).toLocaleDateString()
@@ -229,75 +232,81 @@ function DriverDashboard() {
                           </div>
                         </div>
                         
-                        <div className="mt-2 flex items-center space-x-2 text-sm text-gray-600">
-                          <div className="flex items-center">
-                            <MapPinIcon className="h-4 w-4 text-green-500 mr-1" />
-                            {trip.origin_display}
+                        {/* Mobile-friendly route display */}
+                        <div className="mt-2 space-y-1 text-xs sm:text-sm text-gray-600">
+                          <div className="flex items-start">
+                            <MapPinIcon className="h-4 w-4 text-green-500 mr-1 flex-shrink-0 mt-0.5" />
+                            <span className="text-green-700 font-medium">From:</span>
+                            <span className="ml-1 break-words">{trip.origin_display}</span>
                           </div>
-                          <ArrowRightIcon className="h-4 w-4 text-gray-400" />
-                          <div className="flex items-center">
-                            <MapPinIcon className="h-4 w-4 text-red-500 mr-1" />
-                            {trip.destination_display}
+                          <div className="flex items-start">
+                            <MapPinIcon className="h-4 w-4 text-red-500 mr-1 flex-shrink-0 mt-0.5" />
+                            <span className="text-red-700 font-medium">To:</span>
+                            <span className="ml-1 break-words">{trip.destination_display}</span>
                           </div>
                         </div>
                       </div>
                     </div>
                     
-                    <div className="flex flex-col space-y-2">
-                      {/* Pre-trip Inspection */}
-                      {trip.status === 'scheduled' && !trip.pre_trip_inspection_completed && (
-                        <button
-                          onClick={() => openInspectionModal(trip, 'pre_trip')}
-                          className="inline-flex items-center px-3 py-2 border border-blue-300 rounded-md text-sm font-medium text-blue-700 bg-blue-50 hover:bg-blue-100"
-                        >
-                          <ClipboardDocumentCheckIcon className="h-4 w-4 mr-2" />
-                          Pre-Trip Inspection
-                        </button>
-                      )}
+                    {/* Mobile-friendly actions section */}
+                    <div className="w-full sm:w-auto space-y-3">
+                      {/* Action buttons - full width on mobile */}
+                      <div className="flex flex-col space-y-2 sm:space-y-2">
+                        {/* Pre-trip Inspection */}
+                        {trip.status === 'scheduled' && !trip.pre_trip_inspection_completed && (
+                          <button
+                            onClick={() => openInspectionModal(trip, 'pre_trip')}
+                            className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-3 sm:py-2 border border-blue-300 rounded-lg text-sm font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 touch-manipulation"
+                          >
+                            <ClipboardDocumentCheckIcon className="h-4 w-4 mr-2" />
+                            Pre-Trip Inspection
+                          </button>
+                        )}
+                        
+                        {/* Start Trip */}
+                        {trip.can_start && (
+                          <button
+                            onClick={() => startTrip(trip.id)}
+                            className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-3 sm:py-2 border border-green-300 rounded-lg text-sm font-medium text-green-700 bg-green-50 hover:bg-green-100 touch-manipulation"
+                          >
+                            <PlayIcon className="h-4 w-4 mr-2" />
+                            Start Trip
+                          </button>
+                        )}
+                        
+                        {/* Post-trip Inspection */}
+                        {trip.status === 'in_progress' && !trip.post_trip_inspection_completed && (
+                          <button
+                            onClick={() => openInspectionModal(trip, 'post_trip')}
+                            className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-3 sm:py-2 border border-orange-300 rounded-lg text-sm font-medium text-orange-700 bg-orange-50 hover:bg-orange-100 touch-manipulation"
+                          >
+                            <ClipboardDocumentCheckIcon className="h-4 w-4 mr-2" />
+                            Post-Trip Inspection
+                          </button>
+                        )}
+                        
+                        {/* Complete Trip */}
+                        {trip.can_complete && trip.post_trip_inspection_completed && (
+                          <button
+                            onClick={() => completeTrip(trip.id)}
+                            className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-3 sm:py-2 border border-red-300 rounded-lg text-sm font-medium text-red-700 bg-red-50 hover:bg-red-100 touch-manipulation"
+                          >
+                            <StopIcon className="h-4 w-4 mr-2" />
+                            Complete Trip
+                          </button>
+                        )}
+                      </div>
                       
-                      {/* Start Trip */}
-                      {trip.can_start && (
-                        <button
-                          onClick={() => startTrip(trip.id)}
-                          className="inline-flex items-center px-3 py-2 border border-green-300 rounded-md text-sm font-medium text-green-700 bg-green-50 hover:bg-green-100"
-                        >
-                          <PlayIcon className="h-4 w-4 mr-2" />
-                          Start Trip
-                        </button>
-                      )}
-                      
-                      {/* Post-trip Inspection */}
-                      {trip.status === 'in_progress' && !trip.post_trip_inspection_completed && (
-                        <button
-                          onClick={() => openInspectionModal(trip, 'post_trip')}
-                          className="inline-flex items-center px-3 py-2 border border-orange-300 rounded-md text-sm font-medium text-orange-700 bg-orange-50 hover:bg-orange-100"
-                        >
-                          <ClipboardDocumentCheckIcon className="h-4 w-4 mr-2" />
-                          Post-Trip Inspection
-                        </button>
-                      )}
-                      
-                      {/* Complete Trip */}
-                      {trip.can_complete && trip.post_trip_inspection_completed && (
-                        <button
-                          onClick={() => completeTrip(trip.id)}
-                          className="inline-flex items-center px-3 py-2 border border-red-300 rounded-md text-sm font-medium text-red-700 bg-red-50 hover:bg-red-100"
-                        >
-                          <StopIcon className="h-4 w-4 mr-2" />
-                          Complete Trip
-                        </button>
-                      )}
-                      
-                      {/* Inspection Status Indicators */}
-                      <div className="flex space-x-2">
-                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                      {/* Inspection Status Indicators - responsive layout */}
+                      <div className="flex flex-wrap gap-2 justify-center sm:justify-start">
+                        <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium ${
                           trip.pre_trip_inspection_completed 
                             ? 'bg-green-100 text-green-800' 
                             : 'bg-gray-100 text-gray-800'
                         }`}>
                           Pre-trip {trip.pre_trip_inspection_completed ? '✓' : '○'}
                         </span>
-                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                        <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium ${
                           trip.post_trip_inspection_completed 
                             ? 'bg-green-100 text-green-800' 
                             : 'bg-gray-100 text-gray-800'

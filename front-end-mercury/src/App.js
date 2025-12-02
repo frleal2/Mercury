@@ -23,22 +23,46 @@ import Settings from './Pages/Settings';
 function AppContent() {
     const { session } = useSession();
     const isLoggedIn = !!session.accessToken;
+    const userRole = session?.userInfo?.role || 'user';
 
     return (
         <Routes>
             {isLoggedIn ? (
                 <>
-                    <Route path="/" element={<><Header /><Drivers /></>} />
-                    <Route path="/ActiveDrivers" element={<><Header /><Drivers /></>} />
-                    <Route path="/ActiveCompanies" element={<><Header /><Companies /></>} />
-                    <Route path="/ActiveTrailers" element={<><Header /><Trailers /></>} />
-                    <Route path="/ActiveTrucks" element={<><Header /><Trucks /></>} />
-                    <Route path="/Trips" element={<><Header /><Trips /></>} />
-                    <Route path="/DriverDashboard" element={<><Header /><DriverDashboard /></>} />
-                    <Route path="/Maintenance" element={<><Header /><Maintenance /></>} />
-                    <Route path="/Recruitment" element={<><Header /><Recruitment /></>} /> {/* Added Recruitment route */}
-                    <Route path="/UserManagement" element={<><Header /><UserManagement /></>} /> {/* Added User Management route */}
-                    <Route path="/Settings" element={<><Header /><Settings /></>} /> {/* Added Settings route */}
+                    {/* Routes based on user role */}
+                    {userRole === 'driver' ? (
+                        // Driver-specific routes
+                        <>
+                            <Route path="/" element={<><Header /><DriverDashboard /></>} />
+                            <Route path="/DriverDashboard" element={<><Header /><DriverDashboard /></>} />
+                            <Route path="/Settings" element={<><Header /><Settings /></>} />
+                            {/* Redirect drivers trying to access admin pages */}
+                            <Route path="/Trips" element={<Navigate to="/DriverDashboard" />} />
+                            <Route path="/ActiveDrivers" element={<Navigate to="/DriverDashboard" />} />
+                            <Route path="/ActiveCompanies" element={<Navigate to="/DriverDashboard" />} />
+                            <Route path="/ActiveTrailers" element={<Navigate to="/DriverDashboard" />} />
+                            <Route path="/ActiveTrucks" element={<Navigate to="/DriverDashboard" />} />
+                            <Route path="/Maintenance" element={<Navigate to="/DriverDashboard" />} />
+                            <Route path="/Recruitment" element={<Navigate to="/DriverDashboard" />} />
+                            <Route path="/UserManagement" element={<Navigate to="/DriverDashboard" />} />
+                            <Route path="*" element={<Navigate to="/DriverDashboard" />} />
+                        </>
+                    ) : (
+                        // Admin/Manager routes
+                        <>
+                            <Route path="/" element={<><Header /><Drivers /></>} />
+                            <Route path="/ActiveDrivers" element={<><Header /><Drivers /></>} />
+                            <Route path="/ActiveCompanies" element={<><Header /><Companies /></>} />
+                            <Route path="/ActiveTrailers" element={<><Header /><Trailers /></>} />
+                            <Route path="/ActiveTrucks" element={<><Header /><Trucks /></>} />
+                            <Route path="/Trips" element={<><Header /><Trips /></>} />
+                            <Route path="/DriverDashboard" element={<><Header /><DriverDashboard /></>} />
+                            <Route path="/Maintenance" element={<><Header /><Maintenance /></>} />
+                            <Route path="/Recruitment" element={<><Header /><Recruitment /></>} />
+                            <Route path="/UserManagement" element={<><Header /><UserManagement /></>} />
+                            <Route path="/Settings" element={<><Header /><Settings /></>} />
+                        </>
+                    )}
                     <Route path="/QuickApply" element={<ApplicationForm />} /> {/* Allow access to Recruitment without login */}
                 </>
             ) : (
