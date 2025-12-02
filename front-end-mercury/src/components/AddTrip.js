@@ -168,6 +168,8 @@ const AddTrip = ({ onClose }) => {
 
     setLoading(true);
     try {
+      console.log('Submitting trip data:', formData);
+      
       await axios.post(`${BASE_URL}/api/trips/`, formData, {
         headers: { 
           'Authorization': `Bearer ${session.accessToken}`,

@@ -218,6 +218,69 @@ class TripsSerializer(serializers.ModelSerializer):
     
     def get_can_complete(self, obj):
         return obj.can_complete_trip()
+    
+    def create(self, validated_data):
+        """
+        Custom create method to handle frontend form data mapping
+        """
+        from datetime import datetime
+        from django.utils import timezone
+        
+        # Extract frontend-specific fields
+        planned_departure = validated_data.pop('planned_departure', None)
+        planned_arrival = validated_data.pop('planned_arrival', None)
+        origin = validated_data.pop('origin', None)
+        destination = validated_data.pop('destination', None)
+        load_description = validated_data.pop('load_description', None)
+        
+        # Map to backend fields
+        if planned_departure:
+            # Convert date string to datetime for start_time and scheduled_start_date
+            if isinstance(planned_departure, str):
+                try:
+                    departure_date = datetime.fromisoformat(planned_departure.replace('Z', '+00:00'))
+                    validated_data['start_time'] = departure_date
+                    validated_data['scheduled_start_date'] = departure_date
+                except ValueError:
+                    # If it's just a date string, add time
+                    departure_date = datetime.strptime(planned_departure, '%Y-%m-%d')
+                    departure_date = timezone.make_aware(departure_date)
+                    validated_data['start_time'] = departure_date
+                    validated_data['scheduled_start_date'] = departure_date
+            else:
+                validated_data['start_time'] = planned_departure
+                validated_data['scheduled_start_date'] = planned_departure
+        
+        if planned_arrival:
+            # Convert date string to datetime for scheduled_end_date
+            if isinstance(planned_arrival, str):
+                try:
+                    arrival_date = datetime.fromisoformat(planned_arrival.replace('Z', '+00:00'))
+                    validated_data['scheduled_end_date'] = arrival_date
+                except ValueError:
+                    # If it's just a date string, add end of day time
+                    arrival_date = datetime.strptime(planned_arrival, '%Y-%m-%d')
+                    arrival_date = arrival_date.replace(hour=23, minute=59, second=59)
+                    arrival_date = timezone.make_aware(arrival_date)
+                    validated_data['scheduled_end_date'] = arrival_date
+            else:
+                validated_data['scheduled_end_date'] = planned_arrival
+        
+        # Map origin/destination to start_location/end_location
+        if origin:
+            validated_data['start_location'] = origin
+        if destination:
+            validated_data['end_location'] = destination
+            
+        # Handle load description in notes if provided
+        if load_description:
+            existing_notes = validated_data.get('notes', '')
+            if existing_notes:
+                validated_data['notes'] = f"Load: {load_description}\n\n{existing_notes}"
+            else:
+                validated_data['notes'] = f"Load: {load_description}"
+        
+        return super().create(validated_data)
 
 
 class TripInspectionSerializer(serializers.ModelSerializer):
