@@ -260,36 +260,40 @@ class TripDocumentAdmin(admin.ModelAdmin):
 
 @admin.register(DriverDocument)
 class DriverDocumentAdmin(admin.ModelAdmin):
-    list_display = ('id', 'driver', 'document_type', 'upload_date', 'expiration_date')
-    list_filter = ('document_type', 'upload_date', 'expiration_date')
+    list_display = ('id', 'driver', 'document_type', 'uploaded_at', 'expiration_date', 'is_verified')
+    list_filter = ('document_type', 'uploaded_at', 'expiration_date', 'is_verified')
     search_fields = ('driver__first_name', 'driver__last_name', 'document_type')
+    readonly_fields = ('uploaded_at', 'file_size')
     
     fieldsets = (
         ('Driver Information', {
             'fields': ('driver', 'document_type')
         }),
         ('Document Details', {
-            'fields': ('document_file', 'upload_date', 'expiration_date', 'notes')
+            'fields': ('file', 'file_name', 'file_size', 'expiration_date', 'description')
+        }),
+        ('Upload Information', {
+            'fields': ('uploaded_at', 'uploaded_by', 'is_verified')
         }),
     )
 
 @admin.register(MaintenanceCategory)
 class MaintenanceCategoryAdmin(admin.ModelAdmin):
-    list_display = ('id', 'category_name')
-    search_fields = ('category_name',)
+    list_display = ('id', 'name', 'color_code')
+    search_fields = ('name',)
 
 @admin.register(MaintenanceType)
 class MaintenanceTypeAdmin(admin.ModelAdmin):
-    list_display = ('id', 'type_name', 'category')
-    list_filter = ('category',)
-    search_fields = ('type_name', 'category__category_name')
+    list_display = ('id', 'name', 'category', 'estimated_hours', 'dot_required')
+    list_filter = ('category', 'dot_required')
+    search_fields = ('name', 'category__name')
 
 @admin.register(MaintenanceRecord)
 class MaintenanceRecordAdmin(admin.ModelAdmin):
-    list_display = ('id', 'get_vehicle', 'maintenance_type', 'service_date', 'cost', 'odometer_reading')
-    list_filter = ('maintenance_type', 'service_date', 'truck__company', 'trailer__company')
-    search_fields = ('truck__unit_number', 'trailer__unit_number', 'maintenance_type__type_name', 'vendor_name')
-    readonly_fields = ('created_at', 'updated_at')
+    list_display = ('work_order_number', 'get_vehicle', 'maintenance_type', 'date_performed', 'total_cost', 'status')
+    list_filter = ('maintenance_type', 'date_performed', 'status', 'truck__company', 'trailer__company')
+    search_fields = ('work_order_number', 'truck__unit_number', 'trailer__unit_number', 'vendor_name')
+    readonly_fields = ('work_order_number', 'created_at', 'updated_at')
     
     def get_vehicle(self, obj):
         if obj.truck:
@@ -300,36 +304,39 @@ class MaintenanceRecordAdmin(admin.ModelAdmin):
     get_vehicle.short_description = 'Vehicle'
     
     fieldsets = (
+        ('Work Order', {
+            'fields': ('work_order_number', 'status', 'priority')
+        }),
         ('Vehicle Information', {
             'fields': ('truck', 'trailer')
         }),
         ('Maintenance Details', {
-            'fields': ('maintenance_type', 'service_date', 'description', 'vendor_name', 'cost', 'odometer_reading')
+            'fields': ('maintenance_type', 'date_performed', 'date_scheduled', 'description', 'vendor_name', 'total_cost', 'mileage')
         }),
         ('Additional Information', {
-            'fields': ('notes', 'next_service_date', 'created_at', 'updated_at')
+            'fields': ('notes', 'created_at', 'updated_at')
         }),
     )
 
 @admin.register(MaintenanceAttachment)
 class MaintenanceAttachmentAdmin(admin.ModelAdmin):
-    list_display = ('id', 'maintenance_record', 'attachment_type', 'uploaded_at')
-    list_filter = ('attachment_type', 'uploaded_at')
-    search_fields = ('maintenance_record__id', 'attachment_type')
-    readonly_fields = ('uploaded_at',)
+    list_display = ('id', 'maintenance_record', 'file_type', 'file_name', 'uploaded_at')
+    list_filter = ('file_type', 'uploaded_at')
+    search_fields = ('maintenance_record__work_order_number', 'file_name')
+    readonly_fields = ('uploaded_at', 'file_size')
 
 @admin.register(PasswordResetToken)
 class PasswordResetTokenAdmin(admin.ModelAdmin):
-    list_display = ('email', 'is_used', 'created_at', 'expires_at')
-    list_filter = ('is_used', 'created_at')
-    search_fields = ('email',)
+    list_display = ('user', 'used', 'created_at', 'expires_at')
+    list_filter = ('used', 'created_at')
+    search_fields = ('user__email', 'user__username')
     readonly_fields = ('token', 'created_at')
     
     fieldsets = (
         ('Reset Information', {
-            'fields': ('email', 'token')
+            'fields': ('user', 'token')
         }),
         ('Status', {
-            'fields': ('is_used', 'created_at', 'expires_at')
+            'fields': ('used', 'created_at', 'expires_at')
         }),
     )
