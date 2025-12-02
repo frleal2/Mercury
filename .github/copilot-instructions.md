@@ -33,14 +33,15 @@ Fleetly is a multi-tenant fleet management SaaS with Django REST Framework backe
 - **Tenant-Aware Routing**: `/accept-invitation/:token` for user onboarding with tenant assignment
 - **Modal Components**: Consistent pattern using state flags (e.g., `isAddDriverOpen`, `isEditDriverOpen`)
 - **API Configuration**: Environment-aware config via `config.js` (local vs render endpoints)
-- **Component Structure**: 
-  - `Pages/` for route components (Drivers, Companies, etc.)
-  - `components/` for reusable UI (Add/Edit modals, Header navigation)
+### Component Structure**: 
+  - `Pages/` for route components (Drivers, Companies, Trips, Maintenance, etc.)
+  - `components/` for reusable UI (Add/Edit modals, Header navigation, Inspections)
 
 ### Data Models Hierarchy (Multi-Tenant)
 - **Tenant** (1:many) **Company** (1:many) **Driver** (1:many) **DriverTest**
-- **Company** (1:many) **Truck/Trailer**
+- **Company** (1:many) **Truck/Trailer** (1:many) **Trips** (with pre/post inspections)
 - **Driver** (1:many) **DriverHOS** (Hours of Service)
+- **Trips** (1:many) **TripInspection** + **TripDocument** (Bills of Lading, receipts, photos)
 - **DriverApplication** (tenant-aware recruitment with `company` FK)
 - **MaintenanceRecord** (polymorphic: trucks OR trailers with extensive categorization)
 - **UserProfile** (links User to Tenant + Companies with role permissions)
@@ -71,11 +72,13 @@ npm start  # Runs on localhost:3000
 ## Component Patterns
 
 ### Modal Components
-Follow the pattern in `AddDriver.js`:
+Follow the pattern in `AddDriver.js` and `AddTrip.js`:
 - State management for form data with `useState`
 - Company fetching in `useEffect` for dropdowns
 - Axios requests with Bearer token authentication
 - `onClose` prop for parent state updates
+- Auto-assignment logic (e.g., driver → truck → trailer in trips)
+- Form validation with error state management
 
 ### Data Fetching
 Standard pattern across pages:
@@ -100,7 +103,9 @@ class CompanyFilterMixin:
 ### Navigation Structure
 Header component uses Headless UI with dropdown menus. Main sections:
 - Safety Compliance (Companies, Drivers, Trucks, Trailers)
-- Recruitment (separate module)
+- Operations (Trips with pre/post-trip inspections)
+- Maintenance (Equipment service records)
+- Recruitment (separate module with QuickApply)
 
 ## Special Considerations
 
@@ -124,5 +129,12 @@ Header component uses Headless UI with dropdown menus. Main sections:
 - RESTful endpoints following DRF conventions
 - Nested data serialization (drivers include test history)
 - Custom endpoints like `/api/DriverTest/<driver_id>/` for specific queries
+
+### Recent Additions (2025)
+- **Trip Management**: Full CRUD operations with status tracking (scheduled/in_progress/completed/cancelled)
+- **Trip Inspections**: Pre-trip and post-trip safety checks with detailed checklists
+- **Trip Documents**: File uploads for Bills of Lading, receipts, and photos
+- **Auto-Assignment Logic**: Driver selection auto-assigns associated truck and trailer
+- **Enhanced Trailers**: Added `unit_number` (unique) and `trailer_type` fields
 
 When adding new features, follow these established patterns for consistency with the existing codebase.
