@@ -2424,35 +2424,46 @@ def dashboard_overview(request):
 
         user_companies = request.user.profile.companies.all()
         user_role = request.user.profile.role
+        
+        logger.info(f"Dashboard: Processing request for user {request.user.username}")
 
         # Filter data by user's companies for tenant isolation
-        drivers = Driver.objects.filter(company__in=user_companies)
-        trucks = Truck.objects.filter(company__in=user_companies)
-        trailers = Trailer.objects.filter(company__in=user_companies)
-        trips = Trips.objects.filter(company__in=user_companies)
-        maintenance_records = MaintenanceRecord.objects.filter(
-            Q(truck__company__in=user_companies) | Q(trailer__company__in=user_companies)
-        )
-        inspections = TripInspection.objects.filter(trip__company__in=user_companies)
+        try:
+            drivers = Driver.objects.filter(company__in=user_companies)
+            trucks = Truck.objects.filter(company__in=user_companies)
+            trailers = Trailer.objects.filter(company__in=user_companies)
+            trips = Trips.objects.filter(company__in=user_companies)
+            maintenance_records = MaintenanceRecord.objects.filter(
+                Q(truck__company__in=user_companies) | Q(trailer__company__in=user_companies)
+            )
+            inspections = TripInspection.objects.filter(trip__company__in=user_companies)
+        except Exception as e:
+            logger.error(f"Dashboard: Error fetching data: {str(e)}")
+            return Response({"error": f"Database query error: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         # Calculate key metrics
-        logger.info(f"Dashboard: User {request.user.username} has {user_companies.count()} companies")
-        logger.info(f"Dashboard: Found {drivers.count()} drivers, {trucks.count()} trucks, {trailers.count()} trailers")
-        
-        total_drivers = drivers.count()
-        active_drivers = drivers.filter(active=True).count()  # Use 'active' boolean field
-        total_vehicles = trucks.count() + trailers.count()
-        active_vehicles = trucks.filter(status='active').count() + trailers.filter(status='active').count()
-        
-        # Trip metrics
-        today = timezone.now().date()
-        active_trips = trips.filter(status='in_progress').count()
-        completed_today = trips.filter(
-            status='completed',
-            actual_end_date__date=today
-        ).count()
-        
-        logger.info(f"Dashboard: Calculated metrics - drivers: {total_drivers}, vehicles: {total_vehicles}, trips: {active_trips}")
+        try:
+            logger.info(f"Dashboard: User {request.user.username} has {user_companies.count()} companies")
+            logger.info(f"Dashboard: Found {drivers.count()} drivers, {trucks.count()} trucks, {trailers.count()} trailers")
+            
+            total_drivers = drivers.count()
+            active_drivers = drivers.filter(active=True).count()  # Use 'active' boolean field
+            total_vehicles = trucks.count() + trailers.count()
+            active_vehicles = trucks.filter(status='active').count() + trailers.filter(status='active').count()
+            
+            # Trip metrics
+            today = timezone.now().date()
+            active_trips = trips.filter(status='in_progress').count()
+            completed_today = trips.filter(
+                status='completed',
+                actual_end_date__date=today
+            ).count()
+            
+            logger.info(f"Dashboard: Calculated metrics - drivers: {total_drivers}, vehicles: {total_vehicles}, trips: {active_trips}")
+        except Exception as e:
+            logger.error(f"Dashboard: Error calculating basic metrics: {str(e)}")
+            # Return with default values
+            total_drivers = active_drivers = total_vehicles = active_vehicles = active_trips = completed_today = 0
         
         # Inspection metrics (last 30 days) - simplified for now
         inspection_pass_rate = 85.0  # Default value for now
@@ -2477,15 +2488,21 @@ def dashboard_overview(request):
 
         # Simplified compliance calculations
         try:
+            logger.info("Dashboard: Calculating compliance scores...")
             driver_compliance = calculate_driver_compliance(drivers)
+            logger.info(f"Dashboard: Driver compliance: {driver_compliance}")
             vehicle_compliance = calculate_vehicle_compliance(trucks, trailers)
+            logger.info(f"Dashboard: Vehicle compliance: {vehicle_compliance}")
             operations_compliance = 90.0  # Simplified for now
             overall_compliance = round((driver_compliance + vehicle_compliance + operations_compliance) / 3, 1)
+            logger.info(f"Dashboard: Overall compliance: {overall_compliance}")
         except Exception as e:
             logger.error(f"Dashboard compliance calculation error: {str(e)}")
+            import traceback
+            logger.error(f"Compliance traceback: {traceback.format_exc()}")
             driver_compliance = vehicle_compliance = operations_compliance = overall_compliance = 85.0
 
-        # Simplified alerts and activities for now
+        # Initialize with empty defaults
         critical_alerts = []
         action_items = {
             'drivers': [],
@@ -2496,21 +2513,35 @@ def dashboard_overview(request):
         recent_activity = []
         
         try:
+            logger.info("Dashboard: Generating critical alerts...")
             critical_alerts = generate_critical_alerts(drivers, trucks, trailers, trips, maintenance_records)
+            logger.info(f"Dashboard: Generated {len(critical_alerts)} alerts")
         except Exception as e:
             logger.error(f"Dashboard alerts generation error: {str(e)}")
+            import traceback
+            logger.error(f"Alerts traceback: {traceback.format_exc()}")
             
         try:
+            logger.info("Dashboard: Generating action items...")
             action_items = generate_action_items(drivers, trucks, trailers, maintenance_records, inspections, user_companies)
+            logger.info(f"Dashboard: Generated action items")
         except Exception as e:
             logger.error(f"Dashboard action items generation error: {str(e)}")
+            import traceback
+            logger.error(f"Action items traceback: {traceback.format_exc()}")
             
         try:
+            logger.info("Dashboard: Generating recent activity...")
             recent_activity = generate_recent_activity(trips, inspections, maintenance_records)
+            logger.info(f"Dashboard: Generated {len(recent_activity)} activities")
         except Exception as e:
             logger.error(f"Dashboard recent activity generation error: {str(e)}")
+            import traceback
+            logger.error(f"Recent activity traceback: {traceback.format_exc()}")
 
-        return Response({
+        logger.info("Dashboard: Preparing response...")
+        
+        response_data = {
             'key_metrics': {
                 'total_drivers': total_drivers,
                 'active_drivers': active_drivers,
@@ -2532,12 +2563,17 @@ def dashboard_overview(request):
             'action_items': action_items,
             'recent_activity': recent_activity,
             'last_updated': timezone.now().isoformat()
-        }, status=status.HTTP_200_OK)
+        }
+        
+        logger.info(f"Dashboard: Returning response with {len(critical_alerts)} alerts and {len(recent_activity)} activities")
+        return Response(response_data, status=status.HTTP_200_OK)
 
     except Exception as e:
         logger.error(f"Error fetching dashboard data: {str(e)}")
+        import traceback
+        logger.error(f"Dashboard main error traceback: {traceback.format_exc()}")
         return Response(
-            {'error': 'Internal server error'}, 
+            {'error': f'Internal server error: {str(e)}'}, 
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
