@@ -201,7 +201,7 @@ const PreTripInspection = ({ isOpen, onClose, tripId, onInspectionComplete }) =>
         
         // Convert pass/fail/na values to boolean for inspection fields
         if (typeof value === 'string' && (value === 'pass' || value === 'fail' || value === 'na')) {
-          value = value === 'pass' ? 'true' : 'false';
+          value = value === 'pass'; // This will be true for "pass", false for "fail"/"na"
         }
         
         formData.append(key, value);

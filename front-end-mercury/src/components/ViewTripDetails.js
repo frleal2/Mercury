@@ -34,11 +34,9 @@ const ViewTripDetails = ({ tripId, onClose }) => {
 
   const fetchInspections = async () => {
     try {
-      console.log('Fetching inspections for trip ID:', tripId);
       const response = await axios.get(`${BASE_URL}/api/trip-inspections/?trip=${tripId}`, {
         headers: { 'Authorization': `Bearer ${session.accessToken}` }
       });
-      console.log('Inspections response:', response.data);
       setInspections(response.data);
     } catch (error) {
       console.error('Error fetching inspections:', error);
@@ -56,8 +54,6 @@ const ViewTripDetails = ({ tripId, onClose }) => {
   };
 
   const getInspectionStatus = (inspection) => {
-    console.log('Inspection data for status check:', inspection);
-    
     const checks = [
       inspection.vehicle_exterior_condition,
       inspection.lights_working,
@@ -79,20 +75,10 @@ const ViewTripDetails = ({ tripId, onClose }) => {
     
     const passedChecks = checks.filter(check => check === true).length;
     const totalChecks = checks.length;
-    
-    console.log('Inspection status calculation:', {
-      checks,
-      passedChecks,
-      totalChecks,
-      passed: passedChecks === totalChecks
-    });
-    
     return { passed: passedChecks === totalChecks, passedChecks, totalChecks };
   };
 
   const renderInspectionChecklist = (inspection) => {
-    console.log('Rendering checklist for inspection:', inspection);
-    
     const checks = [
       { label: 'Vehicle Exterior Condition', value: inspection.vehicle_exterior_condition, key: 'vehicle_exterior_condition' },
       { label: 'Lights Working', value: inspection.lights_working, key: 'lights_working' },
@@ -115,7 +101,6 @@ const ViewTripDetails = ({ tripId, onClose }) => {
     return (
       <div className="space-y-3">
         {checks.map((check) => {
-          console.log(`Check ${check.key}:`, check.value, typeof check.value);
           return (
             <div key={check.key} className="flex items-center justify-between p-3 rounded-lg bg-gray-50">
               <span className="text-sm font-medium text-gray-700">{check.label}</span>

@@ -297,6 +297,25 @@ class TripInspectionSerializer(serializers.ModelSerializer):
     
     def get_is_inspection_passed(self, obj):
         return obj.is_passed()
+    
+    def validate(self, data):
+        """Convert string boolean values from FormData to actual booleans"""
+        boolean_fields = [
+            'vehicle_exterior_condition', 'lights_working', 'tires_condition', 
+            'brakes_working', 'engine_fluids_ok', 'trailer_attached_properly',
+            'trailer_lights_working', 'cargo_secured'
+        ]
+        
+        for field in boolean_fields:
+            if field in data:
+                value = data[field]
+                if isinstance(value, str):
+                    if value.lower() in ['true', '1', 'yes', 'on']:
+                        data[field] = True
+                    elif value.lower() in ['false', '0', 'no', 'off', '']:
+                        data[field] = False
+        
+        return data
 
 
 class TripDocumentSerializer(serializers.ModelSerializer):
