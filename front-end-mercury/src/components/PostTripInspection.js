@@ -208,7 +208,7 @@ const PostTripInspection = ({ isOpen, onClose, tripId, onInspectionComplete }) =
         formData.append(`trip_photos_${index}`, photo);
       });
 
-      await axios.post(`${BASE_URL}/api/trip-inspections/`, formData, {
+      await axios.post(`${BASE_URL}/api/trips/${tripId}/inspection/post_trip/`, formData, {
         headers: {
           'Authorization': `Bearer ${session.accessToken}`,
           'Content-Type': 'multipart/form-data'
