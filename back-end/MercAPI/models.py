@@ -857,5 +857,37 @@ class TripDocument(models.Model):
         return f"{self.get_document_type_display()} - Trip {trip_id}"
 
 
+class PasswordResetToken(models.Model):
+    """
+    Model to handle password reset tokens
+    """
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    token = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    used = models.BooleanField(default=False)
+    
+    def save(self, *args, **kwargs):
+        if not self.expires_at:
+            # Token expires after 1 hour
+            self.expires_at = timezone.now() + timedelta(hours=1)
+        super().save(*args, **kwargs)
+    
+    def is_valid(self):
+        """Check if token is still valid (not used and not expired)"""
+        return not self.used and timezone.now() < self.expires_at
+    
+    def is_expired(self):
+        """Check if token has expired"""
+        return timezone.now() >= self.expires_at
+    
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = "Password Reset Token"
+        verbose_name_plural = "Password Reset Tokens"
+    
+    def __str__(self):
+        return f"Password Reset Token for {self.user.email} - {'Valid' if self.is_valid() else 'Invalid'}"
+
 
 

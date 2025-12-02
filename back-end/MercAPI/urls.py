@@ -64,6 +64,10 @@ urlpatterns = [
     path('api/tenant-users/', views.list_tenant_users, name='list_tenant_users'),
     path('api/users/<int:user_id>/companies/', views.update_user_companies, name='update_user_companies'),
     path('api/users/<int:user_id>/', views.update_user, name='update_user'),
+    # Password reset endpoints
+    path('api/forgot-password/', views.forgot_password, name='forgot_password'),
+    path('api/validate-reset-token/<uuid:token>/', views.validate_reset_token, name='validate_reset_token'),
+    path('api/reset-password/<uuid:token>/', views.reset_password, name='reset_password'),
     # Trip management endpoints
     path('api/trips/<int:trip_id>/start/', views.start_trip, name='start_trip'),
     path('api/trips/<int:trip_id>/complete/', views.complete_trip, name='complete_trip'),

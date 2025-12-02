@@ -20,7 +20,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework_simplejwt.views import TokenObtainPairView
-from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Tenant, UserProfile, Inspection, InspectionItem, Trips, InvitationToken, TripInspection, TripDocument
+from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Tenant, UserProfile, Inspection, InspectionItem, Trips, InvitationToken, TripInspection, TripDocument, PasswordResetToken
 from rest_framework.serializers import ValidationError
 from rest_framework import serializers
 from django.core.files.storage import default_storage
@@ -2157,6 +2157,206 @@ def submit_inspection(request, trip_id, inspection_type):
         )
     except Exception as e:
         logger.error(f"Error submitting inspection: {str(e)}")
+        return Response(
+            {'error': 'Internal server error'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+# Password Reset Views
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def forgot_password(request):
+    """
+    Send password reset email to user
+    """
+    try:
+        email = request.data.get('email', '').strip().lower()
+        
+        if not email:
+            return Response(
+                {'error': 'Email is required'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Check if user exists
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            # For security reasons, don't reveal if email exists or not
+            return Response(
+                {'message': 'If an account with this email exists, a password reset link has been sent.'}, 
+                status=status.HTTP_200_OK
+            )
+        
+        # Check rate limiting (max 3 requests per hour per user)
+        one_hour_ago = timezone.now() - timedelta(hours=1)
+        recent_tokens = PasswordResetToken.objects.filter(
+            user=user, 
+            created_at__gte=one_hour_ago
+        ).count()
+        
+        if recent_tokens >= 3:
+            return Response(
+                {'error': 'Too many password reset requests. Please try again later.'}, 
+                status=status.HTTP_429_TOO_MANY_REQUESTS
+            )
+        
+        # Create password reset token
+        reset_token = PasswordResetToken.objects.create(user=user)
+        
+        # Create reset URL
+        reset_url = f"{request.scheme}://{request.get_host()}/reset-password/{reset_token.token}"
+        
+        # Send email (you'll need to configure email settings)
+        try:
+            from django.core.mail import send_mail
+            from django.conf import settings
+            
+            subject = 'Password Reset Request - Fleetly'
+            message = f"""
+Hello {user.first_name or user.username},
+
+You requested a password reset for your Fleetly account. Click the link below to reset your password:
+
+{reset_url}
+
+This link will expire in 1 hour for security reasons.
+
+If you didn't request this password reset, please ignore this email.
+
+Best regards,
+The Fleetly Team
+            """
+            
+            send_mail(
+                subject,
+                message,
+                settings.DEFAULT_FROM_EMAIL,
+                [user.email],
+                fail_silently=False,
+            )
+            
+            logger.info(f"Password reset email sent to {user.email}")
+            
+        except Exception as e:
+            logger.error(f"Failed to send password reset email to {user.email}: {str(e)}")
+            return Response(
+                {'error': 'Failed to send reset email. Please try again later.'}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
+        return Response(
+            {'message': 'If an account with this email exists, a password reset link has been sent.'}, 
+            status=status.HTTP_200_OK
+        )
+        
+    except Exception as e:
+        logger.error(f"Error in forgot password: {str(e)}")
+        return Response(
+            {'error': 'Internal server error'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def validate_reset_token(request, token):
+    """
+    Validate a password reset token
+    """
+    try:
+        reset_token = PasswordResetToken.objects.get(token=token)
+        
+        if not reset_token.is_valid():
+            if reset_token.is_expired():
+                return Response(
+                    {'error': 'Reset token has expired'}, 
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            else:
+                return Response(
+                    {'error': 'Reset token has already been used'}, 
+                    status=status.HTTP_404_NOT_FOUND
+                )
+        
+        return Response(
+            {'valid': True, 'email': reset_token.user.email}, 
+            status=status.HTTP_200_OK
+        )
+        
+    except PasswordResetToken.DoesNotExist:
+        return Response(
+            {'error': 'Invalid reset token'}, 
+            status=status.HTTP_404_NOT_FOUND
+        )
+    except Exception as e:
+        logger.error(f"Error validating reset token: {str(e)}")
+        return Response(
+            {'error': 'Internal server error'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def reset_password(request, token):
+    """
+    Reset user password using a valid token
+    """
+    try:
+        reset_token = PasswordResetToken.objects.get(token=token)
+        
+        if not reset_token.is_valid():
+            if reset_token.is_expired():
+                return Response(
+                    {'error': 'Reset token has expired'}, 
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            else:
+                return Response(
+                    {'error': 'Reset token has already been used'}, 
+                    status=status.HTTP_404_NOT_FOUND
+                )
+        
+        # Get new password from request
+        new_password = request.data.get('password', '').strip()
+        
+        if not new_password:
+            return Response(
+                {'error': 'Password is required'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if len(new_password) < 8:
+            return Response(
+                {'error': 'Password must be at least 8 characters long'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Update user password
+        user = reset_token.user
+        user.set_password(new_password)
+        user.save()
+        
+        # Mark token as used
+        reset_token.used = True
+        reset_token.save()
+        
+        logger.info(f"Password successfully reset for user {user.email}")
+        
+        return Response(
+            {'message': 'Password reset successfully'}, 
+            status=status.HTTP_200_OK
+        )
+        
+    except PasswordResetToken.DoesNotExist:
+        return Response(
+            {'error': 'Invalid reset token'}, 
+            status=status.HTTP_404_NOT_FOUND
+        )
+    except Exception as e:
+        logger.error(f"Error resetting password: {str(e)}")
         return Response(
             {'error': 'Internal server error'}, 
             status=status.HTTP_500_INTERNAL_SERVER_ERROR

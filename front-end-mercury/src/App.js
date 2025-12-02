@@ -15,6 +15,8 @@ import Maintenance from './Pages/Maintenance';
 import UserManagement from './Pages/UserManagement';
 import Signup from './Pages/Signup';
 import AcceptInvitation from './Pages/AcceptInvitation';
+import ForgotPassword from './Pages/ForgotPassword';
+import ResetPassword from './Pages/ResetPassword';
 import LandingPage from './Pages/LandingPage';
 import Settings from './Pages/Settings';
 
@@ -44,6 +46,8 @@ function AppContent() {
                     <Route path="/" element={<LandingPage />} />
                     <Route path="/login" element={<Login />} />
                     <Route path="/signup" element={<Signup />} />
+                    <Route path="/forgot-password" element={<ForgotPassword />} />
+                    <Route path="/reset-password/:token" element={<ResetPassword />} />
                     <Route path="/accept-invitation/:token" element={<AcceptInvitation />} />
                     <Route path="/QuickApply" element={<ApplicationForm />} /> {/* Allow access to Recruitment without login */}
                     <Route path="*" element={<Navigate to="/" />} />
