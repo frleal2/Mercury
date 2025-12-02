@@ -13,7 +13,7 @@ const getNavigationItems = (userRole) => {
   
   // Admin/User role navigation
   return [
-    { name: 'Dashboard', href: '/Dashboard', current: false },
+    // { name: 'Dashboard', href: '/Dashboard', current: false }, // Hidden - not ready for production
     { name: 'Safety Compliance', href: '#', current: false, dropdown: true, options: [
         { name: 'Companies', href: '/ActiveCompanies' },
         { name: 'Drivers', href: '/ActiveDrivers' },
