@@ -73,6 +73,8 @@ urlpatterns = [
     path('api/trips/<int:trip_id>/complete/', views.complete_trip, name='complete_trip'),
     path('api/driver/active-trips/', views.driver_active_trips, name='driver_active_trips'),
     path('api/trips/<int:trip_id>/inspection/<str:inspection_type>/', views.submit_inspection, name='submit_inspection'),
+    # Dashboard endpoints
+    path('api/dashboard/overview/', views.dashboard_overview, name='dashboard_overview'),
 ]
 
 # Serve media and static files during development

@@ -9,6 +9,7 @@ import Trailers from './Pages/Trailers';
 import Trucks from './Pages/Trucks';
 import Trips from './Pages/Trips';
 import DriverDashboard from './Pages/DriverDashboard';
+import Dashboard from './Pages/Dashboard';
 import Recruitment from './Pages/Recruitment';
 import ApplicationForm from './Pages/ApplicationForm';
 import Maintenance from './Pages/Maintenance';
@@ -50,7 +51,8 @@ function AppContent() {
                     ) : (
                         // Admin/Manager routes
                         <>
-                            <Route path="/" element={<><Header /><Drivers /></>} />
+                            <Route path="/" element={<><Header /><Dashboard /></>} />
+                            <Route path="/Dashboard" element={<><Header /><Dashboard /></>} />
                             <Route path="/ActiveDrivers" element={<><Header /><Drivers /></>} />
                             <Route path="/ActiveCompanies" element={<><Header /><Companies /></>} />
                             <Route path="/ActiveTrailers" element={<><Header /><Trailers /></>} />

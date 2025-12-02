@@ -3,6 +3,7 @@ import axios from 'axios';
 import { useSession } from '../providers/SessionProvider';
 import BASE_URL from '../config';
 import AddTrip from '../components/AddTrip';
+import ViewTripDetails from '../components/ViewTripDetails';
 import { 
   PlusIcon,
   TruckIcon,
@@ -19,6 +20,7 @@ function Trips() {
   const [trips, setTrips] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isCreateTripOpen, setIsCreateTripOpen] = useState(false);
+  const [selectedTripId, setSelectedTripId] = useState(null);
   const [filter, setFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -52,6 +54,14 @@ function Trips() {
   const handleCloseCreateTrip = () => {
     setIsCreateTripOpen(false);
     fetchTrips(); // Refresh trips after creation
+  };
+
+  const handleViewTripDetails = (tripId) => {
+    setSelectedTripId(tripId);
+  };
+
+  const handleCloseTripDetails = () => {
+    setSelectedTripId(null);
   };
 
   const getStatusColor = (status) => {
@@ -263,19 +273,21 @@ function Trips() {
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex space-x-1">
-                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                        <div className="flex flex-col space-y-1">
+                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium w-fit ${
                             trip.pre_trip_inspection_completed 
                               ? 'bg-green-100 text-green-800' 
                               : 'bg-gray-100 text-gray-800'
                           }`}>
+                            <CheckCircleIcon className={`h-3 w-3 mr-1 ${trip.pre_trip_inspection_completed ? 'text-green-600' : 'text-gray-400'}`} />
                             Pre-trip
                           </span>
-                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium w-fit ${
                             trip.post_trip_inspection_completed 
                               ? 'bg-green-100 text-green-800' 
                               : 'bg-gray-100 text-gray-800'
                           }`}>
+                            <CheckCircleIcon className={`h-3 w-3 mr-1 ${trip.post_trip_inspection_completed ? 'text-green-600' : 'text-gray-400'}`} />
                             Post-trip
                           </span>
                         </div>
@@ -283,8 +295,9 @@ function Trips() {
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         <div className="flex justify-end space-x-2">
                           <button
-                            className="text-blue-600 hover:text-blue-800 p-1"
-                            title="View Details"
+                            onClick={() => handleViewTripDetails(trip.id)}
+                            className="text-blue-600 hover:text-blue-800 p-1 hover:bg-blue-50 rounded"
+                            title="View Trip Details & Inspections"
                           >
                             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -306,6 +319,14 @@ function Trips() {
       {isCreateTripOpen && (
         <AddTrip
           onClose={handleCloseCreateTrip}
+        />
+      )}
+
+      {/* View Trip Details Modal */}
+      {selectedTripId && (
+        <ViewTripDetails
+          tripId={selectedTripId}
+          onClose={handleCloseTripDetails}
         />
       )}
     </div>

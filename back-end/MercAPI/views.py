@@ -73,6 +73,10 @@ class CompanyFilterMixin:
                 Q(inspection__driver__company__in=user_companies)
             )
         
+        if model_name == 'TripInspection':
+            # Filter through trip -> company
+            return queryset.filter(trip__company__in=user_companies)
+        
         if model_name == 'MaintenanceRecord':
             # Filter through truck/trailer -> company
             return queryset.filter(
@@ -1323,11 +1327,19 @@ class TripsViewSet(UserOrAboveMixin, CompanyFilterMixin, ModelViewSet):
 
 
 @api_view(['GET'])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def list_applications_with_files(request):
-    """List all driver applications with file information"""
+    """List all driver applications with file information for user's companies"""
     try:
-        applications = DriverApplication.objects.all().order_by('-created_at')
+        # Ensure user has profile and companies
+        if not hasattr(request.user, 'profile') or not request.user.profile.companies.exists():
+            return Response({"detail": "Access denied"}, status=status.HTTP_403_FORBIDDEN)
+        
+        # Filter by user's companies for tenant isolation
+        user_companies = request.user.profile.companies.all()
+        applications = DriverApplication.objects.filter(
+            company__in=user_companies
+        ).order_by('-created_at')
         
         # Use the serializer to get full data, then add file URLs
         serializer = DriverApplicationSerializer(applications, many=True)
@@ -1351,13 +1363,21 @@ def list_applications_with_files(request):
 @permission_classes([IsAuthenticated])
 def download_application_file(request, application_id, file_type):
     """
-    Generate signed URL for application file download
+    Generate signed URL for application file download (tenant-aware)
     """
     try:
         logger.info(f"Download request: application_id={application_id}, file_type={file_type}")
         
-        # Get the application
-        application = DriverApplication.objects.get(id=application_id)
+        # Ensure user has profile and companies
+        if not hasattr(request.user, 'profile') or not request.user.profile.companies.exists():
+            return Response({"detail": "Access denied"}, status=status.HTTP_403_FORBIDDEN)
+        
+        # Get the application with tenant filtering
+        user_companies = request.user.profile.companies.all()
+        application = DriverApplication.objects.get(
+            id=application_id,
+            company__in=user_companies
+        )
         
         # Get the file based on type
         if file_type == 'license':
@@ -1426,10 +1446,20 @@ def download_application_file(request, application_id, file_type):
         )
 
 @api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def get_latest_driver_test(request, driver_id):
     try:
-        # Fetch the latest test for the given driver ID, ordered by completion_date
-        latest_test = DriverTest.objects.filter(driver_id=driver_id, completion_date__isnull=False).order_by('-completion_date').first()
+        # Ensure user has profile and companies
+        if not hasattr(request.user, 'profile') or not request.user.profile.companies.exists():
+            return Response({"detail": "Access denied"}, status=status.HTTP_403_FORBIDDEN)
+        
+        # Fetch the latest test with tenant filtering
+        user_companies = request.user.profile.companies.all()
+        latest_test = DriverTest.objects.filter(
+            driver_id=driver_id, 
+            completion_date__isnull=False,
+            driver__company__in=user_companies
+        ).order_by('-completion_date').first()
         if not latest_test:
             return Response({"detail": "No tests with a valid completion date found for this driver."}, status=status.HTTP_404_NOT_FOUND)
         
@@ -2054,7 +2084,7 @@ def driver_active_trips(request):
         )
 
 
-class TripInspectionViewSet(ModelViewSet):
+class TripInspectionViewSet(UserOrAboveMixin, CompanyFilterMixin, ModelViewSet):
     """
     ViewSet for trip inspections (pre-trip and post-trip)
     """
@@ -2062,21 +2092,24 @@ class TripInspectionViewSet(ModelViewSet):
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
+        # Get company-filtered queryset first (tenant isolation)
+        queryset = super().get_queryset()
+        
         user_role = self.request.user.profile.role
         
         if user_role == 'driver':
             # Drivers only see inspections for their trips
-            return TripInspection.objects.filter(
+            queryset = queryset.filter(
                 trip__driver__user_account=self.request.user
             )
-        elif user_role in ['user', 'admin']:
-            # Users and admins see inspections for their company trips
-            user_companies = self.request.user.profile.companies.all()
-            return TripInspection.objects.filter(
-                trip__company__in=user_companies
-            )
+        # For user/admin roles, CompanyFilterMixin already handles company filtering
         
-        return TripInspection.objects.none()
+        # Filter by specific trip if requested
+        trip_id = self.request.query_params.get('trip', None)
+        if trip_id:
+            queryset = queryset.filter(trip_id=trip_id)
+        
+        return queryset
     
     def perform_create(self, serializer):
         trip = serializer.validated_data['trip']
@@ -2097,19 +2130,30 @@ class TripInspectionViewSet(ModelViewSet):
 @permission_classes([IsAuthenticated])
 def submit_inspection(request, trip_id, inspection_type):
     """
-    Submit a trip inspection (pre-trip or post-trip)
+    Submit a trip inspection (pre-trip or post-trip) with tenant isolation
     """
     try:
-        trip = Trips.objects.get(id=trip_id)
+        # Ensure user has profile and companies
+        if not hasattr(request.user, 'profile') or not request.user.profile.companies.exists():
+            return Response({"detail": "Access denied"}, status=status.HTTP_403_FORBIDDEN)
         
-        # Check permissions
+        # Get trip with tenant filtering
+        user_companies = request.user.profile.companies.all()
         user_role = request.user.profile.role
+        
         if user_role == 'driver':
-            if trip.driver.user_account != request.user:
-                return Response(
-                    {'error': 'You can only inspect your own trips'}, 
-                    status=status.HTTP_403_FORBIDDEN
-                )
+            # Drivers can only inspect their own trips
+            trip = Trips.objects.get(
+                id=trip_id,
+                driver__user_account=request.user,
+                company__in=user_companies
+            )
+        else:
+            # Admin/managers can inspect trips in their companies
+            trip = Trips.objects.get(
+                id=trip_id,
+                company__in=user_companies
+            )
         
         # Validate inspection type
         if inspection_type not in ['pre_trip', 'post_trip']:
@@ -2361,4 +2405,402 @@ def reset_password(request, token):
             {'error': 'Internal server error'}, 
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+
+
+# Dashboard API Endpoints
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def dashboard_overview(request):
+    """
+    Comprehensive dashboard data with real-time metrics and compliance scores
+    """
+    try:
+        # Ensure user has profile and companies
+        if not hasattr(request.user, 'profile') or not request.user.profile.companies.exists():
+            return Response({"detail": "Access denied"}, status=status.HTTP_403_FORBIDDEN)
+
+        user_companies = request.user.profile.companies.all()
+        user_role = request.user.profile.role
+
+        # Filter data by user's companies for tenant isolation
+        drivers = Driver.objects.filter(company__in=user_companies)
+        trucks = Truck.objects.filter(company__in=user_companies)
+        trailers = Trailer.objects.filter(company__in=user_companies)
+        trips = Trips.objects.filter(company__in=user_companies)
+        maintenance_records = MaintenanceRecord.objects.filter(
+            Q(truck__company__in=user_companies) | Q(trailer__company__in=user_companies)
+        )
+        inspections = TripInspection.objects.filter(trip__company__in=user_companies)
+
+        # Calculate key metrics
+        total_drivers = drivers.count()
+        active_drivers = drivers.filter(status='active').count()
+        total_vehicles = trucks.count() + trailers.count()
+        active_vehicles = trucks.filter(status='active').count() + trailers.filter(status='active').count()
+        
+        # Trip metrics
+        today = timezone.now().date()
+        active_trips = trips.filter(status='in_progress').count()
+        completed_today = trips.filter(
+            status='completed',
+            actual_end_date__date=today
+        ).count()
+        
+        # Inspection metrics (last 30 days)
+        thirty_days_ago = timezone.now() - timezone.timedelta(days=30)
+        recent_inspections = inspections.filter(completed_at__gte=thirty_days_ago)
+        
+        # Calculate inspection pass rate
+        total_inspections = recent_inspections.count()
+        if total_inspections > 0:
+            # Count inspections where all critical checks passed
+            passed_inspections = recent_inspections.filter(
+                vehicle_exterior_condition=True,
+                lights_working=True,
+                tires_condition=True,
+                brakes_working=True,
+                engine_fluids_ok=True
+            ).count()
+            inspection_pass_rate = round((passed_inspections / total_inspections) * 100, 1)
+        else:
+            inspection_pass_rate = 0
+
+        # Compliance calculations
+        driver_compliance = calculate_driver_compliance(drivers)
+        vehicle_compliance = calculate_vehicle_compliance(trucks, trailers)
+        operations_compliance = calculate_operations_compliance(trips, inspections)
+        overall_compliance = round((driver_compliance + vehicle_compliance + operations_compliance) / 3, 1)
+
+        # Critical alerts
+        critical_alerts = generate_critical_alerts(drivers, trucks, trailers, trips, maintenance_records)
+
+        # Action items
+        action_items = generate_action_items(drivers, trucks, trailers, maintenance_records, inspections, user_companies)
+
+        # Recent activity
+        recent_activity = generate_recent_activity(trips, inspections, maintenance_records)
+
+        return Response({
+            'key_metrics': {
+                'total_drivers': total_drivers,
+                'active_drivers': active_drivers,
+                'total_vehicles': total_vehicles,
+                'active_vehicles': active_vehicles,
+                'active_trips': active_trips,
+                'completed_today': completed_today,
+                'inspection_pass_rate': inspection_pass_rate,
+                'compliance_score': overall_compliance
+            },
+            'compliance_scores': {
+                'overall': overall_compliance,
+                'drivers': driver_compliance,
+                'vehicles': vehicle_compliance,
+                'operations': operations_compliance,
+                'trend': 'up' if overall_compliance >= 85 else 'down'
+            },
+            'critical_alerts': critical_alerts,
+            'action_items': action_items,
+            'recent_activity': recent_activity,
+            'last_updated': timezone.now().isoformat()
+        }, status=status.HTTP_200_OK)
+
+    except Exception as e:
+        logger.error(f"Error fetching dashboard data: {str(e)}")
+        return Response(
+            {'error': 'Internal server error'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+def calculate_driver_compliance(drivers):
+    """Calculate driver compliance percentage based on various factors"""
+    if not drivers.exists():
+        return 100.0
+    
+    total_drivers = drivers.count()
+    compliant_drivers = 0
+    
+    today = timezone.now().date()
+    thirty_days = timezone.timedelta(days=30)
+    
+    for driver in drivers:
+        compliance_points = 0
+        total_points = 5  # Total possible compliance points
+        
+        # Active status (1 point)
+        if driver.status == 'active':
+            compliance_points += 1
+        
+        # Valid license (2 points)
+        if driver.license_expiry_date and driver.license_expiry_date > today:
+            compliance_points += 2
+        elif driver.license_expiry_date and driver.license_expiry_date > (today + thirty_days):
+            compliance_points += 1  # Expiring soon, partial credit
+        
+        # Medical certificate (2 points)
+        if driver.medical_cert_expiry and driver.medical_cert_expiry > today:
+            compliance_points += 2
+        elif driver.medical_cert_expiry and driver.medical_cert_expiry > (today + thirty_days):
+            compliance_points += 1  # Expiring soon, partial credit
+        
+        # Driver is compliant if they have at least 4/5 points
+        if compliance_points >= 4:
+            compliant_drivers += 1
+    
+    return round((compliant_drivers / total_drivers) * 100, 1)
+
+
+def calculate_vehicle_compliance(trucks, trailers):
+    """Calculate vehicle compliance percentage"""
+    vehicles = list(trucks) + list(trailers)
+    if not vehicles:
+        return 100.0
+    
+    total_vehicles = len(vehicles)
+    compliant_vehicles = 0
+    
+    today = timezone.now().date()
+    
+    for vehicle in vehicles:
+        compliance_points = 0
+        total_points = 3
+        
+        # Active status (1 point)
+        if vehicle.status == 'active':
+            compliance_points += 1
+        
+        # Registration current (1 point)
+        if hasattr(vehicle, 'registration_expiry') and vehicle.registration_expiry and vehicle.registration_expiry > today:
+            compliance_points += 1
+        
+        # Insurance current (1 point)
+        if hasattr(vehicle, 'insurance_expiry') and vehicle.insurance_expiry and vehicle.insurance_expiry > today:
+            compliance_points += 1
+        
+        # Vehicle is compliant if it has at least 2/3 points
+        if compliance_points >= 2:
+            compliant_vehicles += 1
+    
+    return round((compliant_vehicles / total_vehicles) * 100, 1)
+
+
+def calculate_operations_compliance(trips, inspections):
+    """Calculate operations compliance based on trip inspections and completion rates"""
+    recent_trips = trips.filter(created_at__gte=timezone.now() - timezone.timedelta(days=30))
+    
+    if not recent_trips.exists():
+        return 100.0
+    
+    total_trips = recent_trips.count()
+    compliant_trips = 0
+    
+    for trip in recent_trips:
+        compliance_points = 0
+        total_points = 2
+        
+        # Pre-trip inspection completed (1 point)
+        if trip.pre_trip_inspection_completed:
+            compliance_points += 1
+        
+        # Post-trip inspection completed (1 point)
+        if trip.post_trip_inspection_completed:
+            compliance_points += 1
+        
+        # Trip is compliant if both inspections are done
+        if compliance_points >= 2:
+            compliant_trips += 1
+    
+    return round((compliant_trips / total_trips) * 100, 1)
+
+
+def generate_critical_alerts(drivers, trucks, trailers, trips, maintenance_records):
+    """Generate list of critical alerts requiring immediate attention"""
+    alerts = []
+    today = timezone.now().date()
+    thirty_days = today + timezone.timedelta(days=30)
+    
+    # Driver license expiring alerts
+    for driver in drivers.filter(license_expiry_date__lte=thirty_days, license_expiry_date__gte=today):
+        days_until_expiry = (driver.license_expiry_date - today).days
+        alerts.append({
+            'id': f'driver-license-{driver.id}',
+            'type': 'warning' if days_until_expiry > 7 else 'error',
+            'title': 'License Expiring Soon',
+            'message': f"{driver.first_name} {driver.last_name}'s license expires in {days_until_expiry} days",
+            'priority': 'high' if days_until_expiry <= 7 else 'medium',
+            'date': driver.license_expiry_date.isoformat(),
+            'action_url': '/ActiveDrivers'
+        })
+    
+    # Medical certificate expiring alerts
+    for driver in drivers.filter(medical_cert_expiry__lte=thirty_days, medical_cert_expiry__gte=today):
+        days_until_expiry = (driver.medical_cert_expiry - today).days
+        alerts.append({
+            'id': f'driver-medical-{driver.id}',
+            'type': 'warning' if days_until_expiry > 7 else 'error',
+            'title': 'Medical Certificate Expiring',
+            'message': f"{driver.first_name} {driver.last_name}'s DOT physical expires in {days_until_expiry} days",
+            'priority': 'high' if days_until_expiry <= 7 else 'medium',
+            'date': driver.medical_cert_expiry.isoformat(),
+            'action_url': '/ActiveDrivers'
+        })
+    
+    # Out of service vehicles
+    for truck in trucks.exclude(status='active'):
+        alerts.append({
+            'id': f'truck-oos-{truck.id}',
+            'type': 'error',
+            'title': 'Vehicle Out of Service',
+            'message': f"Truck {truck.unit_number} - {truck.status}",
+            'priority': 'critical',
+            'action_url': '/ActiveTrucks'
+        })
+    
+    for trailer in trailers.exclude(status='active'):
+        alerts.append({
+            'id': f'trailer-oos-{trailer.id}',
+            'type': 'error',
+            'title': 'Trailer Out of Service',
+            'message': f"Trailer {trailer.unit_number} - {trailer.status}",
+            'priority': 'critical',
+            'action_url': '/ActiveTrailers'
+        })
+    
+    # Overdue maintenance
+    overdue_maintenance = maintenance_records.filter(
+        status='scheduled',
+        scheduled_date__lt=today
+    )
+    for maintenance in overdue_maintenance[:5]:  # Limit to top 5
+        vehicle_name = f"{maintenance.truck.unit_number}" if maintenance.truck else f"{maintenance.trailer.unit_number}"
+        alerts.append({
+            'id': f'maintenance-overdue-{maintenance.id}',
+            'type': 'warning',
+            'title': 'Maintenance Overdue',
+            'message': f"{vehicle_name} - {maintenance.maintenance_type} overdue",
+            'priority': 'medium',
+            'action_url': '/Maintenance'
+        })
+    
+    return sorted(alerts, key=lambda x: {'critical': 0, 'high': 1, 'medium': 2}.get(x['priority'], 3))
+
+
+def generate_action_items(drivers, trucks, trailers, maintenance_records, inspections, user_companies):
+    """Generate actionable items for each category"""
+    today = timezone.now().date()
+    sixty_days = today + timezone.timedelta(days=60)
+    
+    return {
+        'drivers': [
+            {
+                'id': driver.id,
+                'first_name': driver.first_name,
+                'last_name': driver.last_name,
+                'license_expiry_date': driver.license_expiry_date.isoformat() if driver.license_expiry_date else None,
+                'medical_cert_expiry': driver.medical_cert_expiry.isoformat() if driver.medical_cert_expiry else None,
+                'status': driver.status,
+                'action_needed': 'License renewal' if driver.license_expiry_date and driver.license_expiry_date <= sixty_days else 'Medical renewal'
+            }
+            for driver in drivers.filter(
+                Q(license_expiry_date__lte=sixty_days) | 
+                Q(medical_cert_expiry__lte=sixty_days) |
+                Q(status__in=['inactive', 'suspended'])
+            )[:10]  # Limit to top 10
+        ],
+        'vehicles': [
+            {
+                'id': vehicle.id,
+                'make': vehicle.make,
+                'model': vehicle.model,
+                'unit_number': vehicle.unit_number,
+                'status': vehicle.status,
+                'type': 'truck' if hasattr(vehicle, 'truck_type') else 'trailer'
+            }
+            for vehicle in list(trucks.exclude(status='active')) + list(trailers.exclude(status='active'))
+        ][:10],
+        'inspections': [
+            {
+                'trip_id': trip.id,
+                'driver_name': f"{trip.driver.first_name} {trip.driver.last_name}",
+                'issue': 'Missing pre-trip inspection' if not trip.pre_trip_inspection_completed else 'Missing post-trip inspection',
+                'created_date': trip.created_at.isoformat()
+            }
+            for trip in Trips.objects.filter(
+                company__in=user_companies,
+                status__in=['in_progress', 'completed'],
+                created_at__gte=timezone.now() - timezone.timedelta(days=7)
+            ).filter(
+                Q(pre_trip_inspection_completed=False) | Q(post_trip_inspection_completed=False)
+            )[:10]
+        ],
+        'maintenance': [
+            {
+                'id': maintenance.id,
+                'vehicle_info': f"{maintenance.truck.unit_number}" if maintenance.truck else f"{maintenance.trailer.unit_number}",
+                'maintenance_type': maintenance.maintenance_type,
+                'scheduled_date': maintenance.scheduled_date.isoformat() if maintenance.scheduled_date else None,
+                'status': maintenance.status,
+                'priority': 'overdue' if maintenance.scheduled_date and maintenance.scheduled_date < today else 'upcoming'
+            }
+            for maintenance in maintenance_records.filter(
+                Q(status='scheduled') & 
+                (Q(scheduled_date__lte=today + timezone.timedelta(days=14)) | Q(scheduled_date__lt=today))
+            ).order_by('scheduled_date')[:10]
+        ]
+    }
+
+
+def generate_recent_activity(trips, inspections, maintenance_records):
+    """Generate recent activity feed"""
+    activities = []
+    
+    # Recent trip completions
+    recent_trips = trips.filter(
+        status='completed',
+        actual_end_date__gte=timezone.now() - timezone.timedelta(days=7)
+    ).order_by('-actual_end_date')[:5]
+    
+    for trip in recent_trips:
+        activities.append({
+            'id': f'trip-{trip.id}',
+            'type': 'trip',
+            'message': f"Trip {trip.id} completed by {trip.driver.first_name} {trip.driver.last_name}",
+            'timestamp': trip.actual_end_date.isoformat(),
+            'icon': '✅'
+        })
+    
+    # Recent inspections
+    recent_inspections = inspections.filter(
+        completed_at__gte=timezone.now() - timezone.timedelta(days=7)
+    ).order_by('-completed_at')[:5]
+    
+    for inspection in recent_inspections:
+        activities.append({
+            'id': f'inspection-{inspection.id}',
+            'type': 'inspection',
+            'message': f"{inspection.inspection_type.title()} inspection completed for Trip {inspection.trip.id}",
+            'timestamp': inspection.completed_at.isoformat(),
+            'icon': '🔍'
+        })
+    
+    # Recent maintenance
+    recent_maintenance = maintenance_records.filter(
+        status='completed',
+        completion_date__gte=timezone.now() - timezone.timedelta(days=7)
+    ).order_by('-completion_date')[:5]
+    
+    for maintenance in recent_maintenance:
+        vehicle_name = f"{maintenance.truck.unit_number}" if maintenance.truck else f"{maintenance.trailer.unit_number}"
+        activities.append({
+            'id': f'maintenance-{maintenance.id}',
+            'type': 'maintenance',
+            'message': f"Maintenance completed on {vehicle_name} - {maintenance.maintenance_type}",
+            'timestamp': maintenance.completion_date.isoformat(),
+            'icon': '🔧'
+        })
+    
+    # Sort all activities by timestamp (most recent first)
+    activities.sort(key=lambda x: x['timestamp'], reverse=True)
+    
+    return activities[:15]  # Return top 15 most recent activities
 
