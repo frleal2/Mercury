@@ -1,7 +1,10 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib.auth.models import User
-from .models import Driver, Company, DriverTest, Truck, Trailer, Inspection, InspectionItem, Trips, DriverHOS, DriverApplication, Tenant, UserProfile, InvitationToken  # Import the UserProfile model
+from .models import (Driver, Company, DriverTest, Truck, Trailer, Inspection, InspectionItem, 
+                     Trips, DriverHOS, DriverApplication, Tenant, UserProfile, InvitationToken, 
+                     TripInspection, TripDocument, DriverDocument, MaintenanceCategory, 
+                     MaintenanceType, MaintenanceRecord, MaintenanceAttachment, PasswordResetToken)
 
 @admin.register(Tenant)
 class TenantAdmin(admin.ModelAdmin):
@@ -206,5 +209,127 @@ class InvitationTokenAdmin(admin.ModelAdmin):
         }),
         ('Status', {
             'fields': ('is_used', 'created_at', 'used_at')
+        }),
+    )
+
+@admin.register(TripInspection)
+class TripInspectionAdmin(admin.ModelAdmin):
+    list_display = ('id', 'trip', 'inspection_type', 'completed_by', 'completed_at', 'inspection_passed')
+    list_filter = ('inspection_type', 'completed_at', 'trip__company')
+    search_fields = ('trip__trip_number', 'completed_by__username', 'completed_by__first_name', 'completed_by__last_name')
+    readonly_fields = ('completed_at', 'inspection_passed')
+    
+    fieldsets = (
+        ('Trip Information', {
+            'fields': ('trip', 'inspection_type', 'completed_by')
+        }),
+        ('Vehicle Checks', {
+            'fields': ('vehicle_exterior_condition', 'lights_working', 'tires_condition', 'brakes_working', 'engine_fluids_ok')
+        }),
+        ('Trailer Checks', {
+            'fields': ('trailer_attached_properly', 'trailer_lights_working', 'cargo_secured')
+        }),
+        ('Documentation', {
+            'fields': ('inspection_notes', 'issues_found')
+        }),
+        ('Status', {
+            'fields': ('completed_at', 'inspection_passed')
+        }),
+    )
+    
+    def inspection_passed(self, obj):
+        return obj.is_passed()
+    inspection_passed.boolean = True
+    inspection_passed.short_description = 'Passed'
+
+@admin.register(TripDocument)
+class TripDocumentAdmin(admin.ModelAdmin):
+    list_display = ('id', 'trip', 'document_type', 'uploaded_by', 'uploaded_at')
+    list_filter = ('document_type', 'uploaded_at', 'trip__company')
+    search_fields = ('trip__trip_number', 'uploaded_by__username', 'document_name')
+    readonly_fields = ('uploaded_at',)
+    
+    fieldsets = (
+        ('Document Information', {
+            'fields': ('trip', 'document_type', 'document_name', 'file')
+        }),
+        ('Upload Details', {
+            'fields': ('uploaded_by', 'uploaded_at')
+        }),
+    )
+
+@admin.register(DriverDocument)
+class DriverDocumentAdmin(admin.ModelAdmin):
+    list_display = ('id', 'driver', 'document_type', 'upload_date', 'expiration_date')
+    list_filter = ('document_type', 'upload_date', 'expiration_date')
+    search_fields = ('driver__first_name', 'driver__last_name', 'document_type')
+    
+    fieldsets = (
+        ('Driver Information', {
+            'fields': ('driver', 'document_type')
+        }),
+        ('Document Details', {
+            'fields': ('document_file', 'upload_date', 'expiration_date', 'notes')
+        }),
+    )
+
+@admin.register(MaintenanceCategory)
+class MaintenanceCategoryAdmin(admin.ModelAdmin):
+    list_display = ('id', 'category_name')
+    search_fields = ('category_name',)
+
+@admin.register(MaintenanceType)
+class MaintenanceTypeAdmin(admin.ModelAdmin):
+    list_display = ('id', 'type_name', 'category')
+    list_filter = ('category',)
+    search_fields = ('type_name', 'category__category_name')
+
+@admin.register(MaintenanceRecord)
+class MaintenanceRecordAdmin(admin.ModelAdmin):
+    list_display = ('id', 'get_vehicle', 'maintenance_type', 'service_date', 'cost', 'odometer_reading')
+    list_filter = ('maintenance_type', 'service_date', 'truck__company', 'trailer__company')
+    search_fields = ('truck__unit_number', 'trailer__unit_number', 'maintenance_type__type_name', 'vendor_name')
+    readonly_fields = ('created_at', 'updated_at')
+    
+    def get_vehicle(self, obj):
+        if obj.truck:
+            return f"Truck: {obj.truck.unit_number}"
+        elif obj.trailer:
+            return f"Trailer: {obj.trailer.unit_number}"
+        return "No Vehicle"
+    get_vehicle.short_description = 'Vehicle'
+    
+    fieldsets = (
+        ('Vehicle Information', {
+            'fields': ('truck', 'trailer')
+        }),
+        ('Maintenance Details', {
+            'fields': ('maintenance_type', 'service_date', 'description', 'vendor_name', 'cost', 'odometer_reading')
+        }),
+        ('Additional Information', {
+            'fields': ('notes', 'next_service_date', 'created_at', 'updated_at')
+        }),
+    )
+
+@admin.register(MaintenanceAttachment)
+class MaintenanceAttachmentAdmin(admin.ModelAdmin):
+    list_display = ('id', 'maintenance_record', 'attachment_type', 'uploaded_at')
+    list_filter = ('attachment_type', 'uploaded_at')
+    search_fields = ('maintenance_record__id', 'attachment_type')
+    readonly_fields = ('uploaded_at',)
+
+@admin.register(PasswordResetToken)
+class PasswordResetTokenAdmin(admin.ModelAdmin):
+    list_display = ('email', 'is_used', 'created_at', 'expires_at')
+    list_filter = ('is_used', 'created_at')
+    search_fields = ('email',)
+    readonly_fields = ('token', 'created_at')
+    
+    fieldsets = (
+        ('Reset Information', {
+            'fields': ('email', 'token')
+        }),
+        ('Status', {
+            'fields': ('is_used', 'created_at', 'expires_at')
         }),
     )
