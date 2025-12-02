@@ -7,33 +7,17 @@ import { XMarkIcon, UserPlusIcon } from '@heroicons/react/24/outline';
 function InviteUser({ onClose }) {
   const { session } = useSession();
   const [companies, setCompanies] = useState([]);
-  const [drivers, setDrivers] = useState([]);
   const [formData, setFormData] = useState({
     email: '',
     first_name: '',
     last_name: '',
     role: 'user', // Default to user role
-    company_ids: [],
-    driver_id: '', // For linking to existing driver
-    create_new_driver: false, // Option 3: Create new driver
-    driver_data: {
-      phone: '',
-      company_id: '',
-      address: '',
-      city: '',
-      state: '',
-      zip_code: '',
-      license_number: '',
-      license_state: '',
-      date_hired: '',
-      license_expiry: '',
-      medical_cert_expiry: ''
-    }
+    company_ids: []
+    // Driver profiles are automatically created - no additional data needed
   });
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
   const [showDriverSelect, setShowDriverSelect] = useState(false);
-  const [showDriverCreation, setShowDriverCreation] = useState(false);
   const [selectedCompanies, setSelectedCompanies] = useState([]);
 
   // Role options based on current user's role
@@ -60,21 +44,13 @@ function InviteUser({ onClose }) {
   }, []);
 
   useEffect(() => {
-    // Handle driver role selection
-    if (formData.role === 'driver' && selectedCompanies.length > 0) {
-      fetchDrivers();
+    // Show driver auto-creation message for driver role
+    if (formData.role === 'driver') {
       setShowDriverSelect(true);
     } else {
       setShowDriverSelect(false);
-      setShowDriverCreation(false);
-      setFormData(prev => ({ 
-        ...prev, 
-        driver_id: '', 
-        create_new_driver: false,
-        driver_data: { ...prev.driver_data, company_id: '' }
-      }));
     }
-  }, [formData.role, selectedCompanies]);
+  }, [formData.role]);
 
   const fetchCompanies = async () => {
     try {
@@ -90,24 +66,7 @@ function InviteUser({ onClose }) {
     }
   };
 
-  const fetchDrivers = async () => {
-    try {
-      const response = await axios.get(`${BASE_URL}/api/drivers/`, {
-        headers: {
-          'Authorization': `Bearer ${session.accessToken}`,
-        },
-      });
-      // Filter drivers who don't have user accounts and belong to selected companies
-      const availableDrivers = response.data.filter(driver => 
-        !driver.has_user_account && 
-        selectedCompanies.includes(driver.company)
-      );
-      setDrivers(availableDrivers);
-    } catch (error) {
-      console.error('Error fetching drivers:', error);
-      setErrors({ general: 'Failed to load drivers' });
-    }
-  };
+  // Driver auto-creation - no need to fetch existing drivers
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -153,37 +112,7 @@ function InviteUser({ onClose }) {
     }
   };
 
-  const handleDriverCreationToggle = (createNew) => {
-    setFormData(prev => ({
-      ...prev,
-      create_new_driver: createNew,
-      driver_id: createNew ? '' : prev.driver_id,
-      driver_data: createNew ? {
-        ...prev.driver_data,
-        company_id: selectedCompanies[0] || ''
-      } : prev.driver_data
-    }));
-    setShowDriverCreation(createNew);
-  };
-
-  const handleDriverDataChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      driver_data: {
-        ...prev.driver_data,
-        [name]: value
-      }
-    }));
-    
-    // Clear specific error
-    if (errors[`driver_data.${name}`]) {
-      setErrors(prev => ({
-        ...prev,
-        [`driver_data.${name}`]: ''
-      }));
-    }
-  };
+  // Driver profiles are auto-created - no manual toggle/data collection needed
 
   const validateForm = () => {
     const newErrors = {};
@@ -200,20 +129,7 @@ function InviteUser({ onClose }) {
       newErrors.email = 'Please enter a valid email address';
     }
     
-    // Driver-specific validation (now optional since auto-creation is default)
-    if (formData.role === 'driver') {
-      // Only validate if user explicitly chooses to create new driver with specific data
-      if (formData.create_new_driver) {
-        if (!formData.driver_data.phone) {
-          newErrors['driver_data.phone'] = 'Phone number is required for detailed driver creation';
-        }
-        if (!formData.driver_data.company_id) {
-          newErrors['driver_data.company_id'] = 'Company is required for detailed driver creation';
-        }
-      }
-      // Note: No validation error if neither driver_id nor create_new_driver is selected
-      // This will trigger auto-creation of a basic driver profile
-    }
+    // Driver profiles are automatically created - no validation needed
     
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -238,20 +154,7 @@ function InviteUser({ onClose }) {
         company_ids: formData.company_ids,
       };
       
-      // Add driver options if driver role
-      if (formData.role === 'driver') {
-        if (formData.driver_id) {
-          // Link to existing driver
-          payload.driver_id = parseInt(formData.driver_id);
-        } else if (formData.create_new_driver) {
-          // Create new driver (Option 3)
-          payload.create_new_driver = true;
-          payload.driver_data = {
-            ...formData.driver_data,
-            company_id: parseInt(formData.driver_data.company_id)
-          };
-        }
-      }
+      // Driver profiles are automatically created for driver role - no additional data needed
       
       const response = await axios.post(`${BASE_URL}/api/invite-user/`, payload, {
         headers: {
@@ -265,16 +168,7 @@ function InviteUser({ onClose }) {
       // Show success message
       let message = `Invitation sent successfully to ${formData.email}!\nRole: ${formData.role}`;
       if (formData.role === 'driver') {
-        if (formData.create_new_driver) {
-          message += '\nA detailed driver record will be created when they accept the invitation.';
-        } else if (formData.driver_id) {
-          const linkedDriver = drivers.find(d => d.id == formData.driver_id);
-          if (linkedDriver) {
-            message += `\nWill be linked to driver: ${linkedDriver.first_name} ${linkedDriver.last_name}`;
-          }
-        } else {
-          message += '\nA driver profile will be automatically created when they accept the invitation.';
-        }
+        message += '\nA driver profile will be automatically created when they accept the invitation.';
       }
       message += '\n\nThey will receive an email with instructions to create their account.';
       alert(message);
@@ -457,232 +351,26 @@ function InviteUser({ onClose }) {
             {errors.company_ids && <p className="mt-1 text-sm text-red-600">{errors.company_ids}</p>}
           </div>
 
-          {/* Driver Account Options (only for driver role) */}
+          {/* Driver Profile Auto-Creation Message */}
           {showDriverSelect && (
-            <div className="space-y-4">
-              <div className="bg-blue-50 p-4 rounded-md border border-blue-200">
-                <div className="flex items-start">
-                  <div className="flex-shrink-0">
-                    <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                    </svg>
-                  </div>
-                  <div className="ml-3">
-                    <h3 className="text-sm font-medium text-blue-800">
-                      Driver Profile Auto-Creation
-                    </h3>
-                    <p className="mt-1 text-sm text-blue-700">
-                      A basic driver profile will be automatically created when the user accepts their invitation. 
-                      You can optionally link to an existing driver or provide specific details below.
-                    </p>
-                  </div>
+            <div className="bg-blue-50 p-4 rounded-md border border-blue-200">
+              <div className="flex items-start">
+                <div className="flex-shrink-0">
+                  <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                  </svg>
                 </div>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Driver Account Setup (Optional)
-                </label>
-                <div className="space-y-2">
-                  <label className="flex items-center">
-                    <input
-                      type="radio"
-                      name="driver_option"
-                      checked={formData.driver_id !== '' && !formData.create_new_driver}
-                      onChange={() => handleDriverCreationToggle(false)}
-                      className="mr-2"
-                    />
-                    <span className="text-sm">Link to existing driver</span>
-                  </label>
-                  <label className="flex items-center">
-                    <input
-                      type="radio"
-                      name="driver_option"
-                      checked={formData.create_new_driver}
-                      onChange={() => handleDriverCreationToggle(true)}
-                      className="mr-2"
-                    />
-                    <span className="text-sm">Create new driver account</span>
-                  </label>
-                </div>
-                {errors.driver_option && <p className="mt-1 text-sm text-red-600">{errors.driver_option}</p>}
-              </div>
-
-              {/* Existing Driver Selection */}
-              {!formData.create_new_driver && (
-                <div>
-                  <label htmlFor="driver_id" className="block text-sm font-medium text-gray-700 mb-1">
-                    Select Existing Driver
-                  </label>
-                  <select
-                    id="driver_id"
-                    name="driver_id"
-                    value={formData.driver_id}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  >
-                    <option value="">Choose a driver...</option>
-                    {drivers.map(driver => (
-                      <option key={driver.id} value={driver.id}>
-                        {driver.first_name} {driver.last_name} - {companies.find(c => c.id === driver.company)?.name}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="mt-1 text-sm text-gray-500">
-                    Only drivers without user accounts are shown
+                <div className="ml-3">
+                  <h3 className="text-sm font-medium text-blue-800">
+                    Automatic Driver Profile Creation
+                  </h3>
+                  <p className="mt-1 text-sm text-blue-700">
+                    A driver profile will be automatically created when this user accepts their invitation. 
+                    The profile will include their name and company assignment. You can edit additional details 
+                    (CDL number, phone, etc.) from the Drivers page after they accept.
                   </p>
                 </div>
-              )}
-
-              {/* New Driver Creation Form */}
-              {formData.create_new_driver && (
-                <div className="bg-gray-50 p-4 rounded-md space-y-3">
-                  <h4 className="text-sm font-medium text-gray-700">Driver Details</h4>
-                  
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label htmlFor="driver_phone" className="block text-sm font-medium text-gray-700 mb-1">
-                        Phone Number *
-                      </label>
-                      <input
-                        type="tel"
-                        id="driver_phone"
-                        name="phone"
-                        value={formData.driver_data.phone}
-                        onChange={handleDriverDataChange}
-                        className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-                          errors['driver_data.phone'] ? 'border-red-500' : 'border-gray-300'
-                        }`}
-                        placeholder="(555) 123-4567"
-                        required
-                      />
-                      {errors['driver_data.phone'] && <p className="mt-1 text-sm text-red-600">{errors['driver_data.phone']}</p>}
-                    </div>
-                    
-                    <div>
-                      <label htmlFor="driver_company" className="block text-sm font-medium text-gray-700 mb-1">
-                        Primary Company *
-                      </label>
-                      <select
-                        id="driver_company"
-                        name="company_id"
-                        value={formData.driver_data.company_id}
-                        onChange={handleDriverDataChange}
-                        className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-                          errors['driver_data.company_id'] ? 'border-red-500' : 'border-gray-300'
-                        }`}
-                        required
-                      >
-                        <option value="">Select company...</option>
-                        {companies.filter(c => formData.company_ids.includes(c.id)).map(company => (
-                          <option key={company.id} value={company.id}>
-                            {company.name}
-                          </option>
-                        ))}
-                      </select>
-                      {errors['driver_data.company_id'] && <p className="mt-1 text-sm text-red-600">{errors['driver_data.company_id']}</p>}
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label htmlFor="driver_license_number" className="block text-sm font-medium text-gray-700 mb-1">
-                        License Number
-                      </label>
-                      <input
-                        type="text"
-                        id="driver_license_number"
-                        name="license_number"
-                        value={formData.driver_data.license_number}
-                        onChange={handleDriverDataChange}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
-                        placeholder="Optional"
-                      />
-                    </div>
-                    
-                    <div>
-                      <label htmlFor="driver_license_state" className="block text-sm font-medium text-gray-700 mb-1">
-                        License State
-                      </label>
-                      <input
-                        type="text"
-                        id="driver_license_state"
-                        name="license_state"
-                        value={formData.driver_data.license_state}
-                        onChange={handleDriverDataChange}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
-                        placeholder="Optional"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label htmlFor="driver_address" className="block text-sm font-medium text-gray-700 mb-1">
-                      Address
-                    </label>
-                    <input
-                      type="text"
-                      id="driver_address"
-                      name="address"
-                      value={formData.driver_data.address}
-                      onChange={handleDriverDataChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
-                      placeholder="Optional"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-3">
-                    <div>
-                      <label htmlFor="driver_city" className="block text-sm font-medium text-gray-700 mb-1">
-                        City
-                      </label>
-                      <input
-                        type="text"
-                        id="driver_city"
-                        name="city"
-                        value={formData.driver_data.city}
-                        onChange={handleDriverDataChange}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
-                        placeholder="Optional"
-                      />
-                    </div>
-                    
-                    <div>
-                      <label htmlFor="driver_state" className="block text-sm font-medium text-gray-700 mb-1">
-                        State
-                      </label>
-                      <input
-                        type="text"
-                        id="driver_state"
-                        name="state"
-                        value={formData.driver_data.state}
-                        onChange={handleDriverDataChange}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
-                        placeholder="Optional"
-                      />
-                    </div>
-                    
-                    <div>
-                      <label htmlFor="driver_zip" className="block text-sm font-medium text-gray-700 mb-1">
-                        ZIP Code
-                      </label>
-                      <input
-                        type="text"
-                        id="driver_zip"
-                        name="zip_code"
-                        value={formData.driver_data.zip_code}
-                        onChange={handleDriverDataChange}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
-                        placeholder="Optional"
-                      />
-                    </div>
-                  </div>
-
-                  <p className="text-xs text-gray-500 mt-2">
-                    Additional driver information can be added later from the Drivers page.
-                  </p>
-                </div>
-              )}
+              </div>
             </div>
           )}
 

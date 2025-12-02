@@ -7,6 +7,27 @@ const AcceptInvitation = () => {
     const { token } = useParams();
     const navigate = useNavigate();
     
+    // US States for dropdown
+    const US_STATES = [
+        { code: 'AL', name: 'Alabama' }, { code: 'AK', name: 'Alaska' }, { code: 'AZ', name: 'Arizona' },
+        { code: 'AR', name: 'Arkansas' }, { code: 'CA', name: 'California' }, { code: 'CO', name: 'Colorado' },
+        { code: 'CT', name: 'Connecticut' }, { code: 'DE', name: 'Delaware' }, { code: 'FL', name: 'Florida' },
+        { code: 'GA', name: 'Georgia' }, { code: 'HI', name: 'Hawaii' }, { code: 'ID', name: 'Idaho' },
+        { code: 'IL', name: 'Illinois' }, { code: 'IN', name: 'Indiana' }, { code: 'IA', name: 'Iowa' },
+        { code: 'KS', name: 'Kansas' }, { code: 'KY', name: 'Kentucky' }, { code: 'LA', name: 'Louisiana' },
+        { code: 'ME', name: 'Maine' }, { code: 'MD', name: 'Maryland' }, { code: 'MA', name: 'Massachusetts' },
+        { code: 'MI', name: 'Michigan' }, { code: 'MN', name: 'Minnesota' }, { code: 'MS', name: 'Mississippi' },
+        { code: 'MO', name: 'Missouri' }, { code: 'MT', name: 'Montana' }, { code: 'NE', name: 'Nebraska' },
+        { code: 'NV', name: 'Nevada' }, { code: 'NH', name: 'New Hampshire' }, { code: 'NJ', name: 'New Jersey' },
+        { code: 'NM', name: 'New Mexico' }, { code: 'NY', name: 'New York' }, { code: 'NC', name: 'North Carolina' },
+        { code: 'ND', name: 'North Dakota' }, { code: 'OH', name: 'Ohio' }, { code: 'OK', name: 'Oklahoma' },
+        { code: 'OR', name: 'Oregon' }, { code: 'PA', name: 'Pennsylvania' }, { code: 'RI', name: 'Rhode Island' },
+        { code: 'SC', name: 'South Carolina' }, { code: 'SD', name: 'South Dakota' }, { code: 'TN', name: 'Tennessee' },
+        { code: 'TX', name: 'Texas' }, { code: 'UT', name: 'Utah' }, { code: 'VT', name: 'Vermont' },
+        { code: 'VA', name: 'Virginia' }, { code: 'WA', name: 'Washington' }, { code: 'WV', name: 'West Virginia' },
+        { code: 'WI', name: 'Wisconsin' }, { code: 'WY', name: 'Wyoming' }
+    ];
+    
     const [invitationData, setInvitationData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -15,7 +36,16 @@ const AcceptInvitation = () => {
         first_name: '',
         last_name: '',
         password: '',
-        confirmPassword: ''
+        confirmPassword: '',
+        // Driver-specific fields
+        dob: '',
+        ssn: '',
+        state: '',
+        cdl_number: '',
+        cdl_expiration_date: '',
+        physical_date: '',
+        annual_vmr_date: '',
+        phone: ''
     });
     const [submitting, setSubmitting] = useState(false);
 
@@ -48,8 +78,58 @@ const AcceptInvitation = () => {
 
         // Validate form
         if (!formData.username || !formData.first_name || !formData.last_name || !formData.password || !formData.confirmPassword) {
-            setError('All fields are required');
+            setError('All basic fields are required');
             return;
+        }
+
+        // Driver-specific validation
+        if (invitationData?.role === 'driver') {
+            if (!formData.dob || !formData.ssn || !formData.state || !formData.cdl_number || 
+                !formData.cdl_expiration_date || !formData.physical_date || !formData.annual_vmr_date || !formData.phone) {
+                setError('All driver information fields are required');
+                return;
+            }
+
+            // Validate date formats and logic
+            const today = new Date();
+            const dobDate = new Date(formData.dob);
+            const cdlExpDate = new Date(formData.cdl_expiration_date);
+            const physicalDate = new Date(formData.physical_date);
+            const vmrDate = new Date(formData.annual_vmr_date);
+
+            if (dobDate >= today) {
+                setError('Date of birth must be in the past');
+                return;
+            }
+
+            if (cdlExpDate <= today) {
+                setError('CDL expiration date must be in the future');
+                return;
+            }
+
+            if (physicalDate <= today) {
+                setError('Medical certificate expiration date must be in the future');
+                return;
+            }
+
+            if (vmrDate <= today) {
+                setError('Annual VMR date must be in the future');
+                return;
+            }
+
+            // Validate phone format
+            const phoneRegex = /^[\d\s\-\(\)\.]+$/;
+            if (!phoneRegex.test(formData.phone)) {
+                setError('Please enter a valid phone number');
+                return;
+            }
+
+            // Validate SSN format (XXX-XX-XXXX or XXXXXXXXX)
+            const ssnRegex = /^(\d{3}-?\d{2}-?\d{4})$/;
+            if (!ssnRegex.test(formData.ssn)) {
+                setError('Please enter a valid SSN format (XXX-XX-XXXX)');
+                return;
+            }
         }
 
         if (formData.password !== formData.confirmPassword) {
@@ -75,12 +155,28 @@ const AcceptInvitation = () => {
         setSubmitting(true);
 
         try {
-            const response = await axios.post(`${BASE_URL}/api/accept-invitation/${token}/`, {
+            const payload = {
                 username: formData.username,
                 first_name: formData.first_name,
                 last_name: formData.last_name,
                 password: formData.password
-            });
+            };
+
+            // Add driver-specific data if role is driver
+            if (invitationData?.role === 'driver') {
+                payload.driver_data = {
+                    dob: formData.dob,
+                    ssn: formData.ssn,
+                    state: formData.state,
+                    cdl_number: formData.cdl_number,
+                    cdl_expiration_date: formData.cdl_expiration_date,
+                    physical_date: formData.physical_date,
+                    annual_vmr_date: formData.annual_vmr_date,
+                    phone: formData.phone
+                };
+            }
+
+            const response = await axios.post(`${BASE_URL}/api/accept-invitation/${token}/`, payload);
 
             // Redirect to login page with success message
             navigate('/login', { 
@@ -145,6 +241,9 @@ const AcceptInvitation = () => {
                         </p>
                         <p className="text-sm text-gray-500">
                             Company: <strong>{invitationData?.company_name}</strong>
+                        </p>
+                        <p className="text-sm text-gray-500">
+                            Role: <strong>{invitationData?.role_display}</strong>
                         </p>
                         <p className="text-sm text-gray-500">
                             Email: <strong>{invitationData?.email}</strong>
@@ -233,6 +332,150 @@ const AcceptInvitation = () => {
                                 placeholder="Confirm your password"
                             />
                         </div>
+
+                        {/* Driver-specific fields */}
+                        {invitationData?.role === 'driver' && (
+                            <>
+                                <div className="mt-6 pt-6 border-t border-gray-200">
+                                    <h3 className="text-lg font-medium text-gray-900 mb-2">Driver Information</h3>
+                                    <p className="text-sm text-gray-600 mb-4">
+                                        Please provide your driver information to complete your profile setup. 
+                                        This information is required for DOT compliance and fleet management.
+                                    </p>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label htmlFor="dob" className="block text-sm font-medium text-gray-700">
+                                                Date of Birth *
+                                            </label>
+                                            <input
+                                                id="dob"
+                                                name="dob"
+                                                type="date"
+                                                required
+                                                value={formData.dob}
+                                                onChange={handleInputChange}
+                                                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label htmlFor="ssn" className="block text-sm font-medium text-gray-700">
+                                                Social Security Number *
+                                            </label>
+                                            <input
+                                                id="ssn"
+                                                name="ssn"
+                                                type="text"
+                                                required
+                                                value={formData.ssn}
+                                                onChange={handleInputChange}
+                                                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                                                placeholder="XXX-XX-XXXX"
+                                                maxLength="11"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label htmlFor="phone" className="block text-sm font-medium text-gray-700">
+                                                Phone Number *
+                                            </label>
+                                            <input
+                                                id="phone"
+                                                name="phone"
+                                                type="tel"
+                                                required
+                                                value={formData.phone}
+                                                onChange={handleInputChange}
+                                                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                                                placeholder="(555) 123-4567"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label htmlFor="state" className="block text-sm font-medium text-gray-700">
+                                                State *
+                                            </label>
+                                            <select
+                                                id="state"
+                                                name="state"
+                                                required
+                                                value={formData.state}
+                                                onChange={handleInputChange}
+                                                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                                            >
+                                                <option value="">Select State</option>
+                                                {US_STATES.map((state) => (
+                                                    <option key={state.code} value={state.name}>
+                                                        {state.name}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+
+                                        <div>
+                                            <label htmlFor="cdl_number" className="block text-sm font-medium text-gray-700">
+                                                CDL Number *
+                                            </label>
+                                            <input
+                                                id="cdl_number"
+                                                name="cdl_number"
+                                                type="text"
+                                                required
+                                                value={formData.cdl_number}
+                                                onChange={handleInputChange}
+                                                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                                                placeholder="Enter CDL number"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label htmlFor="cdl_expiration_date" className="block text-sm font-medium text-gray-700">
+                                                CDL Expiration Date *
+                                            </label>
+                                            <input
+                                                id="cdl_expiration_date"
+                                                name="cdl_expiration_date"
+                                                type="date"
+                                                required
+                                                value={formData.cdl_expiration_date}
+                                                onChange={handleInputChange}
+                                                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label htmlFor="physical_date" className="block text-sm font-medium text-gray-700">
+                                                Medical Certificate Expiration *
+                                            </label>
+                                            <input
+                                                id="physical_date"
+                                                name="physical_date"
+                                                type="date"
+                                                required
+                                                value={formData.physical_date}
+                                                onChange={handleInputChange}
+                                                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label htmlFor="annual_vmr_date" className="block text-sm font-medium text-gray-700">
+                                                Annual VMR Date *
+                                            </label>
+                                            <input
+                                                id="annual_vmr_date"
+                                                name="annual_vmr_date"
+                                                type="date"
+                                                required
+                                                value={formData.annual_vmr_date}
+                                                onChange={handleInputChange}
+                                                className="mt-1 appearance-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            </>
+                        )}
                     </div>
 
                     {error && (

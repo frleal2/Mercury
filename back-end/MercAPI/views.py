@@ -1552,7 +1552,9 @@ def accept_invitation(request, token):
         company_ids = invitation_data.get('company_ids', [invitation.company.id])
         driver_id = invitation_data.get('driver_id')
         create_new_driver = invitation_data.get('create_new_driver', False)
-        driver_data = invitation_data.get('driver_data', {})
+        
+        # Get driver data from either request payload (form submission) or invitation data
+        driver_data = data.get('driver_data', invitation_data.get('driver_data', {}))
         
         # Set up user profile with role
         profile = new_user.profile
@@ -1607,6 +1609,67 @@ def accept_invitation(request, token):
                     logger.error(f"Failed to create driver record for {new_user.email}: {str(e)}")
                     # Don't fail the invitation if driver creation fails, but log it
                     # The user account was still created successfully
+                    
+            elif driver_data:
+                # Option 2.5: Create driver record with detailed data from AcceptInvitation form
+                try:
+                    # Use the first company as default, or company from invitation
+                    default_company = companies.first() or invitation.company
+                    
+                    # Parse date fields safely
+                    dob = None
+                    if driver_data.get('dob'):
+                        try:
+                            dob = datetime.strptime(driver_data['dob'], '%Y-%m-%d').date()
+                        except ValueError:
+                            pass
+                    
+                    cdl_expiration_date = None
+                    if driver_data.get('cdl_expiration_date'):
+                        try:
+                            cdl_expiration_date = datetime.strptime(driver_data['cdl_expiration_date'], '%Y-%m-%d').date()
+                        except ValueError:
+                            pass
+                    
+                    physical_date = None
+                    if driver_data.get('physical_date'):
+                        try:
+                            physical_date = datetime.strptime(driver_data['physical_date'], '%Y-%m-%d').date()
+                        except ValueError:
+                            pass
+                            
+                    annual_vmr_date = None
+                    if driver_data.get('annual_vmr_date'):
+                        try:
+                            annual_vmr_date = datetime.strptime(driver_data['annual_vmr_date'], '%Y-%m-%d').date()
+                        except ValueError:
+                            pass
+                    
+                    new_driver = Driver.objects.create(
+                        first_name=new_user.first_name,
+                        last_name=new_user.last_name,
+                        phone=driver_data.get('phone', ''),
+                        company=default_company,
+                        user_account=new_user,
+                        # Driver-specific fields from form
+                        dob=dob,
+                        ssn=driver_data.get('ssn', ''),
+                        state=driver_data.get('state', ''),
+                        cdl_number=driver_data.get('cdl_number', ''),
+                        cdl_expiration_date=cdl_expiration_date,
+                        physical_date=physical_date,
+                        annual_vmr_date=annual_vmr_date,
+                        # Defaults
+                        hire_date=timezone.now().date(),
+                        active=True,
+                        employee_verification=False,
+                        random_test_required_this_year=True
+                    )
+                    driver_created = True
+                    logger.info(f"Created detailed driver record {new_driver.id} for user {new_user.email}")
+                except Exception as e:
+                    logger.error(f"Failed to create detailed driver record for {new_user.email}: {str(e)}")
+                    # Don't fail the invitation if driver creation fails, but log it
                     
             else:
                 # Option 3: AUTO-CREATE driver record (NEW FEATURE)
