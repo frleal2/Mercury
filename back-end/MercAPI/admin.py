@@ -290,10 +290,10 @@ class MaintenanceTypeAdmin(admin.ModelAdmin):
 
 @admin.register(MaintenanceRecord)
 class MaintenanceRecordAdmin(admin.ModelAdmin):
-    list_display = ('work_order_number', 'get_vehicle', 'maintenance_type', 'date_performed', 'total_cost', 'status')
-    list_filter = ('maintenance_type', 'date_performed', 'status', 'truck__company', 'trailer__company')
-    search_fields = ('work_order_number', 'truck__unit_number', 'trailer__unit_number', 'vendor_name')
-    readonly_fields = ('work_order_number', 'created_at', 'updated_at')
+    list_display = ('work_order_number', 'get_vehicle', 'maintenance_type', 'scheduled_date', 'completed_date', 'total_cost', 'status')
+    list_filter = ('maintenance_type', 'scheduled_date', 'completed_date', 'status', 'priority', 'vehicle_type')
+    search_fields = ('work_order_number', 'truck__unit_number', 'trailer__unit_number', 'service_provider', 'technician_name')
+    readonly_fields = ('created_at', 'updated_at')
     
     def get_vehicle(self, obj):
         if obj.truck:
@@ -305,16 +305,22 @@ class MaintenanceRecordAdmin(admin.ModelAdmin):
     
     fieldsets = (
         ('Work Order', {
-            'fields': ('work_order_number', 'status', 'priority')
+            'fields': ('work_order_number', 'vehicle_type', 'status', 'priority')
         }),
         ('Vehicle Information', {
             'fields': ('truck', 'trailer')
         }),
         ('Maintenance Details', {
-            'fields': ('maintenance_type', 'date_performed', 'date_scheduled', 'description', 'vendor_name', 'total_cost', 'mileage')
+            'fields': ('maintenance_type', 'scheduled_date', 'completed_date', 'description', 'parts_used')
         }),
-        ('Additional Information', {
-            'fields': ('notes', 'created_at', 'updated_at')
+        ('Service Information', {
+            'fields': ('service_provider', 'technician_name', 'labor_hours', 'total_cost')
+        }),
+        ('Tracking', {
+            'fields': ('due_mileage', 'actual_mileage', 'warranty_expiration', 'notes')
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at')
         }),
     )
 
