@@ -2090,6 +2090,7 @@ class TripInspectionViewSet(UserOrAboveMixin, CompanyFilterMixin, ModelViewSet):
     """
     serializer_class = TripInspectionSerializer
     permission_classes = [IsAuthenticated]
+    queryset = TripInspection.objects.all()
     
     def get_queryset(self):
         # Get company-filtered queryset first (tenant isolation)
