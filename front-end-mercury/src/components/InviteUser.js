@@ -200,20 +200,19 @@ function InviteUser({ onClose }) {
       newErrors.email = 'Please enter a valid email address';
     }
     
-    // Driver-specific validation
+    // Driver-specific validation (now optional since auto-creation is default)
     if (formData.role === 'driver') {
-      if (!formData.driver_id && !formData.create_new_driver) {
-        newErrors.driver_option = 'Please select an existing driver or choose to create a new one';
-      }
-      
+      // Only validate if user explicitly chooses to create new driver with specific data
       if (formData.create_new_driver) {
         if (!formData.driver_data.phone) {
-          newErrors['driver_data.phone'] = 'Phone number is required for new drivers';
+          newErrors['driver_data.phone'] = 'Phone number is required for detailed driver creation';
         }
         if (!formData.driver_data.company_id) {
-          newErrors['driver_data.company_id'] = 'Company is required for new drivers';
+          newErrors['driver_data.company_id'] = 'Company is required for detailed driver creation';
         }
       }
+      // Note: No validation error if neither driver_id nor create_new_driver is selected
+      // This will trigger auto-creation of a basic driver profile
     }
     
     setErrors(newErrors);
@@ -265,12 +264,16 @@ function InviteUser({ onClose }) {
       
       // Show success message
       let message = `Invitation sent successfully to ${formData.email}!\nRole: ${formData.role}`;
-      if (formData.role === 'driver' && formData.create_new_driver) {
-        message += '\nA new driver record will be created when they accept the invitation.';
-      } else if (formData.role === 'driver' && formData.driver_id) {
-        const linkedDriver = drivers.find(d => d.id == formData.driver_id);
-        if (linkedDriver) {
-          message += `\nWill be linked to driver: ${linkedDriver.first_name} ${linkedDriver.last_name}`;
+      if (formData.role === 'driver') {
+        if (formData.create_new_driver) {
+          message += '\nA detailed driver record will be created when they accept the invitation.';
+        } else if (formData.driver_id) {
+          const linkedDriver = drivers.find(d => d.id == formData.driver_id);
+          if (linkedDriver) {
+            message += `\nWill be linked to driver: ${linkedDriver.first_name} ${linkedDriver.last_name}`;
+          }
+        } else {
+          message += '\nA driver profile will be automatically created when they accept the invitation.';
         }
       }
       message += '\n\nThey will receive an email with instructions to create their account.';
@@ -457,9 +460,28 @@ function InviteUser({ onClose }) {
           {/* Driver Account Options (only for driver role) */}
           {showDriverSelect && (
             <div className="space-y-4">
+              <div className="bg-blue-50 p-4 rounded-md border border-blue-200">
+                <div className="flex items-start">
+                  <div className="flex-shrink-0">
+                    <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <div className="ml-3">
+                    <h3 className="text-sm font-medium text-blue-800">
+                      Driver Profile Auto-Creation
+                    </h3>
+                    <p className="mt-1 text-sm text-blue-700">
+                      A basic driver profile will be automatically created when the user accepts their invitation. 
+                      You can optionally link to an existing driver or provide specific details below.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Driver Account Setup *
+                  Driver Account Setup (Optional)
                 </label>
                 <div className="space-y-2">
                   <label className="flex items-center">

@@ -1570,44 +1570,70 @@ def accept_invitation(request, token):
         # Handle driver account creation or linking
         if role == 'driver':
             if driver_id:
-                # Link to existing driver record
+                # Option 1: Link to existing driver record
                 try:
                     driver = Driver.objects.get(id=driver_id, company__in=companies)
                     driver.user_account = new_user
                     driver.save()
                     driver_linked = True
+                    logger.info(f"Linked user {new_user.email} to existing driver {driver.id}")
                 except Driver.DoesNotExist:
                     logger.warning(f"Driver {driver_id} not found when accepting invitation for {invitation.email}")
                     # Don't fail the invitation, just log the warning
                     
             elif create_new_driver and driver_data:
-                # Create new driver record (Option 3: Simultaneous creation)
+                # Option 2: Create new driver record with provided data
                 try:
                     driver_company = companies.get(id=driver_data.get('company_id'))
                     new_driver = Driver.objects.create(
                         first_name=new_user.first_name,
                         last_name=new_user.last_name,
-                        email=new_user.email,
                         phone=driver_data.get('phone'),
                         company=driver_company,
                         user_account=new_user,
-                        # Optional fields with defaults
-                        address=driver_data.get('address', ''),
-                        city=driver_data.get('city', ''),
-                        state=driver_data.get('state', ''),
-                        zip_code=driver_data.get('zip_code', ''),
-                        date_hired=driver_data.get('date_hired'),
-                        license_number=driver_data.get('license_number', ''),
-                        license_state=driver_data.get('license_state', ''),
-                        license_expiry=driver_data.get('license_expiry'),
-                        medical_cert_expiry=driver_data.get('medical_cert_expiry'),
-                        # Default status
-                        status='active'
+                        # Optional fields with defaults  
+                        hire_date=driver_data.get('date_hired') or timezone.now().date(),
+                        cdl_number=driver_data.get('license_number', ''),
+                        state=driver_data.get('license_state', ''),
+                        cdl_expiration_date=driver_data.get('license_expiry'),
+                        physical_date=driver_data.get('medical_cert_expiry'),
+                        active=True,
+                        employee_verification=False,
+                        random_test_required_this_year=True
                     )
                     driver_created = True
                     logger.info(f"Created new driver record {new_driver.id} for user {new_user.email}")
                 except Exception as e:
                     logger.error(f"Failed to create driver record for {new_user.email}: {str(e)}")
+                    # Don't fail the invitation if driver creation fails, but log it
+                    # The user account was still created successfully
+                    
+            else:
+                # Option 3: AUTO-CREATE driver record (NEW FEATURE)
+                # If no explicit driver linking/creation specified, auto-create a basic driver record
+                try:
+                    # Use the first company as default, or company from invitation
+                    default_company = companies.first() or invitation.company
+                    new_driver = Driver.objects.create(
+                        first_name=new_user.first_name,
+                        last_name=new_user.last_name,
+                        company=default_company,
+                        user_account=new_user,
+                        # Use minimal defaults - can be updated later in driver management
+                        phone='',  # Can be updated later
+                        hire_date=timezone.now().date(),  # Set hire date to today
+                        active=True,
+                        employee_verification=False,
+                        random_test_required_this_year=True,
+                        cdl_number='',
+                        state='',
+                        ssn='',
+                        dob=None
+                    )
+                    driver_created = True
+                    logger.info(f"Auto-created driver record {new_driver.id} for user {new_user.email}")
+                except Exception as e:
+                    logger.error(f"Failed to auto-create driver record for {new_user.email}: {str(e)}")
                     # Don't fail the invitation if driver creation fails, but log it
                     # The user account was still created successfully
         
