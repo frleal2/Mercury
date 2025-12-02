@@ -298,8 +298,11 @@ class TripInspectionSerializer(serializers.ModelSerializer):
     def get_is_inspection_passed(self, obj):
         return obj.is_passed()
     
-    def validate(self, data):
-        """Convert string boolean values from FormData to actual booleans"""
+    def to_internal_value(self, data):
+        """Convert string values to proper types before field validation"""
+        # Create a mutable copy of the data
+        data = data.copy() if hasattr(data, 'copy') else dict(data)
+        
         boolean_fields = [
             'vehicle_exterior_condition', 'lights_working', 'tires_condition', 
             'brakes_working', 'engine_fluids_ok', 'trailer_attached_properly',
@@ -307,15 +310,14 @@ class TripInspectionSerializer(serializers.ModelSerializer):
         ]
         
         for field in boolean_fields:
-            if field in data:
-                value = data[field]
-                if isinstance(value, str):
-                    if value.lower() in ['true', '1', 'yes', 'on']:
-                        data[field] = True
-                    elif value.lower() in ['false', '0', 'no', 'off', '']:
-                        data[field] = False
+            if field in data and isinstance(data[field], str):
+                value_lower = data[field].lower()
+                if value_lower in ['pass', 'true', '1', 'yes', 'on']:
+                    data[field] = True
+                elif value_lower in ['fail', 'na', 'false', '0', 'no', 'off', '']:
+                    data[field] = False
         
-        return data
+        return super().to_internal_value(data)
 
 
 class TripDocumentSerializer(serializers.ModelSerializer):
