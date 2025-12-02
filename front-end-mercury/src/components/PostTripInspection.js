@@ -189,9 +189,16 @@ const PostTripInspection = ({ isOpen, onClose, tripId, onInspectionComplete }) =
     try {
       const formData = new FormData();
       
-      // Add inspection data
+      // Add inspection data with proper boolean conversion
       Object.keys(inspectionData).forEach(key => {
-        formData.append(key, inspectionData[key]);
+        let value = inspectionData[key];
+        
+        // Convert pass/fail/na values to boolean for inspection fields
+        if (typeof value === 'string' && (value === 'pass' || value === 'fail' || value === 'na')) {
+          value = value === 'pass' ? 'true' : 'false';
+        }
+        
+        formData.append(key, value);
       });
       
       formData.append('trip', tripId);
