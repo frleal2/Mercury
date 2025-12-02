@@ -75,6 +75,8 @@ urlpatterns = [
     path('api/trips/<int:trip_id>/inspection/<str:inspection_type>/', views.submit_inspection, name='submit_inspection'),
     # Dashboard endpoints
     path('api/dashboard/overview/', views.dashboard_overview, name='dashboard_overview'),
+    path('api/dashboard/test/', views.dashboard_test, name='dashboard_test'),
+    path('api/dashboard/simple/', views.dashboard_simple, name='dashboard_simple'),
 ]
 
 # Serve media and static files during development

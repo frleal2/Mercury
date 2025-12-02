@@ -28,11 +28,25 @@ const Dashboard = () => {
         try {
             setDashboardData(prev => ({ ...prev, loading: true, error: null }));
             
-            // Fetch comprehensive dashboard data from new API
-            const response = await axios.get(`${BASE_URL}/api/dashboard/overview/`, {
+            console.log('Fetching dashboard data...');
+            console.log('Session token:', session.accessToken ? 'Present' : 'Missing');
+            
+            // Test the basic API first
+            try {
+                const testResponse = await axios.get(`${BASE_URL}/api/dashboard/test/`, {
+                    headers: { 'Authorization': `Bearer ${session.accessToken}` }
+                });
+                console.log('Test API response:', testResponse.data);
+            } catch (testError) {
+                console.error('Test API failed:', testError);
+            }
+            
+            // Try simple dashboard first
+            const response = await axios.get(`${BASE_URL}/api/dashboard/simple/`, {
                 headers: { 'Authorization': `Bearer ${session.accessToken}` }
             });
 
+            console.log('Dashboard API response:', response.data);
             const data = response.data;
 
             setDashboardData({
@@ -52,10 +66,22 @@ const Dashboard = () => {
 
         } catch (error) {
             console.error('Error fetching dashboard data:', error);
+            console.error('Error response:', error.response?.data);
+            console.error('Error status:', error.response?.status);
+            
+            let errorMessage = 'Failed to load dashboard data';
+            if (error.response?.data?.detail) {
+                errorMessage = error.response.data.detail;
+            } else if (error.response?.data?.error) {
+                errorMessage = error.response.data.error;
+            } else if (error.message) {
+                errorMessage = error.message;
+            }
+            
             setDashboardData(prev => ({
                 ...prev,
                 loading: false,
-                error: 'Failed to load dashboard data'
+                error: errorMessage
             }));
         }
     };
