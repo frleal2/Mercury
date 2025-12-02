@@ -778,17 +778,24 @@ class TripInspection(models.Model):
     trip = models.ForeignKey(Trips, on_delete=models.CASCADE, related_name='trip_inspections')
     inspection_type = models.CharField(max_length=20, choices=INSPECTION_TYPE_CHOICES)
     
+    # Inspection result choices
+    INSPECTION_RESULT_CHOICES = [
+        ('pass', 'Pass'),
+        ('fail', 'Fail'),
+        ('na', 'Not Applicable'),
+    ]
+    
     # Vehicle checks
-    vehicle_exterior_condition = models.BooleanField(default=False, help_text="No visible damage, clean")
-    lights_working = models.BooleanField(default=False, help_text="All lights functional")
-    tires_condition = models.BooleanField(default=False, help_text="Proper pressure, no damage")
-    brakes_working = models.BooleanField(default=False, help_text="Brakes responsive")
-    engine_fluids_ok = models.BooleanField(default=False, help_text="Oil, coolant, brake fluid levels good")
+    vehicle_exterior_condition = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='fail', help_text="No visible damage, clean")
+    lights_working = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='fail', help_text="All lights functional")
+    tires_condition = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='fail', help_text="Proper pressure, no damage")
+    brakes_working = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='fail', help_text="Brakes responsive")
+    engine_fluids_ok = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='fail', help_text="Oil, coolant, brake fluid levels good")
     
     # Trailer checks (if applicable)
-    trailer_attached_properly = models.BooleanField(default=False, help_text="Securely connected")
-    trailer_lights_working = models.BooleanField(default=False, help_text="All trailer lights functional")
-    cargo_secured = models.BooleanField(default=False, help_text="Load properly secured")
+    trailer_attached_properly = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='na', help_text="Securely connected")
+    trailer_lights_working = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='na', help_text="All trailer lights functional")
+    cargo_secured = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='na', help_text="Load properly secured")
     
     # Documentation
     inspection_notes = models.TextField(blank=True, null=True)
@@ -811,20 +818,21 @@ class TripInspection(models.Model):
     def is_passed(self):
         """Check if all critical checks are passed"""
         required_checks = [
-            self.vehicle_exterior_condition,
-            self.lights_working,
-            self.tires_condition,
-            self.brakes_working,
-            self.engine_fluids_ok,
+            self.vehicle_exterior_condition == 'pass',
+            self.lights_working == 'pass',
+            self.tires_condition == 'pass',
+            self.brakes_working == 'pass',
+            self.engine_fluids_ok == 'pass',
         ]
         
-        # Add trailer checks if trailer is assigned
+        # Add trailer checks if trailer is assigned and not 'na'
         if self.trip.trailer:
-            required_checks.extend([
-                self.trailer_attached_properly,
-                self.trailer_lights_working,
-                self.cargo_secured,
-            ])
+            trailer_checks = [
+                self.trailer_attached_properly == 'pass' if self.trailer_attached_properly != 'na' else True,
+                self.trailer_lights_working == 'pass' if self.trailer_lights_working != 'na' else True,
+                self.cargo_secured == 'pass' if self.cargo_secured != 'na' else True,
+            ]
+            required_checks.extend(trailer_checks)
         
         return all(required_checks)
 
