@@ -62,18 +62,18 @@ const ViewTripDetails = ({ tripId, onClose }) => {
       inspection.engine_fluids_ok,
     ];
     
-    // Only include trailer checks if they exist (not null/undefined)
-    if (inspection.trailer_attached_properly !== null && inspection.trailer_attached_properly !== undefined) {
+    // Only include trailer checks if they exist (not null/undefined/na)
+    if (inspection.trailer_attached_properly !== null && inspection.trailer_attached_properly !== undefined && inspection.trailer_attached_properly !== 'na') {
       checks.push(inspection.trailer_attached_properly);
     }
-    if (inspection.trailer_lights_working !== null && inspection.trailer_lights_working !== undefined) {
+    if (inspection.trailer_lights_working !== null && inspection.trailer_lights_working !== undefined && inspection.trailer_lights_working !== 'na') {
       checks.push(inspection.trailer_lights_working);
     }
-    if (inspection.cargo_secured !== null && inspection.cargo_secured !== undefined) {
+    if (inspection.cargo_secured !== null && inspection.cargo_secured !== undefined && inspection.cargo_secured !== 'na') {
       checks.push(inspection.cargo_secured);
     }
     
-    const passedChecks = checks.filter(check => check === true).length;
+    const passedChecks = checks.filter(check => check === 'pass').length;
     const totalChecks = checks.length;
     return { passed: passedChecks === totalChecks, passedChecks, totalChecks };
   };
@@ -87,31 +87,43 @@ const ViewTripDetails = ({ tripId, onClose }) => {
       { label: 'Engine Fluids OK', value: inspection.engine_fluids_ok, key: 'engine_fluids_ok' },
     ];
 
-    // Add trailer checks if they exist (not null/undefined)
-    if (inspection.trailer_attached_properly !== null && inspection.trailer_attached_properly !== undefined) {
+    // Add trailer checks if they exist (not null/undefined/na)
+    if (inspection.trailer_attached_properly !== null && inspection.trailer_attached_properly !== undefined && inspection.trailer_attached_properly !== 'na') {
       checks.push({ label: 'Trailer Attached Properly', value: inspection.trailer_attached_properly, key: 'trailer_attached_properly' });
     }
-    if (inspection.trailer_lights_working !== null && inspection.trailer_lights_working !== undefined) {
+    if (inspection.trailer_lights_working !== null && inspection.trailer_lights_working !== undefined && inspection.trailer_lights_working !== 'na') {
       checks.push({ label: 'Trailer Lights Working', value: inspection.trailer_lights_working, key: 'trailer_lights_working' });
     }
-    if (inspection.cargo_secured !== null && inspection.cargo_secured !== undefined) {
+    if (inspection.cargo_secured !== null && inspection.cargo_secured !== undefined && inspection.cargo_secured !== 'na') {
       checks.push({ label: 'Cargo Secured', value: inspection.cargo_secured, key: 'cargo_secured' });
     }
 
     return (
       <div className="space-y-3">
         {checks.map((check) => {
+          const isPassed = check.value === 'pass';
+          const isFailed = check.value === 'fail';
+          const isNA = check.value === 'na';
+          
           return (
             <div key={check.key} className="flex items-center justify-between p-3 rounded-lg bg-gray-50">
               <span className="text-sm font-medium text-gray-700">{check.label}</span>
               <div className="flex items-center">
-                {check.value === true ? (
+                {isPassed ? (
                   <CheckCircleIcon className="h-5 w-5 text-green-500" />
-                ) : (
+                ) : isFailed ? (
                   <XCircleIcon className="h-5 w-5 text-red-500" />
+                ) : (
+                  <div className="h-5 w-5 rounded-full bg-gray-300 flex items-center justify-center">
+                    <span className="text-xs text-gray-600">N/A</span>
+                  </div>
                 )}
-                <span className={`ml-2 text-sm font-medium ${check.value === true ? 'text-green-700' : 'text-red-700'}`}>
-                  {check.value === true ? 'Pass' : 'Fail'}
+                <span className={`ml-2 text-sm font-medium ${
+                  isPassed ? 'text-green-700' : 
+                  isFailed ? 'text-red-700' : 
+                  'text-gray-600'
+                }`}>
+                  {isPassed ? 'Pass' : isFailed ? 'Fail' : 'N/A'}
                 </span>
               </div>
             </div>
