@@ -1858,6 +1858,29 @@ class TripsManagementViewSet(UserOrAboveMixin, CompanyFilterMixin, ModelViewSet)
             user_companies = self.request.user.profile.companies.all()
             queryset = queryset.filter(company__in=user_companies)
         
+        # Additional query parameter filters for admin/user roles
+        if user_role in ['user', 'admin']:
+            driver_id = self.request.query_params.get('driver_id', None)
+            truck_id = self.request.query_params.get('truck_id', None)
+            start_date = self.request.query_params.get('start_date', None)
+            end_date = self.request.query_params.get('end_date', None)
+            status = self.request.query_params.get('status', None)
+            
+            if driver_id:
+                queryset = queryset.filter(driver_id=driver_id)
+            
+            if truck_id:
+                queryset = queryset.filter(truck_id=truck_id)
+                
+            if start_date:
+                queryset = queryset.filter(scheduled_start_date__date__gte=start_date)
+                
+            if end_date:
+                queryset = queryset.filter(scheduled_start_date__date__lte=end_date)
+                
+            if status:
+                queryset = queryset.filter(status=status)
+        
         return queryset.order_by('-scheduled_start_date', '-start_time')
     
     def perform_create(self, serializer):

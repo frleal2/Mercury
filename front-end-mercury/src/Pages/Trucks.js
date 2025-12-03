@@ -28,6 +28,7 @@ function Trucks() {
   const [filter, setFilter] = useState('active');
   const [searchTerm, setSearchTerm] = useState('');
   const [isInspectionHistoryOpen, setIsInspectionHistoryOpen] = useState(false);
+  const [inspectionTruck, setInspectionTruck] = useState(null);
 
   const handleAddTruckClick = () => {
     setIsAddTruckOpen(true);
@@ -49,12 +50,14 @@ function Trucks() {
     fetchTrucks();
   };
 
-  const handleOpenInspectionHistory = () => {
+  const handleOpenInspectionHistory = (truck) => {
+    setInspectionTruck(truck);
     setIsInspectionHistoryOpen(true);
   };
 
   const handleCloseInspectionHistory = () => {
     setIsInspectionHistoryOpen(false);
+    setInspectionTruck(null);
   };
 
   const fetchTrucks = async () => {
@@ -278,7 +281,7 @@ function Trucks() {
                             <PencilIcon className="h-5 w-5" />
                           </button>
                           <button
-                            onClick={() => handleOpenInspectionHistory()}
+                            onClick={() => handleOpenInspectionHistory(truck)}
                             className="text-green-600 hover:text-green-800 p-1"
                             title="Inspection History"
                           >
@@ -320,8 +323,11 @@ function Trucks() {
       {isEditTruckOpen && (
         <EditTruck truck={selectedTruck} onClose={handleCloseEditTruck} />
       )}
-      {isInspectionHistoryOpen && (
-        <InspectionHistory onClose={handleCloseInspectionHistory} />
+      {isInspectionHistoryOpen && inspectionTruck && (
+        <InspectionHistory 
+          truck={inspectionTruck} 
+          onClose={handleCloseInspectionHistory} 
+        />
       )}
     </div>
   );
