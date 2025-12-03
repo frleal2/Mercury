@@ -470,6 +470,11 @@ class Trips(models.Model):
     pre_trip_inspection_completed = models.BooleanField(default=False)
     post_trip_inspection_completed = models.BooleanField(default=False)
     
+    # CFR 396.13 - Pre-trip DVIR review requirement
+    last_dvir_reviewed = models.BooleanField(default=False, help_text="Driver reviewed last DVIR before starting trip (CFR 396.13)")
+    last_dvir_reviewed_at = models.DateTimeField(null=True, blank=True)
+    last_dvir_reviewed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='reviewed_dvirs')
+    
     # Mileage tracking
     mileage_start = models.IntegerField(null=True, blank=True)
     mileage_end = models.IntegerField(null=True, blank=True)
@@ -506,12 +511,73 @@ class Trips(models.Model):
         return None
     
     def can_start_trip(self):
-        """Check if trip can be started (pre-trip inspection done)"""
-        return self.status == 'scheduled' and self.pre_trip_inspection_completed
+        """Check if trip can be started (CFR compliance checks)"""
+        if self.status != 'scheduled':
+            return False
+        
+        # CFR 396.11 - Pre-trip inspection required
+        if not self.pre_trip_inspection_completed:
+            return False
+        
+        # CFR 396.13 - Driver must review last DVIR
+        if not self.last_dvir_reviewed:
+            return False
+        
+        # CFR 396.7 - Vehicle must be safe to operate
+        if hasattr(self.truck, 'operation_status'):
+            if not self.truck.operation_status.can_operate():
+                return False
+        
+        if self.trailer and hasattr(self.trailer, 'operation_status'):
+            if not self.trailer.operation_status.can_operate():
+                return False
+        
+        # CFR 396.17 - Annual inspection must be current
+        if self.truck:
+            latest_annual = self.truck.annual_inspections.filter(is_current=True).first()
+            if not latest_annual:
+                return False
+        
+        if self.trailer:
+            latest_annual = self.trailer.annual_inspections.filter(is_current=True).first()
+            if not latest_annual:
+                return False
+        
+        return True
     
     def can_complete_trip(self):
         """Check if trip can be completed (in progress status)"""
         return self.status == 'in_progress'
+    
+    def get_compliance_issues(self):
+        """Get list of compliance issues preventing trip start"""
+        issues = []
+        
+        if not self.pre_trip_inspection_completed:
+            issues.append("Pre-trip inspection not completed (CFR 396.11)")
+        
+        if not self.last_dvir_reviewed:
+            issues.append("Last DVIR not reviewed by driver (CFR 396.13)")
+        
+        # Check vehicle operation status
+        if hasattr(self.truck, 'operation_status') and not self.truck.operation_status.can_operate():
+            issues.append(f"Truck {self.truck.unit_number} is not safe to operate (CFR 396.7)")
+        
+        if self.trailer and hasattr(self.trailer, 'operation_status') and not self.trailer.operation_status.can_operate():
+            issues.append(f"Trailer {self.trailer.license_plate} is not safe to operate (CFR 396.7)")
+        
+        # Check annual inspections
+        if self.truck:
+            latest_annual = self.truck.annual_inspections.filter(compliant_until__gte=date.today()).first()
+            if not latest_annual:
+                issues.append(f"Truck {self.truck.unit_number} annual inspection expired (CFR 396.17)")
+        
+        if self.trailer:
+            latest_annual = self.trailer.annual_inspections.filter(compliant_until__gte=date.today()).first()
+            if not latest_annual:
+                issues.append(f"Trailer {self.trailer.license_plate} annual inspection expired (CFR 396.17)")
+        
+        return issues
     
     def get_origin_display(self):
         """Get display name for origin"""
@@ -863,6 +929,107 @@ class TripInspection(models.Model):
             cfr_required_checks.extend(trailer_checks)
         
         return all(cfr_required_checks + additional_checks)
+    
+    def has_safety_critical_defects(self):
+        """Check if inspection has safety-critical defects that prohibit operation"""
+        safety_critical_items = [
+            self.service_brakes,
+            self.parking_brake,
+            self.steering_mechanism,
+            self.tires_condition,
+            self.wheels_and_rims,
+            self.lighting_devices,
+        ]
+        
+        return any(item == 'fail' for item in safety_critical_items)
+    
+    def get_failed_items(self):
+        """Get list of failed inspection items"""
+        all_checks = {
+            'Service Brakes': self.service_brakes,
+            'Parking Brake': self.parking_brake,
+            'Steering Mechanism': self.steering_mechanism,
+            'Lighting Devices': self.lighting_devices,
+            'Tires': self.tires_condition,
+            'Horn': self.horn,
+            'Windshield Wipers': self.windshield_wipers,
+            'Rear Vision Mirrors': self.rear_vision_mirrors,
+            'Coupling Devices': self.coupling_devices,
+            'Wheels and Rims': self.wheels_and_rims,
+            'Emergency Equipment': self.emergency_equipment,
+            'Vehicle Exterior': self.vehicle_exterior_condition,
+            'Engine Fluids': self.engine_fluids_ok,
+        }
+        
+        if self.trip.trailer:
+            trailer_checks = {}
+            if self.trailer_attached_properly != 'na':
+                trailer_checks['Trailer Attachment'] = self.trailer_attached_properly
+            if self.trailer_lights_working != 'na':
+                trailer_checks['Trailer Lights'] = self.trailer_lights_working
+            if self.cargo_secured != 'na':
+                trailer_checks['Cargo Security'] = self.cargo_secured
+            all_checks.update(trailer_checks)
+        
+        return [item for item, status in all_checks.items() if status == 'fail']
+    
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        
+        # Auto-update vehicle operation status based on inspection results (CFR 396.7)
+        if self.has_safety_critical_defects():
+            self._update_vehicle_operation_status('prohibited')
+        elif not self.is_passed():
+            self._update_vehicle_operation_status('conditional')
+        else:
+            self._update_vehicle_operation_status('safe')
+    
+    def _update_vehicle_operation_status(self, status):
+        """Update vehicle operation status based on inspection results"""
+        from django.apps import apps
+        VehicleOperationStatus = apps.get_model('MercAPI', 'VehicleOperationStatus')
+        
+        # Update truck status
+        if self.trip.truck:
+            truck_status, created = VehicleOperationStatus.objects.get_or_create(
+                truck=self.trip.truck,
+                vehicle_type='truck',
+                defaults={
+                    'current_status': status,
+                    'status_set_by': self.completed_by,
+                    'related_inspection': self
+                }
+            )
+            if not created:
+                truck_status.current_status = status
+                truck_status.status_set_by = self.completed_by
+                truck_status.related_inspection = self
+                truck_status.status_reason = f"Updated from {self.get_inspection_type_display()} inspection"
+                if status != 'safe':
+                    failed_items = self.get_failed_items()
+                    truck_status.status_reason += f": Failed items - {', '.join(failed_items)}"
+                truck_status.save()
+        
+        # Update trailer status
+        if self.trip.trailer:
+            trailer_status, created = VehicleOperationStatus.objects.get_or_create(
+                trailer=self.trip.trailer,
+                vehicle_type='trailer',
+                defaults={
+                    'current_status': status,
+                    'status_set_by': self.completed_by,
+                    'related_inspection': self
+                }
+            )
+            if not created:
+                trailer_status.current_status = status
+                trailer_status.status_set_by = self.completed_by
+                trailer_status.related_inspection = self
+                trailer_status.status_reason = f"Updated from {self.get_inspection_type_display()} inspection"
+                if status != 'safe':
+                    failed_items = self.get_failed_items()
+                    trailer_status.status_reason += f": Failed items - {', '.join(failed_items)}"
+                trailer_status.save()
 
 
 class TripInspectionRepairCertification(models.Model):
@@ -918,6 +1085,200 @@ class TripDocument(models.Model):
     def __str__(self):
         trip_id = self.trip.trip_number or f"#{self.trip.id}"
         return f"{self.get_document_type_display()} - Trip {trip_id}"
+
+
+class QualifiedInspector(models.Model):
+    """
+    CFR 396.19 - Inspector qualification tracking
+    """
+    INSPECTOR_TYPE_CHOICES = [
+        ('dot_certified', 'DOT Certified Inspector'),
+        ('company_qualified', 'Company Qualified Inspector'),
+        ('external_shop', 'External Shop Inspector'),
+    ]
+    
+    inspector_id = models.CharField(max_length=50, unique=True, help_text="Inspector certification ID")
+    name = models.CharField(max_length=255)
+    inspector_type = models.CharField(max_length=20, choices=INSPECTOR_TYPE_CHOICES)
+    certification_number = models.CharField(max_length=100, blank=True, null=True)
+    certification_expiry = models.DateField(null=True, blank=True)
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name='qualified_inspectors')
+    
+    # Inspector qualifications
+    qualified_for_annual = models.BooleanField(default=False)
+    qualified_for_periodic = models.BooleanField(default=False)
+    qualified_for_roadside = models.BooleanField(default=False)
+    
+    active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['name']
+        verbose_name = "Qualified Inspector (CFR 396.19)"
+        verbose_name_plural = "Qualified Inspectors (CFR 396.19)"
+    
+    def __str__(self):
+        return f"{self.name} ({self.inspector_id}) - {self.get_inspector_type_display()}"
+    
+    def is_certification_valid(self):
+        """Check if inspector certification is still valid"""
+        if not self.certification_expiry:
+            return True  # No expiry date set
+        return date.today() <= self.certification_expiry
+
+
+class AnnualInspection(models.Model):
+    """
+    CFR 396.17 - Annual vehicle inspection tracking
+    """
+    INSPECTION_RESULT_CHOICES = [
+        ('pass', 'Pass'),
+        ('conditional_pass', 'Conditional Pass'),
+        ('fail', 'Fail'),
+    ]
+    
+    VEHICLE_TYPE_CHOICES = [
+        ('truck', 'Truck'),
+        ('trailer', 'Trailer'),
+    ]
+    
+    # Vehicle information
+    vehicle_type = models.CharField(max_length=10, choices=VEHICLE_TYPE_CHOICES)
+    truck = models.ForeignKey(Truck, on_delete=models.CASCADE, null=True, blank=True, related_name='annual_inspections')
+    trailer = models.ForeignKey(Trailer, on_delete=models.CASCADE, null=True, blank=True, related_name='annual_inspections')
+    
+    # Inspection details
+    inspection_date = models.DateField()
+    next_inspection_due = models.DateField(help_text="Next annual inspection due date")
+    inspector = models.ForeignKey(QualifiedInspector, on_delete=models.CASCADE)
+    inspection_result = models.CharField(max_length=20, choices=INSPECTION_RESULT_CHOICES)
+    
+    # CFR 396.17 inspection certificate/report
+    inspection_certificate_number = models.CharField(max_length=100, unique=True)
+    inspection_report_pdf = models.FileField(
+        upload_to='annual_inspections/%Y/%m/',
+        help_text="PDF copy of annual inspection report (CFR 396.17 requirement)"
+    )
+    
+    # Defects and conditions
+    defects_found = models.TextField(blank=True, null=True, help_text="List of defects found during inspection")
+    conditions_for_pass = models.TextField(blank=True, null=True, help_text="Conditions required for conditional pass")
+    repairs_completed = models.BooleanField(default=False)
+    repair_completion_date = models.DateField(null=True, blank=True)
+    
+    # Compliance tracking
+    compliant_until = models.DateField(help_text="Vehicle is compliant for operation until this date")
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-inspection_date']
+        verbose_name = "Annual Inspection (CFR 396.17)"
+        verbose_name_plural = "Annual Inspections (CFR 396.17)"
+    
+    def __str__(self):
+        vehicle = self.truck.unit_number if self.truck else self.trailer.license_plate
+        return f"Annual Inspection {self.inspection_certificate_number} - {vehicle} ({self.inspection_date})"
+    
+    @property
+    def vehicle_identifier(self):
+        """Get the main identifier for the vehicle"""
+        if self.truck:
+            return f"Truck {self.truck.unit_number}"
+        elif self.trailer:
+            return f"Trailer {self.trailer.license_plate}"
+        return "Unknown Vehicle"
+    
+    @property
+    def is_current(self):
+        """Check if inspection is still current"""
+        return date.today() <= self.compliant_until
+    
+    @property
+    def days_until_expiry(self):
+        """Get days until inspection expires"""
+        return (self.compliant_until - date.today()).days
+    
+    def save(self, *args, **kwargs):
+        # Auto-calculate next inspection due date (1 year from inspection date)
+        if not self.next_inspection_due:
+            self.next_inspection_due = self.inspection_date + timedelta(days=365)
+        
+        # Auto-calculate compliant_until based on inspection result
+        if not self.compliant_until:
+            if self.inspection_result == 'pass':
+                self.compliant_until = self.inspection_date + timedelta(days=365)
+            elif self.inspection_result == 'conditional_pass':
+                self.compliant_until = self.inspection_date + timedelta(days=90)  # 90 days to fix conditions
+            else:  # fail
+                self.compliant_until = self.inspection_date  # Cannot operate
+        
+        super().save(*args, **kwargs)
+
+
+class VehicleOperationStatus(models.Model):
+    """
+    CFR 396.7 - Track unsafe operation prohibitions
+    """
+    STATUS_CHOICES = [
+        ('safe', 'Safe to Operate'),
+        ('conditional', 'Conditional Operation'),
+        ('prohibited', 'Operation Prohibited'),
+        ('out_of_service', 'Out of Service'),
+    ]
+    
+    VEHICLE_TYPE_CHOICES = [
+        ('truck', 'Truck'),
+        ('trailer', 'Trailer'),
+    ]
+    
+    # Vehicle information
+    vehicle_type = models.CharField(max_length=10, choices=VEHICLE_TYPE_CHOICES)
+    truck = models.OneToOneField(Truck, on_delete=models.CASCADE, null=True, blank=True, related_name='operation_status')
+    trailer = models.OneToOneField(Trailer, on_delete=models.CASCADE, null=True, blank=True, related_name='operation_status')
+    
+    # Operation status
+    current_status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='safe')
+    status_reason = models.TextField(blank=True, null=True, help_text="Reason for current status")
+    
+    # Related inspection/maintenance
+    related_inspection = models.ForeignKey(TripInspection, on_delete=models.SET_NULL, null=True, blank=True)
+    related_maintenance = models.ForeignKey(MaintenanceRecord, on_delete=models.SET_NULL, null=True, blank=True)
+    related_annual_inspection = models.ForeignKey(AnnualInspection, on_delete=models.SET_NULL, null=True, blank=True)
+    
+    # Status timeline
+    status_set_at = models.DateTimeField(auto_now=True)
+    status_set_by = models.ForeignKey(User, on_delete=models.CASCADE)
+    clear_status_date = models.DateField(null=True, blank=True, help_text="Date when vehicle can return to service")
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = "Vehicle Operation Status (CFR 396.7)"
+        verbose_name_plural = "Vehicle Operation Status (CFR 396.7)"
+    
+    def __str__(self):
+        vehicle = self.truck.unit_number if self.truck else self.trailer.license_plate
+        return f"{vehicle} - {self.get_current_status_display()}"
+    
+    @property
+    def vehicle_identifier(self):
+        """Get the main identifier for the vehicle"""
+        if self.truck:
+            return f"Truck {self.truck.unit_number}"
+        elif self.trailer:
+            return f"Trailer {self.trailer.license_plate}"
+        return "Unknown Vehicle"
+    
+    def can_operate(self):
+        """Check if vehicle can currently operate"""
+        if self.current_status in ['prohibited', 'out_of_service']:
+            return False
+        if self.current_status == 'conditional' and self.clear_status_date:
+            return date.today() <= self.clear_status_date
+        return self.current_status == 'safe'
 
 
 class PasswordResetToken(models.Model):
