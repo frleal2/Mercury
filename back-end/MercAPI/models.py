@@ -785,12 +785,27 @@ class TripInspection(models.Model):
         ('na', 'Not Applicable'),
     ]
     
-    # Vehicle checks
+    # Vehicle checks - CFR 396.11 Compliant
+    # Required by CFR 396.11(a)(1)(i-xi)
+    service_brakes = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='fail', help_text="Service brakes including trailer brake connections")
+    parking_brake = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='fail', help_text="Parking brake operational")
+    steering_mechanism = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='fail', help_text="Steering mechanism responsive")
+    lighting_devices = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='fail', help_text="Lighting devices and reflectors")
+    tires_condition = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='fail', help_text="Tires - proper pressure, no damage")
+    horn = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='fail', help_text="Horn operational")
+    windshield_wipers = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='fail', help_text="Windshield wipers operational")
+    rear_vision_mirrors = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='fail', help_text="Rear vision mirrors clean and secure")
+    coupling_devices = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='fail', help_text="Coupling devices secure")
+    wheels_and_rims = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='fail', help_text="Wheels and rims - no cracks or damage")
+    emergency_equipment = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='fail', help_text="Emergency equipment present")
+    
+    # Additional vehicle checks
     vehicle_exterior_condition = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='fail', help_text="No visible damage, clean")
-    lights_working = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='fail', help_text="All lights functional")
-    tires_condition = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='fail', help_text="Proper pressure, no damage")
-    brakes_working = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='fail', help_text="Brakes responsive")
     engine_fluids_ok = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='fail', help_text="Oil, coolant, brake fluid levels good")
+    
+    # Legacy field for backward compatibility
+    lights_working = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='fail', help_text="All lights functional (legacy - use lighting_devices)")
+    brakes_working = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='fail', help_text="Brakes responsive (legacy - use service_brakes)")
     
     # Trailer checks (if applicable)
     trailer_attached_properly = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='na', help_text="Securely connected")
@@ -816,12 +831,25 @@ class TripInspection(models.Model):
         return f"{self.get_inspection_type_display()} - Trip {trip_id}"
     
     def is_passed(self):
-        """Check if all critical checks are passed"""
-        required_checks = [
-            self.vehicle_exterior_condition == 'pass',
-            self.lights_working == 'pass',
+        """Check if all CFR 396.11 required checks are passed"""
+        # CFR 396.11 required inspection items
+        cfr_required_checks = [
+            self.service_brakes == 'pass',
+            self.parking_brake == 'pass', 
+            self.steering_mechanism == 'pass',
+            self.lighting_devices == 'pass',
             self.tires_condition == 'pass',
-            self.brakes_working == 'pass',
+            self.horn == 'pass',
+            self.windshield_wipers == 'pass',
+            self.rear_vision_mirrors == 'pass',
+            self.coupling_devices == 'pass',
+            self.wheels_and_rims == 'pass',
+            self.emergency_equipment == 'pass',
+        ]
+        
+        # Additional safety checks
+        additional_checks = [
+            self.vehicle_exterior_condition == 'pass',
             self.engine_fluids_ok == 'pass',
         ]
         
@@ -832,9 +860,36 @@ class TripInspection(models.Model):
                 self.trailer_lights_working == 'pass' if self.trailer_lights_working != 'na' else True,
                 self.cargo_secured == 'pass' if self.cargo_secured != 'na' else True,
             ]
-            required_checks.extend(trailer_checks)
+            cfr_required_checks.extend(trailer_checks)
         
-        return all(required_checks)
+        return all(cfr_required_checks + additional_checks)
+
+
+class TripInspectionRepairCertification(models.Model):
+    """
+    CFR 396.11 compliance - Certification of repairs for inspection defects
+    """
+    inspection = models.ForeignKey(TripInspection, on_delete=models.CASCADE, related_name='repair_certifications')
+    defect_description = models.TextField(help_text="Description of the defect found during inspection")
+    repair_required = models.BooleanField(help_text="Is repair required for safe operation?")
+    repair_description = models.TextField(blank=True, null=True, help_text="Description of repairs performed")
+    repair_unnecessary_reason = models.TextField(blank=True, null=True, help_text="Reason why repair is unnecessary")
+    
+    # Certification details
+    certified_by = models.ForeignKey(User, on_delete=models.CASCADE, help_text="Person certifying the repair")
+    certified_at = models.DateTimeField(auto_now_add=True)
+    vehicle_safe_to_operate = models.BooleanField(help_text="Vehicle is safe to operate before next use")
+    
+    # CFR 396.11 requires 3-month retention
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = "Repair Certification (CFR 396.11)"
+        verbose_name_plural = "Repair Certifications (CFR 396.11)"
+    
+    def __str__(self):
+        return f"Repair Cert for {self.inspection} - {'Required' if self.repair_required else 'Not Required'}"
 
 
 class TripDocument(models.Model):

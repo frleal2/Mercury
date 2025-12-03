@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Inspection, InspectionItem, Trips, UserProfile, TripInspection, TripDocument
+from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Inspection, InspectionItem, Trips, UserProfile, TripInspection, TripInspectionRepairCertification, TripDocument
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -290,6 +290,13 @@ class TripInspectionSerializer(serializers.ModelSerializer):
     completed_by_name = serializers.CharField(source='completed_by.get_full_name', read_only=True)
     is_inspection_passed = serializers.SerializerMethodField()
     
+    # Vehicle identification for CFR 396.11 compliance
+    truck_info = serializers.SerializerMethodField()
+    trailer_info = serializers.SerializerMethodField()
+    
+    # CFR 396.11 compliance summary
+    cfr_compliance_summary = serializers.SerializerMethodField()
+    
     class Meta:
         model = TripInspection
         fields = '__all__'
@@ -297,6 +304,75 @@ class TripInspectionSerializer(serializers.ModelSerializer):
     
     def get_is_inspection_passed(self, obj):
         return obj.is_passed()
+    
+    def get_truck_info(self, obj):
+        """Vehicle identification required by CFR 396.11"""
+        if obj.trip.truck:
+            return {
+                'unit_number': obj.trip.truck.unit_number,
+                'license_plate': obj.trip.truck.license_plate,
+                'vin': obj.trip.truck.vin,
+                'make': obj.trip.truck.make,
+                'model': obj.trip.truck.model,
+                'year': obj.trip.truck.year
+            }
+        return None
+    
+    def get_trailer_info(self, obj):
+        """Trailer identification if applicable"""
+        if obj.trip.trailer:
+            return {
+                'unit_number': obj.trip.trailer.unit_number,
+                'license_plate': obj.trip.trailer.license_plate,
+                'trailer_type': obj.trip.trailer.trailer_type,
+                'model': obj.trip.trailer.model
+            }
+        return None
+    
+    def get_cfr_compliance_summary(self, obj):
+        """Summary of CFR 396.11 required inspections"""
+        cfr_items = {
+            'Service Brakes': obj.service_brakes,
+            'Parking Brake': obj.parking_brake,
+            'Steering Mechanism': obj.steering_mechanism,
+            'Lighting Devices': obj.lighting_devices,
+            'Tires': obj.tires_condition,
+            'Horn': obj.horn,
+            'Windshield Wipers': obj.windshield_wipers,
+            'Rear Vision Mirrors': obj.rear_vision_mirrors,
+            'Coupling Devices': obj.coupling_devices,
+            'Wheels and Rims': obj.wheels_and_rims,
+            'Emergency Equipment': obj.emergency_equipment,
+        }
+        
+        # Add trailer items if applicable
+        if obj.trip.trailer:
+            trailer_items = {
+                'Trailer Attached Properly': obj.trailer_attached_properly,
+                'Trailer Lights Working': obj.trailer_lights_working,
+                'Cargo Secured': obj.cargo_secured,
+            }
+            cfr_items.update(trailer_items)
+        
+        return cfr_items
+
+
+class TripInspectionRepairCertificationSerializer(serializers.ModelSerializer):
+    inspection_details = serializers.SerializerMethodField()
+    certified_by_name = serializers.CharField(source='certified_by.get_full_name', read_only=True)
+    
+    class Meta:
+        model = TripInspectionRepairCertification
+        fields = '__all__'
+        read_only_fields = ['certified_at', 'created_at']
+    
+    def get_inspection_details(self, obj):
+        return {
+            'trip_id': obj.inspection.trip.id,
+            'trip_number': obj.inspection.trip.trip_number,
+            'inspection_type': obj.inspection.get_inspection_type_display(),
+            'inspection_date': obj.inspection.completed_at,
+        }
 
 
 class TripDocumentSerializer(serializers.ModelSerializer):

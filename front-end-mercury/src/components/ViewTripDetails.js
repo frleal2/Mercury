@@ -54,81 +54,207 @@ const ViewTripDetails = ({ tripId, onClose }) => {
   };
 
   const getInspectionStatus = (inspection) => {
-    const checks = [
-      inspection.vehicle_exterior_condition,
-      inspection.lights_working,
+    // CFR 396.11 required inspection items
+    const cfrChecks = [
+      inspection.service_brakes,
+      inspection.parking_brake,
+      inspection.steering_mechanism,
+      inspection.lighting_devices,
       inspection.tires_condition,
-      inspection.brakes_working,
+      inspection.horn,
+      inspection.windshield_wipers,
+      inspection.rear_vision_mirrors,
+      inspection.coupling_devices,
+      inspection.wheels_and_rims,
+      inspection.emergency_equipment,
+    ];
+    
+    // Additional vehicle checks
+    const additionalChecks = [
+      inspection.vehicle_exterior_condition,
       inspection.engine_fluids_ok,
     ];
     
-    // Only include trailer checks if they exist (not null/undefined/na)
-    if (inspection.trailer_attached_properly !== null && inspection.trailer_attached_properly !== undefined && inspection.trailer_attached_properly !== 'na') {
-      checks.push(inspection.trailer_attached_properly);
+    // Legacy field support (backward compatibility)
+    if (inspection.lights_working && !inspection.lighting_devices) {
+      additionalChecks.push(inspection.lights_working);
     }
-    if (inspection.trailer_lights_working !== null && inspection.trailer_lights_working !== undefined && inspection.trailer_lights_working !== 'na') {
-      checks.push(inspection.trailer_lights_working);
-    }
-    if (inspection.cargo_secured !== null && inspection.cargo_secured !== undefined && inspection.cargo_secured !== 'na') {
-      checks.push(inspection.cargo_secured);
+    if (inspection.brakes_working && !inspection.service_brakes) {
+      additionalChecks.push(inspection.brakes_working);
     }
     
-    const passedChecks = checks.filter(check => check === 'pass').length;
-    const totalChecks = checks.length;
+    // Only include trailer checks if they exist (not null/undefined/na)
+    if (inspection.trailer_attached_properly !== null && inspection.trailer_attached_properly !== undefined && inspection.trailer_attached_properly !== 'na') {
+      cfrChecks.push(inspection.trailer_attached_properly);
+    }
+    if (inspection.trailer_lights_working !== null && inspection.trailer_lights_working !== undefined && inspection.trailer_lights_working !== 'na') {
+      cfrChecks.push(inspection.trailer_lights_working);
+    }
+    if (inspection.cargo_secured !== null && inspection.cargo_secured !== undefined && inspection.cargo_secured !== 'na') {
+      cfrChecks.push(inspection.cargo_secured);
+    }
+    
+    const allChecks = [...cfrChecks, ...additionalChecks].filter(check => check !== null && check !== undefined);
+    const passedChecks = allChecks.filter(check => check === 'pass').length;
+    const totalChecks = allChecks.length;
     return { passed: passedChecks === totalChecks, passedChecks, totalChecks };
   };
 
   const renderInspectionChecklist = (inspection) => {
-    const checks = [
-      { label: 'Vehicle Exterior Condition', value: inspection.vehicle_exterior_condition, key: 'vehicle_exterior_condition' },
-      { label: 'Lights Working', value: inspection.lights_working, key: 'lights_working' },
-      { label: 'Tires Condition', value: inspection.tires_condition, key: 'tires_condition' },
-      { label: 'Brakes Working', value: inspection.brakes_working, key: 'brakes_working' },
-      { label: 'Engine Fluids OK', value: inspection.engine_fluids_ok, key: 'engine_fluids_ok' },
+    // CFR 396.11 Required Inspection Items
+    const cfrChecks = [
+      { label: 'Service Brakes', value: inspection.service_brakes, key: 'service_brakes', required: true },
+      { label: 'Parking Brake', value: inspection.parking_brake, key: 'parking_brake', required: true },
+      { label: 'Steering Mechanism', value: inspection.steering_mechanism, key: 'steering_mechanism', required: true },
+      { label: 'Lighting Devices & Reflectors', value: inspection.lighting_devices, key: 'lighting_devices', required: true },
+      { label: 'Tires', value: inspection.tires_condition, key: 'tires_condition', required: true },
+      { label: 'Horn', value: inspection.horn, key: 'horn', required: true },
+      { label: 'Windshield Wipers', value: inspection.windshield_wipers, key: 'windshield_wipers', required: true },
+      { label: 'Rear Vision Mirrors', value: inspection.rear_vision_mirrors, key: 'rear_vision_mirrors', required: true },
+      { label: 'Coupling Devices', value: inspection.coupling_devices, key: 'coupling_devices', required: true },
+      { label: 'Wheels and Rims', value: inspection.wheels_and_rims, key: 'wheels_and_rims', required: true },
+      { label: 'Emergency Equipment', value: inspection.emergency_equipment, key: 'emergency_equipment', required: true },
     ];
 
-    // Add trailer checks if they exist (not null/undefined/na)
+    // Additional vehicle checks
+    const additionalChecks = [
+      { label: 'Vehicle Exterior Condition', value: inspection.vehicle_exterior_condition, key: 'vehicle_exterior_condition', required: false },
+      { label: 'Engine Fluids', value: inspection.engine_fluids_ok, key: 'engine_fluids_ok', required: false },
+    ];
+
+    // Legacy fields (for backward compatibility)
+    const legacyChecks = [];
+    if (inspection.lights_working && !inspection.lighting_devices) {
+      legacyChecks.push({ label: 'Lights Working (Legacy)', value: inspection.lights_working, key: 'lights_working', required: false });
+    }
+    if (inspection.brakes_working && !inspection.service_brakes) {
+      legacyChecks.push({ label: 'Brakes Working (Legacy)', value: inspection.brakes_working, key: 'brakes_working', required: false });
+    }
+
+    // Trailer checks (if applicable)
+    const trailerChecks = [];
     if (inspection.trailer_attached_properly !== null && inspection.trailer_attached_properly !== undefined && inspection.trailer_attached_properly !== 'na') {
-      checks.push({ label: 'Trailer Attached Properly', value: inspection.trailer_attached_properly, key: 'trailer_attached_properly' });
+      trailerChecks.push({ label: 'Trailer Attached Properly', value: inspection.trailer_attached_properly, key: 'trailer_attached_properly', required: false });
     }
     if (inspection.trailer_lights_working !== null && inspection.trailer_lights_working !== undefined && inspection.trailer_lights_working !== 'na') {
-      checks.push({ label: 'Trailer Lights Working', value: inspection.trailer_lights_working, key: 'trailer_lights_working' });
+      trailerChecks.push({ label: 'Trailer Lights Working', value: inspection.trailer_lights_working, key: 'trailer_lights_working', required: false });
     }
     if (inspection.cargo_secured !== null && inspection.cargo_secured !== undefined && inspection.cargo_secured !== 'na') {
-      checks.push({ label: 'Cargo Secured', value: inspection.cargo_secured, key: 'cargo_secured' });
+      trailerChecks.push({ label: 'Cargo Secured', value: inspection.cargo_secured, key: 'cargo_secured', required: false });
     }
 
     return (
-      <div className="space-y-3">
-        {checks.map((check) => {
-          const isPassed = check.value === 'pass';
-          const isFailed = check.value === 'fail';
-          const isNA = check.value === 'na';
-          
-          return (
-            <div key={check.key} className="flex items-center justify-between p-3 rounded-lg bg-gray-50">
-              <span className="text-sm font-medium text-gray-700">{check.label}</span>
-              <div className="flex items-center">
-                {isPassed ? (
-                  <CheckCircleIcon className="h-5 w-5 text-green-500" />
-                ) : isFailed ? (
-                  <XCircleIcon className="h-5 w-5 text-red-500" />
-                ) : (
-                  <div className="h-5 w-5 rounded-full bg-gray-300 flex items-center justify-center">
-                    <span className="text-xs text-gray-600">N/A</span>
+      <div className="space-y-4">
+        {/* CFR 396.11 Required Items */}
+        <div>
+          <h6 className="text-sm font-semibold text-gray-800 mb-3 border-b pb-1">CFR 396.11 Required Inspection Items</h6>
+          <div className="space-y-2">
+            {cfrChecks.filter(check => check.value !== null && check.value !== undefined).map((check) => {
+              const isPassed = check.value === 'pass';
+              const isFailed = check.value === 'fail';
+              const isNA = check.value === 'na';
+              
+              return (
+                <div key={check.key} className="flex items-center justify-between p-3 rounded-lg bg-gray-50">
+                  <div className="flex items-center">
+                    <span className="text-sm font-medium text-gray-700">{check.label}</span>
+                    {check.required && (
+                      <span className="ml-2 text-xs bg-red-100 text-red-800 px-2 py-0.5 rounded-full">Required</span>
+                    )}
                   </div>
-                )}
-                <span className={`ml-2 text-sm font-medium ${
-                  isPassed ? 'text-green-700' : 
-                  isFailed ? 'text-red-700' : 
-                  'text-gray-600'
-                }`}>
-                  {isPassed ? 'Pass' : isFailed ? 'Fail' : 'N/A'}
-                </span>
-              </div>
+                  <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
+                    isPassed ? 'bg-green-100 text-green-800' :
+                    isFailed ? 'bg-red-100 text-red-800' :
+                    isNA ? 'bg-gray-100 text-gray-600' : 'bg-gray-100 text-gray-600'
+                  }`}>
+                    {isPassed ? '✓ Pass' : isFailed ? '✗ Fail' : isNA ? 'N/A' : 'Unknown'}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Additional Vehicle Checks */}
+        {additionalChecks.filter(check => check.value !== null && check.value !== undefined).length > 0 && (
+          <div>
+            <h6 className="text-sm font-semibold text-gray-800 mb-3 border-b pb-1">Additional Vehicle Checks</h6>
+            <div className="space-y-2">
+              {additionalChecks.filter(check => check.value !== null && check.value !== undefined).map((check) => {
+                const isPassed = check.value === 'pass';
+                const isFailed = check.value === 'fail';
+                const isNA = check.value === 'na';
+                
+                return (
+                  <div key={check.key} className="flex items-center justify-between p-3 rounded-lg bg-blue-50">
+                    <span className="text-sm font-medium text-gray-700">{check.label}</span>
+                    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
+                      isPassed ? 'bg-green-100 text-green-800' :
+                      isFailed ? 'bg-red-100 text-red-800' :
+                      isNA ? 'bg-gray-100 text-gray-600' : 'bg-gray-100 text-gray-600'
+                    }`}>
+                      {isPassed ? '✓ Pass' : isFailed ? '✗ Fail' : isNA ? 'N/A' : 'Unknown'}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
-          );
-        })}
+          </div>
+        )}
+
+        {/* Trailer Checks */}
+        {trailerChecks.length > 0 && (
+          <div>
+            <h6 className="text-sm font-semibold text-gray-800 mb-3 border-b pb-1">Trailer Inspection Items</h6>
+            <div className="space-y-2">
+              {trailerChecks.map((check) => {
+                const isPassed = check.value === 'pass';
+                const isFailed = check.value === 'fail';
+                const isNA = check.value === 'na';
+                
+                return (
+                  <div key={check.key} className="flex items-center justify-between p-3 rounded-lg bg-yellow-50">
+                    <span className="text-sm font-medium text-gray-700">{check.label}</span>
+                    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
+                      isPassed ? 'bg-green-100 text-green-800' :
+                      isFailed ? 'bg-red-100 text-red-800' :
+                      isNA ? 'bg-gray-100 text-gray-600' : 'bg-gray-100 text-gray-600'
+                    }`}>
+                      {isPassed ? '✓ Pass' : isFailed ? '✗ Fail' : isNA ? 'N/A' : 'Unknown'}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+        
+        {/* Legacy Checks (for backward compatibility) */}
+        {legacyChecks.length > 0 && (
+          <div>
+            <h6 className="text-sm font-semibold text-gray-600 mb-3 border-b pb-1">Legacy Fields</h6>
+            <div className="space-y-2">
+              {legacyChecks.map((check) => {
+                const isPassed = check.value === 'pass';
+                const isFailed = check.value === 'fail';
+                const isNA = check.value === 'na';
+                
+                return (
+                  <div key={check.key} className="flex items-center justify-between p-3 rounded-lg bg-orange-50">
+                    <span className="text-sm font-medium text-gray-700">{check.label}</span>
+                    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
+                      isPassed ? 'bg-green-100 text-green-800' :
+                      isFailed ? 'bg-red-100 text-red-800' :
+                      isNA ? 'bg-gray-100 text-gray-600' : 'bg-gray-100 text-gray-600'
+                    }`}>
+                      {isPassed ? '✓ Pass' : isFailed ? '✗ Fail' : isNA ? 'N/A' : 'Unknown'}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
     );
   };
@@ -313,8 +439,40 @@ const ViewTripDetails = ({ tripId, onClose }) => {
                     </div>
                   </div>
 
+                  {/* Vehicle Identification (CFR 396.11 Requirement) */}
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <h5 className="font-medium text-blue-900 mb-3">Vehicle Identification (CFR 396.11)</h5>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <label className="font-medium text-gray-700">Truck:</label>
+                        <p className="text-gray-900">
+                          Unit #{trip.truck?.unit_number} - {trip.truck?.license_plate}
+                          <br />
+                          <span className="text-gray-600">
+                            {trip.truck?.year} {trip.truck?.make} {trip.truck?.model}
+                          </span>
+                          {trip.truck?.vin && (
+                            <><br /><span className="text-xs text-gray-500">VIN: {trip.truck.vin}</span></>
+                          )}
+                        </p>
+                      </div>
+                      {trip.trailer && (
+                        <div>
+                          <label className="font-medium text-gray-700">Trailer:</label>
+                          <p className="text-gray-900">
+                            Unit #{trip.trailer?.unit_number} - {trip.trailer?.license_plate}
+                            <br />
+                            <span className="text-gray-600">
+                              {trip.trailer?.trailer_type} {trip.trailer?.model}
+                            </span>
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
                   <div>
-                    <h5 className="font-medium text-gray-700 mb-3">Inspection Checklist:</h5>
+                    <h5 className="font-medium text-gray-700 mb-3">Inspection Checklist (CFR 396.11 Compliant):</h5>
                     {renderInspectionChecklist(preTrip)}
                   </div>
 
@@ -370,8 +528,40 @@ const ViewTripDetails = ({ tripId, onClose }) => {
                     </div>
                   </div>
 
+                  {/* Vehicle Identification (CFR 396.11 Requirement) */}
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <h5 className="font-medium text-blue-900 mb-3">Vehicle Identification (CFR 396.11)</h5>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <label className="font-medium text-gray-700">Truck:</label>
+                        <p className="text-gray-900">
+                          Unit #{trip.truck?.unit_number} - {trip.truck?.license_plate}
+                          <br />
+                          <span className="text-gray-600">
+                            {trip.truck?.year} {trip.truck?.make} {trip.truck?.model}
+                          </span>
+                          {trip.truck?.vin && (
+                            <><br /><span className="text-xs text-gray-500">VIN: {trip.truck.vin}</span></>
+                          )}
+                        </p>
+                      </div>
+                      {trip.trailer && (
+                        <div>
+                          <label className="font-medium text-gray-700">Trailer:</label>
+                          <p className="text-gray-900">
+                            Unit #{trip.trailer?.unit_number} - {trip.trailer?.license_plate}
+                            <br />
+                            <span className="text-gray-600">
+                              {trip.trailer?.trailer_type} {trip.trailer?.model}
+                            </span>
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
                   <div>
-                    <h5 className="font-medium text-gray-700 mb-3">Inspection Checklist:</h5>
+                    <h5 className="font-medium text-gray-700 mb-3">Inspection Checklist (CFR 396.11 Compliant):</h5>
                     {renderInspectionChecklist(postTrip)}
                   </div>
 

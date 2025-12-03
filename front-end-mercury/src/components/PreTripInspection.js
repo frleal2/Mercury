@@ -10,12 +10,26 @@ const PreTripInspection = ({ isOpen, onClose, tripId, onInspectionComplete }) =>
   const [loading, setLoading] = useState(false);
   
   const [inspectionData, setInspectionData] = useState({
-    // Vehicle checks (matching backend model)
-    vehicle_exterior_condition: '',
-    lights_working: '',
+    // CFR 396.11 Required Inspection Items (49 CFR 396.11(a)(1)(i-xi))
+    service_brakes: '',
+    parking_brake: '',
+    steering_mechanism: '',
+    lighting_devices: '',
     tires_condition: '',
-    brakes_working: '',
+    horn: '',
+    windshield_wipers: '',
+    rear_vision_mirrors: '',
+    coupling_devices: '',
+    wheels_and_rims: '',
+    emergency_equipment: '',
+    
+    // Additional vehicle checks
+    vehicle_exterior_condition: '',
     engine_fluids_ok: '',
+    
+    // Legacy fields (for backward compatibility)
+    lights_working: '',
+    brakes_working: '',
     
     // Trailer checks (if applicable)
     trailer_attached_properly: '',
@@ -31,21 +45,37 @@ const PreTripInspection = ({ isOpen, onClose, tripId, onInspectionComplete }) =>
 
   const inspectionItems = [
     {
-      category: 'Vehicle Safety Checks',
+      category: 'CFR 396.11 Required Inspection Items',
+      required: true,
       items: [
-        { key: 'vehicle_exterior_condition', label: 'Vehicle Exterior', description: 'Check for damage, cleanliness, and overall condition' },
-        { key: 'lights_working', label: 'Lights', description: 'Test all lights (headlights, taillights, turn signals, hazards)' },
-        { key: 'tires_condition', label: 'Tires', description: 'Check tire pressure, tread depth, and sidewall condition' },
-        { key: 'brakes_working', label: 'Brakes', description: 'Test brake responsiveness and check brake fluid' },
-        { key: 'engine_fluids_ok', label: 'Engine Fluids', description: 'Check oil, coolant, and brake fluid levels' }
+        { key: 'service_brakes', label: 'Service Brakes', description: 'Service brakes including trailer brake connections (CFR 396.11(a)(1)(i))', required: true },
+        { key: 'parking_brake', label: 'Parking Brake', description: 'Parking brake operational (CFR 396.11(a)(1)(ii))', required: true },
+        { key: 'steering_mechanism', label: 'Steering Mechanism', description: 'Steering mechanism responsive and secure (CFR 396.11(a)(1)(iii))', required: true },
+        { key: 'lighting_devices', label: 'Lighting Devices & Reflectors', description: 'All lighting devices and reflectors functional (CFR 396.11(a)(1)(iv))', required: true },
+        { key: 'tires_condition', label: 'Tires', description: 'Tire pressure, tread depth, and sidewall condition (CFR 396.11(a)(1)(v))', required: true },
+        { key: 'horn', label: 'Horn', description: 'Horn operational and audible (CFR 396.11(a)(1)(vi))', required: true },
+        { key: 'windshield_wipers', label: 'Windshield Wipers', description: 'Windshield wipers operational (CFR 396.11(a)(1)(vii))', required: true },
+        { key: 'rear_vision_mirrors', label: 'Rear Vision Mirrors', description: 'Mirrors clean, secure, and properly adjusted (CFR 396.11(a)(1)(viii))', required: true },
+        { key: 'coupling_devices', label: 'Coupling Devices', description: 'Coupling devices secure and functional (CFR 396.11(a)(1)(ix))', required: true },
+        { key: 'wheels_and_rims', label: 'Wheels and Rims', description: 'Wheels and rims - no cracks, damage, or missing lugs (CFR 396.11(a)(1)(x))', required: true },
+        { key: 'emergency_equipment', label: 'Emergency Equipment', description: 'Emergency equipment present and accessible (CFR 396.11(a)(1)(xi))', required: true }
       ]
     },
     {
-      category: 'Trailer Checks (if applicable)',
+      category: 'Additional Vehicle Safety Checks',
+      required: false,
       items: [
-        { key: 'trailer_attached_properly', label: 'Trailer Attachment', description: 'Verify trailer is securely connected' },
-        { key: 'trailer_lights_working', label: 'Trailer Lights', description: 'Test all trailer lights and connections' },
-        { key: 'cargo_secured', label: 'Cargo Security', description: 'Ensure load is properly secured' }
+        { key: 'vehicle_exterior_condition', label: 'Vehicle Exterior Condition', description: 'Overall exterior condition - damage, cleanliness', required: false },
+        { key: 'engine_fluids_ok', label: 'Engine Fluids', description: 'Oil, coolant, and other fluid levels', required: false }
+      ]
+    },
+    {
+      category: 'Trailer Inspection Items (if applicable)',
+      required: false,
+      items: [
+        { key: 'trailer_attached_properly', label: 'Trailer Attachment', description: 'Verify trailer is securely connected and coupling is locked', required: false },
+        { key: 'trailer_lights_working', label: 'Trailer Lights', description: 'Test all trailer lights and electrical connections', required: false },
+        { key: 'cargo_secured', label: 'Cargo Security', description: 'Ensure load is properly secured and distributed', required: false }
       ]
     }
   ];
@@ -197,14 +227,28 @@ const PreTripInspection = ({ isOpen, onClose, tripId, onInspectionComplete }) =>
                   <div className="max-h-96 overflow-y-auto space-y-6">
                     {inspectionItems.map((category) => (
                       <div key={category.category} className="border-b border-gray-200 pb-4">
-                        <h4 className="text-lg font-medium text-gray-900 mb-3">{category.category}</h4>
+                        <div className="flex items-center mb-3">
+                          <h4 className="text-lg font-medium text-gray-900">{category.category}</h4>
+                          {category.required && (
+                            <span className="ml-3 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                              Federal Requirement
+                            </span>
+                          )}
+                        </div>
                         <div className="grid grid-cols-1 gap-4">
                           {category.items.map((item) => (
-                            <div key={item.key} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                            <div key={item.key} className={`flex items-center justify-between p-3 rounded-lg ${
+                              item.required ? 'bg-red-50 border border-red-200' : 'bg-gray-50'
+                            }`}>
                               <div className="flex-1">
-                                <label className="block text-sm font-medium text-gray-700">
-                                  {item.label}
-                                </label>
+                                <div className="flex items-center">
+                                  <label className="block text-sm font-medium text-gray-700">
+                                    {item.label}
+                                  </label>
+                                  {item.required && (
+                                    <span className="ml-2 text-xs text-red-600 font-medium">*Required</span>
+                                  )}
+                                </div>
                                 <p className="text-xs text-gray-500 mt-1">{item.description}</p>
                               </div>
                               <div className="flex space-x-2 ml-4">
