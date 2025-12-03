@@ -15,6 +15,7 @@ const getNavigationItems = (userRole) => {
   return [
     // { name: 'Dashboard', href: '/Dashboard', current: false }, // Hidden - not ready for production
     { name: 'Safety Compliance', href: '#', current: false, dropdown: true, options: [
+        { name: 'Vehicle Status', href: '/VehicleCompliance' },
         { name: 'Companies', href: '/ActiveCompanies' },
         { name: 'Drivers', href: '/ActiveDrivers' },
         { name: 'Trucks', href: '/ActiveTrucks' },

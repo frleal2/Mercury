@@ -22,7 +22,7 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from django.conf import settings
 from django.conf.urls.static import static
 from MercAPI import views  # Corrected to match the actual directory name
-from MercAPI.views import RegisterUserView, CustomTokenObtainPairView, DriverViewSet, TruckViewSet, CompanyViewSet, TrailerViewSet, DriverTestViewSet, DriverHOSViewSet, DriverApplicationViewSet, MaintenanceCategoryViewSet, MaintenanceTypeViewSet, MaintenanceRecordViewSet, MaintenanceAttachmentViewSet, DriverDocumentViewSet, MaintenanceAttachmentUploadView, DriverDocumentUploadView, InspectionViewSet, InspectionItemViewSet, TripsViewSet, TripsManagementViewSet, TripInspectionViewSet
+from MercAPI.views import RegisterUserView, CustomTokenObtainPairView, DriverViewSet, TruckViewSet, CompanyViewSet, TrailerViewSet, DriverTestViewSet, DriverHOSViewSet, DriverApplicationViewSet, MaintenanceCategoryViewSet, MaintenanceTypeViewSet, MaintenanceRecordViewSet, MaintenanceAttachmentViewSet, DriverDocumentViewSet, MaintenanceAttachmentUploadView, DriverDocumentUploadView, InspectionViewSet, InspectionItemViewSet, TripsViewSet, TripsManagementViewSet, TripInspectionViewSet, QualifiedInspectorViewSet, AnnualInspectionViewSet, VehicleOperationStatusViewSet
 
 router = DefaultRouter()
 router.register(r'drivers', DriverViewSet, basename='driver')  # Register DriverViewSet
@@ -41,6 +41,10 @@ router.register(r'inspections', InspectionViewSet, basename='inspection')
 router.register(r'inspection-items', InspectionItemViewSet, basename='inspection-item')
 router.register(r'trips', TripsManagementViewSet, basename='trips')
 router.register(r'trip-inspections', TripInspectionViewSet, basename='trip-inspection')
+# CFR Compliance endpoints
+router.register(r'qualified-inspectors', QualifiedInspectorViewSet, basename='qualified-inspector')
+router.register(r'annual-inspections', AnnualInspectionViewSet, basename='annual-inspection')
+router.register(r'vehicle-operation-status', VehicleOperationStatusViewSet, basename='vehicle-operation-status')
 
 urlpatterns = [
     path('admin/', admin.site.urls),

@@ -9,7 +9,7 @@ from django.utils.html import strip_tags
 from datetime import datetime, timedelta
 from django.utils import timezone
 from urllib.parse import urlencode
-from .serializers import UserSerializer, DriverSerializer, TruckSerializer, CompanySerializer, TrailerSerializer, DriverTestSerializer, DriverHOSSerializer, DriverApplicationSerializer, MaintenanceCategorySerializer, MaintenanceTypeSerializer, MaintenanceRecordSerializer, MaintenanceAttachmentSerializer, DriverDocumentSerializer, InspectionSerializer, InspectionItemSerializer, TripsSerializer, TripInspectionSerializer, TripDocumentSerializer
+from .serializers import UserSerializer, DriverSerializer, TruckSerializer, CompanySerializer, TrailerSerializer, DriverTestSerializer, DriverHOSSerializer, DriverApplicationSerializer, MaintenanceCategorySerializer, MaintenanceTypeSerializer, MaintenanceRecordSerializer, MaintenanceAttachmentSerializer, DriverDocumentSerializer, InspectionSerializer, InspectionItemSerializer, TripsSerializer, TripInspectionSerializer, TripDocumentSerializer, QualifiedInspectorSerializer, AnnualInspectionSerializer, VehicleOperationStatusSerializer
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -20,7 +20,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework_simplejwt.views import TokenObtainPairView
-from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Tenant, UserProfile, Inspection, InspectionItem, Trips, InvitationToken, TripInspection, TripDocument, PasswordResetToken
+from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Tenant, UserProfile, Inspection, InspectionItem, Trips, InvitationToken, TripInspection, TripDocument, PasswordResetToken, QualifiedInspector, AnnualInspection, VehicleOperationStatus
 from rest_framework.serializers import ValidationError
 from rest_framework import serializers
 from django.core.files.storage import default_storage
@@ -3005,4 +3005,49 @@ def generate_recent_activity(trips, inspections, maintenance_records):
     activities.sort(key=lambda x: x['timestamp'], reverse=True)
     
     return activities[:15]  # Return top 15 most recent activities
+
+
+# CFR Compliance ViewSets
+
+class QualifiedInspectorViewSet(AdminMixin, CompanyFilterMixin, ModelViewSet):
+    """
+    CFR 396.19 - Inspector qualification tracking
+    """
+    serializer_class = QualifiedInspectorSerializer
+    
+    def get_queryset(self):
+        return QualifiedInspector.objects.filter(
+            company__in=self.request.user.profile.companies.all()
+        ).order_by('name')
+
+
+class AnnualInspectionViewSet(UserOrAboveMixin, CompanyFilterMixin, ModelViewSet):
+    """
+    CFR 396.17 - Annual vehicle inspection tracking
+    """
+    serializer_class = AnnualInspectionSerializer
+    
+    def get_queryset(self):
+        user_companies = self.request.user.profile.companies.all()
+        return AnnualInspection.objects.filter(
+            Q(truck__company__in=user_companies) | Q(trailer__company__in=user_companies)
+        ).order_by('-inspection_date')
+    
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
+
+
+class VehicleOperationStatusViewSet(UserOrAboveMixin, CompanyFilterMixin, ModelViewSet):
+    """
+    CFR 396.7 - Vehicle operation status tracking
+    """
+    serializer_class = VehicleOperationStatusSerializer
+    
+    def get_queryset(self):
+        user_companies = self.request.user.profile.companies.all()
+        return VehicleOperationStatus.objects.filter(
+            Q(truck__company__in=user_companies) | Q(trailer__company__in=user_companies)
+        ).order_by('-status_set_at')
 

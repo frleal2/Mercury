@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Inspection, InspectionItem, Trips, UserProfile, TripInspection, TripInspectionRepairCertification, TripDocument
+from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Inspection, InspectionItem, Trips, UserProfile, TripInspection, TripInspectionRepairCertification, TripDocument, QualifiedInspector, AnnualInspection, VehicleOperationStatus
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -195,6 +195,8 @@ class TripsSerializer(serializers.ModelSerializer):
     total_miles = serializers.SerializerMethodField()
     can_start = serializers.SerializerMethodField()
     can_complete = serializers.SerializerMethodField()
+    compliance_issues = serializers.SerializerMethodField()
+    dvir_reviewed_info = serializers.SerializerMethodField()
     
     # Frontend form fields (write-only for trip creation)
     planned_departure = serializers.CharField(write_only=True, required=False)  # Accept date string
@@ -218,6 +220,18 @@ class TripsSerializer(serializers.ModelSerializer):
     
     def get_can_complete(self, obj):
         return obj.can_complete_trip()
+    
+    def get_compliance_issues(self, obj):
+        return obj.get_compliance_issues()
+    
+    def get_dvir_reviewed_info(self, obj):
+        if obj.last_dvir_reviewed:
+            return {
+                'reviewed': True,
+                'reviewed_at': obj.last_dvir_reviewed_at,
+                'reviewed_by': obj.last_dvir_reviewed_by.get_full_name() if obj.last_dvir_reviewed_by else None
+            }
+        return {'reviewed': False, 'reviewed_at': None, 'reviewed_by': None}
     
     def create(self, validated_data):
         """
@@ -389,4 +403,105 @@ class TripDocumentSerializer(serializers.ModelSerializer):
     def get_file_url(self, obj):
         if obj.file:
             return obj.file.url
+        return None
+
+
+class QualifiedInspectorSerializer(serializers.ModelSerializer):
+    inspector_type_display = serializers.CharField(source='get_inspector_type_display', read_only=True)
+    company_name = serializers.CharField(source='company.name', read_only=True)
+    is_certification_valid = serializers.BooleanField(read_only=True)
+    
+    class Meta:
+        model = QualifiedInspector
+        fields = '__all__'
+        read_only_fields = ['created_at']
+
+
+class AnnualInspectionSerializer(serializers.ModelSerializer):
+    inspector_name = serializers.CharField(source='inspector.name', read_only=True)
+    inspector_certification = serializers.CharField(source='inspector.certification_number', read_only=True)
+    vehicle_identifier = serializers.CharField(read_only=True)
+    inspection_result_display = serializers.CharField(source='get_inspection_result_display', read_only=True)
+    is_current = serializers.BooleanField(read_only=True)
+    days_until_expiry = serializers.IntegerField(read_only=True)
+    truck_info = serializers.SerializerMethodField()
+    trailer_info = serializers.SerializerMethodField()
+    inspection_report_url = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = AnnualInspection
+        fields = '__all__'
+        read_only_fields = ['next_inspection_due', 'compliant_until', 'created_at', 'updated_at']
+    
+    def get_truck_info(self, obj):
+        if obj.truck:
+            return {
+                'unit_number': obj.truck.unit_number,
+                'license_plate': obj.truck.license_plate,
+                'vin': obj.truck.vin,
+                'make': obj.truck.make,
+                'model': obj.truck.model,
+                'year': obj.truck.year
+            }
+        return None
+    
+    def get_trailer_info(self, obj):
+        if obj.trailer:
+            return {
+                'unit_number': obj.trailer.unit_number,
+                'license_plate': obj.trailer.license_plate,
+                'trailer_type': obj.trailer.trailer_type,
+                'model': obj.trailer.model
+            }
+        return None
+    
+    def get_inspection_report_url(self, obj):
+        if obj.inspection_report_pdf:
+            return obj.inspection_report_pdf.url
+        return None
+
+
+class VehicleOperationStatusSerializer(serializers.ModelSerializer):
+    vehicle_identifier = serializers.CharField(read_only=True)
+    current_status_display = serializers.CharField(source='get_current_status_display', read_only=True)
+    status_set_by_name = serializers.CharField(source='status_set_by.get_full_name', read_only=True)
+    can_operate = serializers.BooleanField(read_only=True)
+    truck_info = serializers.SerializerMethodField()
+    trailer_info = serializers.SerializerMethodField()
+    related_inspection_info = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = VehicleOperationStatus
+        fields = '__all__'
+        read_only_fields = ['status_set_at', 'created_at', 'updated_at']
+    
+    def get_truck_info(self, obj):
+        if obj.truck:
+            return {
+                'unit_number': obj.truck.unit_number,
+                'license_plate': obj.truck.license_plate,
+                'vin': obj.truck.vin,
+                'make': obj.truck.make,
+                'model': obj.truck.model
+            }
+        return None
+    
+    def get_trailer_info(self, obj):
+        if obj.trailer:
+            return {
+                'unit_number': obj.trailer.unit_number,
+                'license_plate': obj.trailer.license_plate,
+                'trailer_type': obj.trailer.trailer_type,
+                'model': obj.trailer.model
+            }
+        return None
+    
+    def get_related_inspection_info(self, obj):
+        if obj.related_inspection:
+            return {
+                'inspection_type': obj.related_inspection.get_inspection_type_display(),
+                'inspection_date': obj.related_inspection.completed_at,
+                'trip_id': obj.related_inspection.trip.id,
+                'trip_number': obj.related_inspection.trip.trip_number
+            }
         return None

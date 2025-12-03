@@ -20,6 +20,7 @@ import ForgotPassword from './Pages/ForgotPassword';
 import ResetPassword from './Pages/ResetPassword';
 import LandingPage from './Pages/LandingPage';
 import Settings from './Pages/Settings';
+import VehicleCompliancePage from './Pages/VehicleCompliancePage';
 
 function AppContent() {
     const { session } = useSession();
@@ -62,6 +63,7 @@ function AppContent() {
                             <Route path="/Maintenance" element={<><Header /><Maintenance /></>} />
                             <Route path="/Recruitment" element={<><Header /><Recruitment /></>} />
                             <Route path="/UserManagement" element={<><Header /><UserManagement /></>} />
+                            <Route path="/VehicleCompliance" element={<><Header /><VehicleCompliancePage /></>} />
                             <Route path="/Settings" element={<><Header /><Settings /></>} />
                         </>
                     )}
