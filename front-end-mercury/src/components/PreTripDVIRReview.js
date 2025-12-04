@@ -71,10 +71,14 @@ function PreTripDVIRReview({ isOpen, onClose, trip, onReviewCompleted }) {
       setSubmitting(true);
       setError('');
 
+      const acknowledgmentText = lastDVIR 
+        ? `DVIR Reviewed - Trip #${lastDVIR.trip.trip_number} (${formatDate(lastDVIR.completed_at)}): ${acknowledgment}`
+        : `No Previous DVIR - New/First Trip: ${acknowledgment}`;
+
       const response = await axios.patch(`${BASE_URL}/api/Trips/${trip.id}/`, {
         last_dvir_reviewed: true,
         last_dvir_reviewed_at: new Date().toISOString(),
-        last_dvir_acknowledgment: acknowledgment
+        last_dvir_acknowledgment: acknowledgmentText
       }, {
         headers: { 'Authorization': `Bearer ${session.accessToken}` }
       });
@@ -126,7 +130,7 @@ function PreTripDVIRReview({ isOpen, onClose, trip, onReviewCompleted }) {
                 <Dialog.Title as="h3" className="text-lg font-medium leading-6 text-gray-900 mb-4">
                   <div className="flex items-center">
                     <DocumentTextIcon className="h-6 w-6 mr-2 text-blue-600" />
-                    <span>Pre-Trip DVIR Review - Trip #{trip.id}</span>
+                    <span>{lastDVIR ? `DVIR Review - Trip #${trip.id}` : `DVIR Check - Trip #${trip.id}`}</span>
                   </div>
                 </Dialog.Title>
 
@@ -209,14 +213,16 @@ function PreTripDVIRReview({ isOpen, onClose, trip, onReviewCompleted }) {
                         )}
                       </div>
                     ) : (
-                      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                         <div className="flex items-start">
-                          <ExclamationTriangleIcon className="h-5 w-5 text-yellow-600 mt-0.5 mr-2" />
+                          <InformationCircleIcon className="h-5 w-5 text-blue-600 mt-0.5 mr-2" />
                           <div>
-                            <h4 className="font-semibold text-yellow-900">No Previous DVIR Found</h4>
-                            <p className="text-sm text-yellow-800 mt-1">
-                              No previous Driver Vehicle Inspection Report found for this vehicle. 
-                              You may proceed with acknowledgment that you have inspected the vehicle.
+                            <h4 className="font-semibold text-blue-900">No Previous DVIR Found</h4>
+                            <p className="text-sm text-blue-800 mt-1">
+                              No previous Driver Vehicle Inspection Report found for this vehicle (new vehicle or first trip).
+                            </p>
+                            <p className="text-sm text-blue-800 mt-2 font-medium">
+                              Per CFR 396.13: Acknowledge that no defects were reported or that all previously reported defects have been certified as repaired.
                             </p>
                           </div>
                         </div>
@@ -232,13 +238,19 @@ function PreTripDVIRReview({ isOpen, onClose, trip, onReviewCompleted }) {
                         id="acknowledgment"
                         rows={3}
                         className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        placeholder="I have reviewed the above information and certify that the vehicle is safe to operate..."
+                        placeholder={lastDVIR 
+                          ? "I have reviewed the above DVIR and certify that all defects have been addressed and the vehicle is safe to operate..."
+                          : "I acknowledge that no previous DVIR exists for this vehicle. I certify that the vehicle is safe to operate and will conduct my pre-trip inspection..."
+                        }
                         value={acknowledgment}
                         onChange={(e) => setAcknowledgment(e.target.value)}
                         required
                       />
                       <p className="text-xs text-gray-500 mt-1">
-                        Required: Acknowledge that you have reviewed the last DVIR and the vehicle is safe to operate.
+                        {lastDVIR 
+                          ? "Required: Acknowledge that you have reviewed the last DVIR and the vehicle is safe to operate."
+                          : "Required: Acknowledge that no previous DVIR exists and the vehicle is safe to operate per CFR 396.13."
+                        }
                       </p>
                     </div>
                   </div>
@@ -269,7 +281,7 @@ function PreTripDVIRReview({ isOpen, onClose, trip, onReviewCompleted }) {
                     ) : (
                       <>
                         <CheckCircleIcon className="h-4 w-4 mr-2 inline" />
-                        Complete DVIR Review
+                        {lastDVIR ? 'Complete DVIR Review' : 'Acknowledge & Continue'}
                       </>
                     )}
                   </button>

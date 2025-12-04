@@ -14,6 +14,7 @@ import {
   StopIcon,
   CheckCircleIcon,
   ClipboardDocumentCheckIcon,
+  DocumentTextIcon,
   ArrowRightIcon
 } from '@heroicons/react/24/outline';
 
@@ -102,9 +103,8 @@ function DriverDashboard() {
 
   const handleDVIRReviewCompleted = () => {
     setDvirReviewModalOpen(false);
-    // After DVIR review, show pre-trip inspection modal
-    setInspectionType('pre_trip');
-    setInspectionModalOpen(true);
+    // Refresh trips to update the button state (DVIR reviewed = true)
+    fetchActiveTrips();
   };
 
   const handleInspectionCompleted = (inspectionData) => {
@@ -318,22 +318,32 @@ function DriverDashboard() {
                           </button>
                         )}
                         
-                        {/* Start Trip - Now includes DVIR Review */}
-                        {trip.can_start ? (
+                        {/* DVIR Review or Direct Pre-Inspection */}
+                        {trip.status === 'scheduled' && !trip.last_dvir_reviewed ? (
                           <button
                             onClick={() => handleStartTripClick(trip)}
+                            className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-3 sm:py-2 border border-blue-300 rounded-lg text-sm font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 touch-manipulation"
+                          >
+                            <DocumentTextIcon className="h-4 w-4 mr-2" />
+                            Review DVIR
+                          </button>
+                        ) : trip.status === 'scheduled' && trip.last_dvir_reviewed && !trip.pre_trip_inspection_completed ? (
+                          <button
+                            onClick={() => openInspectionModal(trip, 'pre_trip')}
+                            className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-3 sm:py-2 border border-green-300 rounded-lg text-sm font-medium text-green-700 bg-green-50 hover:bg-green-100 touch-manipulation"
+                          >
+                            <ClipboardDocumentCheckIcon className="h-4 w-4 mr-2" />
+                            Start Pre-Inspection
+                          </button>
+                        ) : trip.can_start && trip.pre_trip_inspection_completed ? (
+                          <button
+                            onClick={() => startTrip(trip.id)}
                             className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-3 sm:py-2 border border-green-300 rounded-lg text-sm font-medium text-green-700 bg-green-50 hover:bg-green-100 touch-manipulation"
                           >
                             <PlayIcon className="h-4 w-4 mr-2" />
                             Start Trip
                           </button>
-                        ) : (
-                          <div className="text-xs text-gray-600 p-2 bg-gray-50 rounded">
-                            {!trip.last_dvir_reviewed && "Need DVIR Review"}
-                            {trip.status !== 'scheduled' && "Trip not scheduled"}
-                            {!trip.pre_trip_inspection_completed && "Need pre-trip inspection"}
-                          </div>
-                        )}
+                        ) : null}
                         
                         {/* Post-trip Inspection */}
                         {trip.status === 'in_progress' && !trip.post_trip_inspection_completed && (
@@ -381,6 +391,15 @@ function DriverDashboard() {
                         }`}>
                           DVIR Review {trip.last_dvir_reviewed ? '✓' : '○'}
                         </span>
+                        
+                        {/* Workflow step indicator */}
+                        {trip.status === 'scheduled' && (
+                          <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-700">
+                            {!trip.last_dvir_reviewed ? 'Step 1: Review DVIR' :
+                             !trip.pre_trip_inspection_completed ? 'Step 2: Pre-Inspection' :
+                             'Ready to Start'}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
