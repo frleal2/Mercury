@@ -319,7 +319,7 @@ function DriverDashboard() {
                         )}
                         
                         {/* Start Trip - Now includes DVIR Review */}
-                        {trip.can_start && (
+                        {trip.can_start ? (
                           <button
                             onClick={() => handleStartTripClick(trip)}
                             className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-3 sm:py-2 border border-green-300 rounded-lg text-sm font-medium text-green-700 bg-green-50 hover:bg-green-100 touch-manipulation"
@@ -327,6 +327,12 @@ function DriverDashboard() {
                             <PlayIcon className="h-4 w-4 mr-2" />
                             Start Trip
                           </button>
+                        ) : (
+                          <div className="text-xs text-gray-600 p-2 bg-gray-50 rounded">
+                            {!trip.last_dvir_reviewed && "Need DVIR Review"}
+                            {trip.status !== 'scheduled' && "Trip not scheduled"}
+                            {!trip.pre_trip_inspection_completed && "Need pre-trip inspection"}
+                          </div>
                         )}
                         
                         {/* Post-trip Inspection */}
@@ -367,6 +373,13 @@ function DriverDashboard() {
                             : 'bg-gray-100 text-gray-800'
                         }`}>
                           Post-trip {trip.post_trip_inspection_completed ? '✓' : '○'}
+                        </span>
+                        <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium ${
+                          trip.last_dvir_reviewed 
+                            ? 'bg-blue-100 text-blue-800' 
+                            : 'bg-yellow-100 text-yellow-800'
+                        }`}>
+                          DVIR Review {trip.last_dvir_reviewed ? '✓' : '○'}
                         </span>
                       </div>
                     </div>

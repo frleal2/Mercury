@@ -31,6 +31,9 @@ function PreTripDVIRReview({ isOpen, onClose, trip, onReviewCompleted }) {
     try {
       setLoading(true);
       
+      console.log('Fetching last DVIR for trip:', trip);
+      console.log('Truck ID:', trip.truck);
+      
       // Get the last post-trip inspection for this truck
       const response = await axios.get(`${BASE_URL}/api/TripInspection/`, {
         headers: { 'Authorization': `Bearer ${session.accessToken}` },
@@ -41,6 +44,8 @@ function PreTripDVIRReview({ isOpen, onClose, trip, onReviewCompleted }) {
           ordering: '-completed_at'
         }
       });
+      
+      console.log('DVIR API response:', response.data);
 
       if (response.data.results && response.data.results.length > 0) {
         setLastDVIR(response.data.results[0]);
@@ -49,7 +54,8 @@ function PreTripDVIRReview({ isOpen, onClose, trip, onReviewCompleted }) {
       }
     } catch (error) {
       console.error('Error fetching last DVIR:', error);
-      setError('Failed to load last DVIR');
+      console.error('Error response:', error.response);
+      setError(`Failed to load last DVIR: ${error.response?.data?.detail || error.message}`);
     } finally {
       setLoading(false);
     }

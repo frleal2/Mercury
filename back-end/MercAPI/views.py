@@ -2122,10 +2122,23 @@ class TripInspectionViewSet(UserOrAboveMixin, CompanyFilterMixin, ModelViewSet):
         user_role = self.request.user.profile.role
         
         if user_role == 'driver':
-            # Drivers only see inspections for their trips
-            queryset = queryset.filter(
-                trip__driver__user_account=self.request.user
-            )
+            # For DVIR review purposes (CFR 396.13), drivers need to see last post-trip inspection
+            # for any vehicle they're about to operate, but only within their company/tenant
+            truck_param = self.request.query_params.get('truck', None)
+            inspection_type_param = self.request.query_params.get('inspection_type', None)
+            
+            if truck_param and inspection_type_param == 'post_trip':
+                # Allow drivers to see last DVIR for vehicle within their assigned companies
+                user_companies = self.request.user.profile.companies.all()
+                queryset = queryset.filter(
+                    trip__truck=truck_param,
+                    trip__company__in=user_companies  # Tenant-aware filtering
+                )
+            else:
+                # For all other cases, drivers only see inspections for their trips
+                queryset = queryset.filter(
+                    trip__driver__user_account=self.request.user
+                )
         # For user/admin roles, CompanyFilterMixin already handles company filtering
         
         # Filter by specific trip if requested
