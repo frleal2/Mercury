@@ -29,6 +29,7 @@ function Maintenance() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [vehicleTypeFilter, setVehicleTypeFilter] = useState('all');
   const [priorityFilter, setPriorityFilter] = useState('all');
+  const [sourceFilter, setSourceFilter] = useState('all');
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [isAddRecordOpen, setIsAddRecordOpen] = useState(false);
   const [isEditRecordOpen, setIsEditRecordOpen] = useState(false);
@@ -87,8 +88,11 @@ function Maintenance() {
     const matchesStatus = statusFilter === 'all' || record.status === statusFilter;
     const matchesVehicleType = vehicleTypeFilter === 'all' || record.vehicle_type === vehicleTypeFilter;
     const matchesPriority = priorityFilter === 'all' || record.priority === priorityFilter;
+    const matchesSource = sourceFilter === 'all' || 
+      (sourceFilter === 'dvir' && record.origin && record.origin.includes('DVIR')) ||
+      (sourceFilter === 'manual' && (!record.origin || !record.origin.includes('DVIR')));
     
-    return matchesSearch && matchesStatus && matchesVehicleType && matchesPriority;
+    return matchesSearch && matchesStatus && matchesVehicleType && matchesPriority && matchesSource;
   });
 
   const getStatusBadge = (status) => {
@@ -219,6 +223,16 @@ function Maintenance() {
             <option value="medium">Medium</option>
             <option value="low">Low</option>
           </select>
+
+          <select
+            value={sourceFilter}
+            onChange={(e) => setSourceFilter(e.target.value)}
+            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="all">All Sources</option>
+            <option value="dvir">DVIR Defects</option>
+            <option value="manual">Manual Entry</option>
+          </select>
         </div>
       </div>
 
@@ -276,8 +290,16 @@ function Maintenance() {
                             </div>
                           </div>
                           <div className="ml-4">
-                            <div className="text-sm font-medium text-gray-900">
-                              WO-{record.work_order_number}
+                            <div className="flex items-center space-x-2">
+                              <span className="text-sm font-medium text-gray-900">
+                                WO-{record.work_order_number}
+                              </span>
+                              {record.origin && record.origin.includes('DVIR') && (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800">
+                                  <DocumentArrowUpIcon className="h-3 w-3 mr-1" />
+                                  DVIR
+                                </span>
+                              )}
                             </div>
                             <div className="text-sm text-gray-500">
                               {record.service_provider || 'Internal'}

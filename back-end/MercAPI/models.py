@@ -470,6 +470,12 @@ class Trips(models.Model):
     pre_trip_inspection_completed = models.BooleanField(default=False)
     post_trip_inspection_completed = models.BooleanField(default=False)
     
+    # Pre-trip DVIR review (CFR 396.13 - driver must review last DVIR)
+    last_dvir_reviewed = models.BooleanField(default=False, help_text="Driver reviewed last post-trip DVIR before starting trip")
+    last_dvir_reviewed_at = models.DateTimeField(null=True, blank=True)
+    last_dvir_reviewed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='dvir_reviews')
+    last_dvir_acknowledgment = models.TextField(null=True, blank=True, help_text="Driver acknowledgment text")
+    
     # Mileage tracking
     mileage_start = models.IntegerField(null=True, blank=True)
     mileage_end = models.IntegerField(null=True, blank=True)
@@ -510,7 +516,16 @@ class Trips(models.Model):
         if self.status != 'scheduled':
             return False
         
-        # CFR 396.11 - Pre-trip inspection required
+        # CFR 396.13 - Driver must review last DVIR before starting trip
+        if not self.last_dvir_reviewed:
+            return False
+        
+        # Check if vehicle has open safety defects from last DVIR
+        if self.truck and hasattr(self.truck, 'operation_status'):
+            if self.truck.operation_status.current_status == 'out_of_service':
+                return False
+        
+        # CFR 396.11 - Pre-trip inspection required  
         if not self.pre_trip_inspection_completed:
             return False
         
@@ -547,6 +562,14 @@ class Trips(models.Model):
         if not self.pre_trip_inspection_completed:
             issues.append("Pre-trip inspection not completed (CFR 396.11)")
         
+        # CFR 396.13 - Check if driver reviewed last DVIR
+        if not self.last_dvir_reviewed:
+            issues.append("Driver must review last post-trip DVIR before starting trip (CFR 396.13)")
+        
+        # Check if vehicle has unresolved safety defects
+        if self.has_safety_defects():
+            issues.append("Vehicle has unresolved safety defects from last DVIR - repairs required")
+        
         # Check vehicle operation status
         if hasattr(self.truck, 'operation_status') and not self.truck.operation_status.can_operate():
             issues.append(f"Truck {self.truck.unit_number} is not safe to operate (CFR 396.7)")
@@ -566,6 +589,35 @@ class Trips(models.Model):
                 issues.append(f"Trailer {self.trailer.license_plate} annual inspection expired (CFR 396.17)")
         
         return issues
+    
+    def get_last_dvir_for_truck(self):
+        """Get the last post-trip DVIR for this truck"""
+        if not self.truck:
+            return None
+        
+        # Find the last completed trip with a post-trip inspection for this truck
+        last_trip = Trips.objects.filter(
+            truck=self.truck,
+            status='completed',
+            post_trip_inspection_completed=True
+        ).order_by('-actual_end_date').first()
+        
+        if last_trip and hasattr(last_trip, 'post_trip_inspections'):
+            return last_trip.post_trip_inspections.first()
+        return None
+    
+    def has_safety_defects(self):
+        """Check if the last DVIR has unresolved safety defects"""
+        last_dvir = self.get_last_dvir_for_truck()
+        if not last_dvir:
+            return False
+        
+        # Check if any defects marked as safety-related are unresolved
+        safety_defects = last_dvir.repair_certifications.filter(
+            affects_safety=True,
+            repair_completed=False
+        )
+        return safety_defects.exists()
     
     def get_origin_display(self):
         """Get display name for origin"""
@@ -1024,9 +1076,37 @@ class TripInspectionRepairCertification(models.Model):
     """
     CFR 396.11 compliance - Certification of repairs for inspection defects
     """
+    # CFR 396.11 Defect Categories - Per §396.11, drivers must inspect these items
+    CFR_DEFECT_TYPES = [
+        ('service_brakes', 'Service Brakes (CFR 396.11(a)(1)(i))'),
+        ('parking_brake', 'Parking Brake (CFR 396.11(a)(1)(ii))'),
+        ('steering_mechanism', 'Steering Mechanism (CFR 396.11(a)(1)(iii))'),
+        ('lighting_devices', 'Lighting Devices & Reflectors (CFR 396.11(a)(1)(iv))'),
+        ('tires', 'Tires (CFR 396.11(a)(1)(v))'),
+        ('horn', 'Horn (CFR 396.11(a)(1)(vi))'),
+        ('windshield_wipers', 'Windshield Wipers (CFR 396.11(a)(1)(vii))'),
+        ('rear_vision_mirrors', 'Rear Vision Mirrors (CFR 396.11(a)(1)(viii))'),
+        ('coupling_devices', 'Coupling Devices (CFR 396.11(a)(1)(ix))'),
+        ('wheels_and_rims', 'Wheels and Rims (CFR 396.11(a)(1)(x))'),
+        ('emergency_equipment', 'Emergency Equipment (CFR 396.11(a)(1)(xi))'),
+        ('other', 'Other Safety-Related Defect')
+    ]
+    
+    # CFR 396.7 Prohibited Operation Categories
+    OPERATION_IMPACT_CHOICES = [
+        ('safe', 'Safe to Operate - No impact on safety'),
+        ('conditional', 'Conditional Operation - Monitor closely'),
+        ('prohibited', 'Operation Prohibited - CFR 396.7 violation'),
+        ('out_of_service', 'Out of Service - Immediate repair required')
+    ]
+    
     inspection = models.ForeignKey(TripInspection, on_delete=models.CASCADE, related_name='repair_certifications')
+    defect_type = models.CharField(max_length=25, choices=CFR_DEFECT_TYPES, default='other', help_text="Type of defect per CFR 396.11")
     defect_description = models.TextField(help_text="Description of the defect found during inspection")
+    operation_impact = models.CharField(max_length=20, choices=OPERATION_IMPACT_CHOICES, default='prohibited', help_text="Impact on vehicle operation per CFR 396.7")
+    affects_safety = models.BooleanField(default=True, help_text="Does this defect affect vehicle safety?")
     repair_required = models.BooleanField(help_text="Is repair required for safe operation?")
+    repair_completed = models.BooleanField(default=False, help_text="Has the repair been completed?")
     repair_description = models.TextField(blank=True, null=True, help_text="Description of repairs performed")
     repair_unnecessary_reason = models.TextField(blank=True, null=True, help_text="Reason why repair is unnecessary")
     
@@ -1034,6 +1114,115 @@ class TripInspectionRepairCertification(models.Model):
     certified_by = models.ForeignKey(User, on_delete=models.CASCADE, help_text="Person certifying the repair")
     certified_at = models.DateTimeField(auto_now_add=True)
     vehicle_safe_to_operate = models.BooleanField(help_text="Vehicle is safe to operate before next use")
+    
+    # Link to maintenance system
+    maintenance_record = models.ForeignKey('MaintenanceRecord', on_delete=models.SET_NULL, null=True, blank=True, help_text="Associated maintenance record")
+    
+    class Meta:
+        verbose_name = "Trip Inspection Repair Certification"
+        verbose_name_plural = "Trip Inspection Repair Certifications"
+        ordering = ['-certified_at']
+    
+    def __str__(self):
+        return f"Repair Cert: {self.defect_type} - {self.inspection.trip.truck}"
+    
+    def save(self, *args, **kwargs):
+        # Auto-create maintenance record if repair is required and not already linked
+        if self.repair_required and not self.maintenance_record_id:
+            self.create_maintenance_record()
+        
+        # Update vehicle operation status based on defect impact
+        self.update_vehicle_status()
+        
+        super().save(*args, **kwargs)
+    
+    def create_maintenance_record(self):
+        """Create a maintenance record for this defect"""
+        try:
+            # Get or create maintenance category for DVIR defects
+            category, created = MaintenanceCategory.objects.get_or_create(
+                name="DVIR Safety Defects",
+                defaults={'description': 'Safety defects found during Driver Vehicle Inspection Reports (DVIR)'}
+            )
+            
+            # Get or create maintenance type based on defect type
+            type_name = f"DVIR - {dict(self.CFR_DEFECT_TYPES)[self.defect_type]}"
+            maintenance_type, created = MaintenanceType.objects.get_or_create(
+                name=type_name,
+                defaults={'description': f'Safety defect in {self.get_defect_type_display()}'}
+            )
+            
+            # Create maintenance record
+            maintenance_record = MaintenanceRecord.objects.create(
+                truck=self.inspection.trip.truck,
+                trailer=self.inspection.trip.trailer if self.inspection.trip.trailer else None,
+                category=category,
+                maintenance_type=maintenance_type,
+                description=f"DVIR Safety Defect: {self.defect_description}",
+                service_date=self.certified_at.date(),
+                cost=0.00,  # Will be updated when actual repair is done
+                odometer_reading=self.inspection.trip.mileage_start or 0,
+                performed_by="DVIR System",
+                notes=f"Defect found during post-trip DVIR. Operation Impact: {self.get_operation_impact_display()}",
+                origin=f"DVIR Post-Trip Inspection - Trip #{self.inspection.trip.trip_number}"
+            )
+            
+            # Link this certification to the maintenance record
+            self.maintenance_record = maintenance_record
+            
+        except Exception as e:
+            # Log error but don't fail the save
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Failed to create maintenance record for repair certification {self.id}: {e}")
+    
+    def update_vehicle_status(self):
+        """Update vehicle operation status based on defect impact"""
+        try:
+            # Determine the most restrictive status for this vehicle
+            if self.inspection.trip.truck:
+                # Get all active defects for this truck
+                active_defects = TripInspectionRepairCertification.objects.filter(
+                    inspection__trip__truck=self.inspection.trip.truck,
+                    repair_required=True,
+                    repair_completed=False
+                )
+                
+                # Determine most restrictive status
+                statuses = [defect.operation_impact for defect in active_defects]
+                if 'out_of_service' in statuses:
+                    new_status = 'out_of_service'
+                elif 'prohibited' in statuses:
+                    new_status = 'prohibited'
+                elif 'conditional' in statuses:
+                    new_status = 'conditional'
+                else:
+                    new_status = 'safe'
+                
+                # Update vehicle status
+                vehicle_status, created = VehicleOperationStatus.objects.get_or_create(
+                    truck=self.inspection.trip.truck,
+                    vehicle_type='truck',
+                    defaults={
+                        'current_status': new_status,
+                        'status_set_by': self.certified_by,
+                        'status_reason': f"DVIR defect: {self.defect_description}",
+                        'related_inspection': self.inspection
+                    }
+                )
+                
+                if not created:
+                    vehicle_status.current_status = new_status
+                    vehicle_status.status_set_by = self.certified_by
+                    vehicle_status.status_reason = f"DVIR defect: {self.defect_description}"
+                    vehicle_status.related_inspection = self.inspection
+                    vehicle_status.save()
+                    
+        except Exception as e:
+            # Log error but don't fail the save
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Failed to update vehicle status for repair certification {self.id}: {e}")
     
     # CFR 396.11 requires 3-month retention
     created_at = models.DateTimeField(auto_now_add=True)

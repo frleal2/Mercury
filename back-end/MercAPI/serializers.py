@@ -213,6 +213,7 @@ class TripsSerializer(serializers.ModelSerializer):
             'start_location', 'end_location', 'miles_driven', 'notes',
             'scheduled_start_date', 'scheduled_end_date', 'actual_start_date', 'actual_end_date',
             'status', 'pre_trip_inspection_completed', 'post_trip_inspection_completed',
+            'last_dvir_reviewed', 'last_dvir_reviewed_at', 'last_dvir_reviewed_by', 'last_dvir_acknowledgment',
             'mileage_start', 'mileage_end', 'created_by', 'created_at', 'updated_at',
             # SerializerMethodFields (read-only)
             'driver_name', 'truck_number', 'trailer_number', 'company_name', 'status_display',
@@ -381,8 +382,13 @@ class TripInspectionRepairCertificationSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = TripInspectionRepairCertification
-        fields = '__all__'
-        read_only_fields = ['certified_at', 'created_at']
+        fields = [
+            'id', 'inspection', 'defect_description', 'affects_safety', 
+            'repair_completed', 'repair_description', 'certified_by', 
+            'certified_at', 'created_at', 'inspection_details', 
+            'certified_by_name', 'defect_type', 'operation_impact', 'maintenance_record'
+        ]
+        read_only_fields = ['certified_at', 'created_at', 'maintenance_record']
     
     def get_inspection_details(self, obj):
         return {

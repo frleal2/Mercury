@@ -4,6 +4,8 @@ import { useSession } from '../providers/SessionProvider';
 import BASE_URL from '../config';
 import PreTripInspection from '../components/PreTripInspection';
 import PostTripInspection from '../components/PostTripInspection';
+import PreTripDVIRReview from '../components/PreTripDVIRReview';
+import RepairCertificationModal from '../components/RepairCertificationModal';
 import { 
   TruckIcon,
   ClockIcon,
@@ -23,6 +25,9 @@ function DriverDashboard() {
   const [selectedTrip, setSelectedTrip] = useState(null);
   const [inspectionModalOpen, setInspectionModalOpen] = useState(false);
   const [inspectionType, setInspectionType] = useState(null); // 'pre_trip' or 'post_trip'
+  const [dvirReviewModalOpen, setDvirReviewModalOpen] = useState(false);
+  const [repairCertificationModalOpen, setRepairCertificationModalOpen] = useState(false);
+  const [completedInspection, setCompletedInspection] = useState(null);
 
   useEffect(() => {
     fetchActiveTrips();
@@ -47,6 +52,12 @@ function DriverDashboard() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleStartTripClick = (trip) => {
+    // First step: Show DVIR Review modal
+    setSelectedTrip(trip);
+    setDvirReviewModalOpen(true);
   };
 
   const startTrip = async (tripId) => {
@@ -87,6 +98,56 @@ function DriverDashboard() {
     setSelectedTrip(trip);
     setInspectionType(type);
     setInspectionModalOpen(true);
+  };
+
+  const handleDVIRReviewCompleted = () => {
+    setDvirReviewModalOpen(false);
+    // After DVIR review, show pre-trip inspection modal
+    setInspectionType('pre_trip');
+    setInspectionModalOpen(true);
+  };
+
+  const handleInspectionCompleted = (inspectionData) => {
+    setInspectionModalOpen(false);
+    
+    if (inspectionType === 'pre_trip') {
+      // After pre-trip inspection, start the trip
+      startTrip(selectedTrip.id);
+    } else if (inspectionType === 'post_trip') {
+      // Check if defects were found
+      setCompletedInspection(inspectionData);
+      const hasDefects = inspectionData.overall_status !== 'satisfactory' || inspectionData.issues_found;
+      
+      if (hasDefects) {
+        // Show repair certification modal for defects
+        setRepairCertificationModalOpen(true);
+      } else {
+        // No defects, complete the trip
+        completeTrip(selectedTrip.id);
+      }
+    }
+  };
+
+  const handleRepairCertificationCompleted = () => {
+    setRepairCertificationModalOpen(false);
+    // Complete the trip after repair certification
+    completeTrip(selectedTrip.id);
+  };
+
+  const closeDVIRModal = () => {
+    setDvirReviewModalOpen(false);
+    setSelectedTrip(null);
+  };
+
+  const closeInspectionModal = () => {
+    setInspectionModalOpen(false);
+    setSelectedTrip(null);
+    setInspectionType(null);
+  };
+
+  const closeRepairCertificationModal = () => {
+    setRepairCertificationModalOpen(false);
+    setCompletedInspection(null);
   };
 
   const closeInspectionModal = () => {
@@ -263,10 +324,10 @@ function DriverDashboard() {
                           </button>
                         )}
                         
-                        {/* Start Trip */}
+                        {/* Start Trip - Now includes DVIR Review */}
                         {trip.can_start && (
                           <button
-                            onClick={() => startTrip(trip.id)}
+                            onClick={() => handleStartTripClick(trip)}
                             className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-3 sm:py-2 border border-green-300 rounded-lg text-sm font-medium text-green-700 bg-green-50 hover:bg-green-100 touch-manipulation"
                           >
                             <PlayIcon className="h-4 w-4 mr-2" />
@@ -329,7 +390,7 @@ function DriverDashboard() {
           isOpen={inspectionModalOpen}
           onClose={closeInspectionModal}
           tripId={selectedTrip.id}
-          onInspectionComplete={handleInspectionComplete}
+          onInspectionComplete={handleInspectionCompleted}
         />
       )}
 
@@ -339,7 +400,27 @@ function DriverDashboard() {
           isOpen={inspectionModalOpen}
           onClose={closeInspectionModal}
           tripId={selectedTrip.id}
-          onInspectionComplete={handleInspectionComplete}
+          onInspectionComplete={handleInspectionCompleted}
+        />
+      )}
+
+      {/* Pre-Trip DVIR Review Modal */}
+      {dvirReviewModalOpen && selectedTrip && (
+        <PreTripDVIRReview
+          isOpen={dvirReviewModalOpen}
+          onClose={closeDVIRModal}
+          trip={selectedTrip}
+          onReviewCompleted={handleDVIRReviewCompleted}
+        />
+      )}
+
+      {/* Repair Certification Modal */}
+      {repairCertificationModalOpen && completedInspection && (
+        <RepairCertificationModal
+          isOpen={repairCertificationModalOpen}
+          onClose={closeRepairCertificationModal}
+          inspection={completedInspection}
+          onRepairCompleted={handleRepairCertificationCompleted}
         />
       )}
     </div>
