@@ -2115,11 +2115,15 @@ def driver_active_trips(request):
                 status=status.HTTP_403_FORBIDDEN
             )
         
-        # Get driver's active trips
+        # Get driver's active trips (including failed inspections that need attention)
         active_trips = Trips.objects.filter(
             driver__user_account=request.user,
-            status__in=['scheduled', 'in_progress']
+            status__in=['scheduled', 'in_progress', 'failed_inspection']
         ).order_by('-scheduled_start_date', '-start_time')
+        
+        print(f"DEBUG: driver_active_trips returning {active_trips.count()} trips")
+        for trip in active_trips:
+            print(f"DEBUG: Trip {trip.id} - status: {trip.status}")
         
         serializer = TripsSerializer(active_trips, many=True)
         return Response({
