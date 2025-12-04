@@ -389,32 +389,281 @@ class DriverApplication(models.Model):
         return f"DriverApplication {self.id} - {self.first_name} {self.last_name}"
 
 class Inspection(models.Model):
+    """
+    Unified inspection model for all types of vehicle inspections.
+    Consolidates trip inspections, annual inspections, and other inspection types.
+    CFR 396.11, 396.13, and 396.17 compliant.
+    """
+    
     inspection_id = models.AutoField(primary_key=True)
-    truck = models.ForeignKey(Truck, on_delete=models.CASCADE, related_name="inspections")
-    driver = models.ForeignKey(Driver, on_delete=models.CASCADE, related_name="inspections")
-    inspection_type = models.CharField(
-        max_length=20,
-        choices=[
-            ('pre-trip', 'Pre-trip'),
-            ('post-trip', 'Post-trip'),
-            ('annual', 'Annual'),
-        ]
-    )
-    inspection_date = models.DateTimeField(default=datetime.now)
-    defects_found = models.BooleanField(default=False)
+    
+    # Flexible relationships - inspection can be associated with different contexts
+    trip = models.ForeignKey('Trips', on_delete=models.CASCADE, null=True, blank=True, related_name='inspections', help_text="Trip context for pre/post-trip inspections")
+    truck = models.ForeignKey(Truck, on_delete=models.CASCADE, null=True, blank=True, related_name="inspections", help_text="Truck being inspected")
+    trailer = models.ForeignKey(Trailer, on_delete=models.CASCADE, null=True, blank=True, related_name="inspections", help_text="Trailer being inspected")
+    driver = models.ForeignKey(Driver, on_delete=models.CASCADE, null=True, blank=True, related_name="inspections", help_text="Driver performing inspection")
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name="inspections", null=True, blank=True)
+    
+    # Inspection type and metadata
+    INSPECTION_TYPE_CHOICES = [
+        ('pre_trip', 'Pre-Trip Inspection'),
+        ('post_trip', 'Post-Trip Inspection'),
+        ('annual', 'Annual DOT Inspection (CFR 396.17)'),
+        ('dot_roadside', 'DOT Roadside Inspection'),
+        ('maintenance', 'Maintenance Inspection'),
+        ('quarterly', 'Quarterly Safety Inspection'),
+    ]
+    
+    inspection_type = models.CharField(max_length=20, choices=INSPECTION_TYPE_CHOICES, help_text="Type of inspection being performed")
+    
+    # Inspection result choices
+    INSPECTION_RESULT_CHOICES = [
+        ('pass', 'Pass'),
+        ('fail', 'Fail'),
+        ('na', 'Not Applicable'),
+    ]
+    
+    # Vehicle checks - CFR 396.11 Compliant
+    # Required by CFR 396.11(a)(1)(i-xi)
+    service_brakes = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='fail', help_text="Service brakes including trailer brake connections")
+    parking_brake = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='fail', help_text="Parking brake operational")
+    steering_mechanism = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='fail', help_text="Steering mechanism responsive")
+    lighting_devices = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='fail', help_text="Lighting devices and reflectors")
+    tires_condition = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='fail', help_text="Tires - proper pressure, no damage")
+    horn = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='fail', help_text="Horn functional")
+    windshield_wipers = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='fail', help_text="Windshield wipers operational")
+    rear_vision_mirrors = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='fail', help_text="Rear vision mirrors properly adjusted")
+    coupling_devices = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='fail', help_text="Coupling devices secure")
+    wheels_and_rims = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='fail', help_text="Wheels and rims - no cracks or damage")
+    emergency_equipment = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='fail', help_text="Emergency equipment present and functional")
+    
+    # Additional vehicle safety checks
+    vehicle_exterior_condition = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='fail', help_text="Overall vehicle exterior condition")
+    engine_fluids_ok = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='fail', help_text="Engine oil, coolant, brake fluid levels")
+    
+    # Legacy field support for backward compatibility
+    lights_working = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, null=True, blank=True, help_text="Legacy field for lights (use lighting_devices instead)")
+    brakes_working = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, null=True, blank=True, help_text="Legacy field for brakes (use service_brakes instead)")
+    
+    # Trailer-specific checks (when applicable)
+    trailer_attached_properly = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, null=True, blank=True, help_text="Trailer attachment secure")
+    trailer_lights_working = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, null=True, blank=True, help_text="Trailer lights operational")
+    cargo_secured = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, null=True, blank=True, help_text="Cargo properly secured")
+    
+    # Trip completion fields (for post-trip inspections)
+    trip_completed_successfully = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, null=True, blank=True, help_text="Trip completed without issues")
+    vehicle_safe_to_operate = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='fail', help_text="Vehicle safe for continued operation")
+    
+    # Maintenance requirements
+    maintenance_required = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='fail', help_text="Maintenance needed before next use")
+    maintenance_description = models.TextField(blank=True, null=True, help_text="Description of required maintenance")
+    
+    # Defects and issues
+    defects_found = models.BooleanField(default=False, help_text="Were any defects identified during inspection?")
+    defects_description = models.TextField(blank=True, null=True, help_text="Detailed description of defects found")
+    issues_found = models.TextField(blank=True, null=True, help_text="Issues identified during inspection")
+    
+    # Inspection metadata
+    completed_at = models.DateTimeField(default=datetime.now, help_text="When inspection was completed")
+    completed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, help_text="User who completed the inspection")
+    inspection_notes = models.TextField(blank=True, null=True, help_text="Additional inspection notes")
+    
+    # Legacy compatibility
+    inspection_date = models.DateTimeField(default=datetime.now, help_text="Legacy field - use completed_at instead")
     overall_status = models.CharField(
         max_length=10,
         choices=[
             ('pass', 'Pass'),
             ('fail', 'Fail'),
-        ]
+        ],
+        null=True, blank=True,
+        help_text="Legacy field - calculated from individual checks"
     )
-    notes = models.TextField(blank=True, null=True)
-    signed_by = models.CharField(max_length=255)
-    signed_at = models.DateTimeField(default=datetime.now)
-
+    # Legacy fields  
+    notes = models.TextField(blank=True, null=True, help_text="Legacy notes field")
+    signed_by = models.CharField(max_length=255, blank=True, null=True, help_text="Legacy signature field")
+    signed_at = models.DateTimeField(default=datetime.now, help_text="Legacy signature timestamp")
+    
+    class Meta:
+        db_table = 'inspections'
+        ordering = ['-completed_at']
+        verbose_name = "Vehicle Inspection"
+        verbose_name_plural = "Vehicle Inspections"
+    
     def __str__(self):
-        return f"Inspection {self.inspection_id} - Truck {self.truck.license_plate}"
+        context = ""
+        if self.trip:
+            context = f" for {self.trip}"
+        elif self.truck:
+            context = f" - {self.truck}"
+        elif self.trailer:
+            context = f" - {self.trailer}"
+        return f"{self.get_inspection_type_display()}{context} on {self.completed_at.strftime('%Y-%m-%d')}"
+    
+    def save(self, *args, **kwargs):
+        is_new = self.pk is None
+        
+        # Auto-assign company based on context
+        if not self.company:
+            if self.trip and self.trip.company:
+                self.company = self.trip.company
+            elif self.truck and self.truck.company:
+                self.company = self.truck.company
+            elif self.trailer and self.trailer.company:
+                self.company = self.trailer.company
+            elif self.driver and hasattr(self.driver, 'company'):
+                self.company = self.driver.company
+        
+        # Auto-assign truck/trailer from trip context
+        if self.trip and not self.truck and not self.trailer:
+            if self.trip.truck:
+                self.truck = self.trip.truck
+            if self.trip.trailer:
+                self.trailer = self.trip.trailer
+        
+        # Auto-assign driver from trip or user context
+        if self.trip and not self.driver:
+            self.driver = self.trip.driver
+        elif self.completed_by and not self.driver:
+            try:
+                self.driver = Driver.objects.get(user_account=self.completed_by)
+            except Driver.DoesNotExist:
+                pass
+        
+        super().save(*args, **kwargs)
+        
+        # Update vehicle operation status based on inspection results
+        if is_new:
+            self._update_vehicle_operation_status()
+            
+        # Update trip status for failed pre-trip inspections
+        if is_new and self.inspection_type == 'pre_trip' and self.trip and not self.is_passed():
+            try:
+                self.trip.status = 'failed_inspection'
+                self.trip.save(update_fields=['status'])
+            except Exception as e:
+                print(f"Failed to update trip status: {e}")
+    
+    def is_passed(self):
+        """Check if all CFR 396.11 required checks are passed"""
+        # CFR 396.11 required inspection items
+        cfr_required_checks = [
+            self.service_brakes == 'pass',
+            self.parking_brake == 'pass', 
+            self.steering_mechanism == 'pass',
+            self.lighting_devices == 'pass',
+            self.tires_condition == 'pass',
+            self.horn == 'pass',
+            self.windshield_wipers == 'pass',
+            self.rear_vision_mirrors == 'pass',
+            self.coupling_devices == 'pass',
+            self.wheels_and_rims == 'pass',
+            self.emergency_equipment == 'pass',
+        ]
+        
+        # Additional safety checks
+        additional_checks = [
+            self.vehicle_exterior_condition == 'pass',
+            self.engine_fluids_ok == 'pass',
+        ]
+        
+        # Add trailer checks if trailer is assigned and not 'na'
+        if self.trailer or (self.trip and self.trip.trailer):
+            trailer_checks = [
+                self.trailer_attached_properly == 'pass' if self.trailer_attached_properly not in [None, 'na'] else True,
+                self.trailer_lights_working == 'pass' if self.trailer_lights_working not in [None, 'na'] else True,
+                self.cargo_secured == 'pass' if self.cargo_secured not in [None, 'na'] else True,
+            ]
+            cfr_required_checks.extend(trailer_checks)
+        
+        return all(cfr_required_checks + additional_checks)
+    
+    def has_safety_critical_defects(self):
+        """Check if inspection has safety-critical defects that prohibit operation"""
+        safety_critical_items = [
+            self.service_brakes,
+            self.parking_brake,
+            self.steering_mechanism,
+            self.tires_condition,
+        ]
+        return any(item == 'fail' for item in safety_critical_items)
+    
+    def get_failed_items(self):
+        """Get list of failed inspection items"""
+        all_checks = {
+            'Service Brakes': self.service_brakes,
+            'Parking Brake': self.parking_brake,
+            'Steering Mechanism': self.steering_mechanism,
+            'Lighting Devices': self.lighting_devices,
+            'Tires': self.tires_condition,
+            'Horn': self.horn,
+            'Windshield Wipers': self.windshield_wipers,
+            'Rear Vision Mirrors': self.rear_vision_mirrors,
+            'Coupling Devices': self.coupling_devices,
+            'Wheels and Rims': self.wheels_and_rims,
+            'Emergency Equipment': self.emergency_equipment,
+            'Vehicle Exterior': self.vehicle_exterior_condition,
+            'Engine Fluids': self.engine_fluids_ok,
+        }
+        
+        if self.trailer or (self.trip and self.trip.trailer):
+            trailer_checks = {}
+            if self.trailer_attached_properly not in [None, 'na']:
+                trailer_checks['Trailer Attachment'] = self.trailer_attached_properly
+            if self.trailer_lights_working not in [None, 'na']:
+                trailer_checks['Trailer Lights'] = self.trailer_lights_working
+            if self.cargo_secured not in [None, 'na']:
+                trailer_checks['Cargo Security'] = self.cargo_secured
+            all_checks.update(trailer_checks)
+        
+        return [item for item, status in all_checks.items() if status == 'fail']
+    
+    def _update_vehicle_operation_status(self):
+        """Update vehicle operation status based on inspection results"""
+        from django.apps import apps
+        VehicleOperationStatus = apps.get_model('MercAPI', 'VehicleOperationStatus')
+        
+        # Determine new status
+        if self.has_safety_critical_defects():
+            status = 'prohibited'
+        elif not self.is_passed():
+            status = 'conditional'
+        else:
+            status = 'safe'
+        
+        # Update truck status if applicable
+        if self.truck:
+            truck_status, created = VehicleOperationStatus.objects.get_or_create(
+                truck=self.truck,
+                vehicle_type='truck',
+                defaults={
+                    'current_status': status,
+                    'status_set_by': self.completed_by,
+                    'related_inspection': self
+                }
+            )
+            if not created:
+                truck_status.current_status = status
+                truck_status.status_set_by = self.completed_by
+                truck_status.related_inspection = self
+                truck_status.save()
+        
+        # Update trailer status if applicable
+        if self.trailer:
+            trailer_status, created = VehicleOperationStatus.objects.get_or_create(
+                trailer=self.trailer,
+                vehicle_type='trailer',
+                defaults={
+                    'current_status': status,
+                    'status_set_by': self.completed_by,
+                    'related_inspection': self
+                }
+            )
+            if not created:
+                trailer_status.current_status = status
+                trailer_status.status_set_by = self.completed_by
+                trailer_status.related_inspection = self
+                trailer_status.save()
 
 class InspectionItem(models.Model):
     item_id = models.AutoField(primary_key=True)
@@ -951,217 +1200,7 @@ class InvitationToken(models.Model):
         return not self.is_used and not self.is_expired()
 
 
-class TripInspection(models.Model):
-    """
-    Represents pre-trip and post-trip inspections
-    """
-    INSPECTION_TYPE_CHOICES = [
-        ('pre_trip', 'Pre-Trip'),
-        ('post_trip', 'Post-Trip'),
-    ]
-    
-    trip = models.ForeignKey(Trips, on_delete=models.CASCADE, related_name='trip_inspections')
-    inspection_type = models.CharField(max_length=20, choices=INSPECTION_TYPE_CHOICES)
-    
-    # Inspection result choices
-    INSPECTION_RESULT_CHOICES = [
-        ('pass', 'Pass'),
-        ('fail', 'Fail'),
-        ('na', 'Not Applicable'),
-    ]
-    
-    # Vehicle checks - CFR 396.11 Compliant
-    # Required by CFR 396.11(a)(1)(i-xi)
-    service_brakes = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='fail', help_text="Service brakes including trailer brake connections")
-    parking_brake = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='fail', help_text="Parking brake operational")
-    steering_mechanism = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='fail', help_text="Steering mechanism responsive")
-    lighting_devices = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='fail', help_text="Lighting devices and reflectors")
-    tires_condition = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='fail', help_text="Tires - proper pressure, no damage")
-    horn = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='fail', help_text="Horn operational")
-    windshield_wipers = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='fail', help_text="Windshield wipers operational")
-    rear_vision_mirrors = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='fail', help_text="Rear vision mirrors clean and secure")
-    coupling_devices = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='fail', help_text="Coupling devices secure")
-    wheels_and_rims = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='fail', help_text="Wheels and rims - no cracks or damage")
-    emergency_equipment = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='fail', help_text="Emergency equipment present")
-    
-    # Additional vehicle checks
-    vehicle_exterior_condition = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='fail', help_text="No visible damage, clean")
-    engine_fluids_ok = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='fail', help_text="Oil, coolant, brake fluid levels good")
-    
-    # Legacy field for backward compatibility
-    lights_working = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='fail', help_text="All lights functional (legacy - use lighting_devices)")
-    brakes_working = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='fail', help_text="Brakes responsive (legacy - use service_brakes)")
-    
-    # Trailer checks (if applicable)
-    trailer_attached_properly = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='na', help_text="Securely connected")
-    trailer_lights_working = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='na', help_text="All trailer lights functional")
-    cargo_secured = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='na', help_text="Load properly secured")
-    
-    # Documentation
-    inspection_notes = models.TextField(blank=True, null=True)
-    issues_found = models.TextField(blank=True, null=True, help_text="Any problems discovered")
-    
-    # Signature and completion
-    completed_at = models.DateTimeField(auto_now_add=True)
-    completed_by = models.ForeignKey(User, on_delete=models.CASCADE)
-    
-    class Meta:
-        unique_together = ['trip', 'inspection_type']
-        ordering = ['-completed_at']
-        verbose_name = "Trip Inspection"
-        verbose_name_plural = "Trip Inspections"
-    
-    def __str__(self):
-        trip_id = self.trip.trip_number or f"#{self.trip.id}"
-        return f"{self.get_inspection_type_display()} - Trip {trip_id}"
-    
-    def is_passed(self):
-        """Check if all CFR 396.11 required checks are passed"""
-        # CFR 396.11 required inspection items
-        cfr_required_checks = [
-            self.service_brakes == 'pass',
-            self.parking_brake == 'pass', 
-            self.steering_mechanism == 'pass',
-            self.lighting_devices == 'pass',
-            self.tires_condition == 'pass',
-            self.horn == 'pass',
-            self.windshield_wipers == 'pass',
-            self.rear_vision_mirrors == 'pass',
-            self.coupling_devices == 'pass',
-            self.wheels_and_rims == 'pass',
-            self.emergency_equipment == 'pass',
-        ]
-        
-        # Additional safety checks
-        additional_checks = [
-            self.vehicle_exterior_condition == 'pass',
-            self.engine_fluids_ok == 'pass',
-        ]
-        
-        # Add trailer checks if trailer is assigned and not 'na'
-        if self.trip.trailer:
-            trailer_checks = [
-                self.trailer_attached_properly == 'pass' if self.trailer_attached_properly != 'na' else True,
-                self.trailer_lights_working == 'pass' if self.trailer_lights_working != 'na' else True,
-                self.cargo_secured == 'pass' if self.cargo_secured != 'na' else True,
-            ]
-            cfr_required_checks.extend(trailer_checks)
-        
-        return all(cfr_required_checks + additional_checks)
-    
-    def has_safety_critical_defects(self):
-        """Check if inspection has safety-critical defects that prohibit operation"""
-        safety_critical_items = [
-            self.service_brakes,
-            self.parking_brake,
-            self.steering_mechanism,
-            self.tires_condition,
-            self.wheels_and_rims,
-            self.lighting_devices,
-        ]
-        
-        return any(item == 'fail' for item in safety_critical_items)
-    
-    def get_failed_items(self):
-        """Get list of failed inspection items"""
-        all_checks = {
-            'Service Brakes': self.service_brakes,
-            'Parking Brake': self.parking_brake,
-            'Steering Mechanism': self.steering_mechanism,
-            'Lighting Devices': self.lighting_devices,
-            'Tires': self.tires_condition,
-            'Horn': self.horn,
-            'Windshield Wipers': self.windshield_wipers,
-            'Rear Vision Mirrors': self.rear_vision_mirrors,
-            'Coupling Devices': self.coupling_devices,
-            'Wheels and Rims': self.wheels_and_rims,
-            'Emergency Equipment': self.emergency_equipment,
-            'Vehicle Exterior': self.vehicle_exterior_condition,
-            'Engine Fluids': self.engine_fluids_ok,
-        }
-        
-        if self.trip.trailer:
-            trailer_checks = {}
-            if self.trailer_attached_properly != 'na':
-                trailer_checks['Trailer Attachment'] = self.trailer_attached_properly
-            if self.trailer_lights_working != 'na':
-                trailer_checks['Trailer Lights'] = self.trailer_lights_working
-            if self.cargo_secured != 'na':
-                trailer_checks['Cargo Security'] = self.cargo_secured
-            all_checks.update(trailer_checks)
-        
-        return [item for item, status in all_checks.items() if status == 'fail']
-    
-    def save(self, *args, **kwargs):
-        is_new = self.pk is None
-        super().save(*args, **kwargs)
-        
-        # Auto-update vehicle operation status based on inspection results (CFR 396.7)
-        if self.has_safety_critical_defects():
-            self._update_vehicle_operation_status('prohibited')
-        elif not self.is_passed():
-            self._update_vehicle_operation_status('conditional')
-        else:
-            self._update_vehicle_operation_status('safe')
-        
-        # Update trip status for failed pre-trip inspections
-        print(f"DEBUG: TripInspection save - is_new: {is_new}, inspection_type: {self.inspection_type}, is_passed: {self.is_passed()}")
-        if is_new and self.inspection_type == 'pre_trip' and not self.is_passed():
-            try:
-                print(f"DEBUG: Before status update - trip {self.trip.id} status: {self.trip.status}")
-                self.trip.status = 'failed_inspection'
-                self.trip.save()
-                print(f"DEBUG: After status update - trip {self.trip.id} status: {self.trip.status}")
-            except Exception as e:
-                print(f"DEBUG: Failed to update trip status: {e}")
-    
-    def _update_vehicle_operation_status(self, status):
-        """Update vehicle operation status based on inspection results"""
-        from django.apps import apps
-        VehicleOperationStatus = apps.get_model('MercAPI', 'VehicleOperationStatus')
-        
-        # Update truck status
-        if self.trip.truck:
-            truck_status, created = VehicleOperationStatus.objects.get_or_create(
-                truck=self.trip.truck,
-                vehicle_type='truck',
-                defaults={
-                    'current_status': status,
-                    'status_set_by': self.completed_by,
-                    'related_inspection': self
-                }
-            )
-            if not created:
-                truck_status.current_status = status
-                truck_status.status_set_by = self.completed_by
-                truck_status.related_inspection = self
-                truck_status.status_reason = f"Updated from {self.get_inspection_type_display()} inspection"
-                if status != 'safe':
-                    failed_items = self.get_failed_items()
-                    truck_status.status_reason += f": Failed items - {', '.join(failed_items)}"
-                truck_status.save()
-        
-        # Update trailer status
-        if self.trip.trailer:
-            trailer_status, created = VehicleOperationStatus.objects.get_or_create(
-                trailer=self.trip.trailer,
-                vehicle_type='trailer',
-                defaults={
-                    'current_status': status,
-                    'status_set_by': self.completed_by,
-                    'related_inspection': self
-                }
-            )
-            if not created:
-                trailer_status.current_status = status
-                trailer_status.status_set_by = self.completed_by
-                trailer_status.related_inspection = self
-                trailer_status.status_reason = f"Updated from {self.get_inspection_type_display()} inspection"
-                if status != 'safe':
-                    failed_items = self.get_failed_items()
-                    trailer_status.status_reason += f": Failed items - {', '.join(failed_items)}"
-                trailer_status.save()
-
+# TripInspection model removed - consolidated into unified Inspection model
 
 class TripInspectionRepairCertification(models.Model):
     """
@@ -1197,7 +1236,7 @@ class TripInspectionRepairCertification(models.Model):
         ('out_of_service', 'Out of Service - Immediate repair required')
     ]
     
-    inspection = models.ForeignKey(TripInspection, on_delete=models.CASCADE, related_name='repair_certifications')
+    inspection = models.ForeignKey(Inspection, on_delete=models.CASCADE, related_name='repair_certifications')
     defect_type = models.CharField(max_length=25, choices=CFR_DEFECT_TYPES, default='other', help_text="Type of defect per CFR 396.11")
     defect_description = models.TextField(help_text="Description of the defect found during inspection")
     operation_impact = models.CharField(max_length=20, choices=OPERATION_IMPACT_CHOICES, default='prohibited', help_text="Impact on vehicle operation per CFR 396.7")
@@ -1528,7 +1567,7 @@ class VehicleOperationStatus(models.Model):
     status_reason = models.TextField(blank=True, null=True, help_text="Reason for current status")
     
     # Related inspection/maintenance
-    related_inspection = models.ForeignKey(TripInspection, on_delete=models.SET_NULL, null=True, blank=True)
+    related_inspection = models.ForeignKey(Inspection, on_delete=models.SET_NULL, null=True, blank=True)
     related_maintenance = models.ForeignKey(MaintenanceRecord, on_delete=models.SET_NULL, null=True, blank=True)
     related_annual_inspection = models.ForeignKey(AnnualInspection, on_delete=models.SET_NULL, null=True, blank=True)
     

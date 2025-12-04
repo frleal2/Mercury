@@ -3,7 +3,7 @@ from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib.auth.models import User
 from .models import (Driver, Company, DriverTest, Truck, Trailer, Inspection, InspectionItem, 
                      Trips, DriverHOS, DriverApplication, Tenant, UserProfile, InvitationToken, 
-                     TripInspection, TripDocument, DriverDocument, MaintenanceCategory, 
+                     TripDocument, DriverDocument, MaintenanceCategory, 
                      MaintenanceType, MaintenanceRecord, MaintenanceAttachment, PasswordResetToken)
 
 @admin.register(Tenant)
@@ -171,9 +171,14 @@ class DriverApplicationAdmin(admin.ModelAdmin):
 
 @admin.register(Inspection)
 class InspectionAdmin(admin.ModelAdmin):
-    list_display = ('inspection_id', 'truck', 'driver', 'inspection_type', 'inspection_date', 'overall_status')
-    list_filter = ('inspection_type', 'overall_status', 'inspection_date')
-    search_fields = ('truck__license_plate', 'driver__first_name', 'driver__last_name')
+    list_display = ('inspection_id', 'inspection_type', 'company', 'trip', 'truck', 'trailer', 'driver', 'completed_at', 'is_passed')
+    list_filter = ('inspection_type', 'company', 'completed_at')
+    search_fields = ('truck__license_plate', 'trailer__license_plate', 'driver__first_name', 'driver__last_name', 'trip__trip_number')
+    readonly_fields = ('completed_at', 'is_passed')
+    
+    def is_passed(self, obj):
+        return obj.is_passed()
+    is_passed.boolean = True
 
 @admin.register(InspectionItem)
 class InspectionItemAdmin(admin.ModelAdmin):
@@ -212,35 +217,7 @@ class InvitationTokenAdmin(admin.ModelAdmin):
         }),
     )
 
-@admin.register(TripInspection)
-class TripInspectionAdmin(admin.ModelAdmin):
-    list_display = ('id', 'trip', 'inspection_type', 'completed_by', 'completed_at', 'inspection_passed')
-    list_filter = ('inspection_type', 'completed_at', 'trip__company')
-    search_fields = ('trip__trip_number', 'completed_by__username', 'completed_by__first_name', 'completed_by__last_name')
-    readonly_fields = ('completed_at', 'inspection_passed')
-    
-    fieldsets = (
-        ('Trip Information', {
-            'fields': ('trip', 'inspection_type', 'completed_by')
-        }),
-        ('Vehicle Checks', {
-            'fields': ('vehicle_exterior_condition', 'lights_working', 'tires_condition', 'brakes_working', 'engine_fluids_ok')
-        }),
-        ('Trailer Checks', {
-            'fields': ('trailer_attached_properly', 'trailer_lights_working', 'cargo_secured')
-        }),
-        ('Documentation', {
-            'fields': ('inspection_notes', 'issues_found')
-        }),
-        ('Status', {
-            'fields': ('completed_at', 'inspection_passed')
-        }),
-    )
-    
-    def inspection_passed(self, obj):
-        return obj.is_passed()
-    inspection_passed.boolean = True
-    inspection_passed.short_description = 'Passed'
+# TripInspection admin removed - using unified Inspection admin
 
 @admin.register(TripDocument)
 class TripDocumentAdmin(admin.ModelAdmin):

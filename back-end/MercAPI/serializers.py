@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Inspection, InspectionItem, Trips, UserProfile, TripInspection, TripDocument, QualifiedInspector, AnnualInspection, VehicleOperationStatus
+from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Inspection, InspectionItem, Trips, UserProfile, TripDocument, QualifiedInspector, AnnualInspection, VehicleOperationStatus
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -176,11 +176,76 @@ class InspectionItemSerializer(serializers.ModelSerializer):
 
 
 class InspectionSerializer(serializers.ModelSerializer):
+    """
+    Unified serializer for all inspection types including trip inspections.
+    Replaces TripInspectionSerializer for consistent API.
+    """
     items = InspectionItemSerializer(many=True, read_only=True)
+    
+    # Trip context fields (when applicable)
+    trip_number = serializers.CharField(source='trip.trip_number', read_only=True)
+    trip_id = serializers.IntegerField(source='trip.id', read_only=True)
+    
+    # Display fields
+    inspection_type_display = serializers.CharField(source='get_inspection_type_display', read_only=True)
+    completed_by_name = serializers.CharField(source='completed_by.get_full_name', read_only=True)
+    
+    # Computed fields
+    is_inspection_passed = serializers.SerializerMethodField()
+    failed_items = serializers.SerializerMethodField()
+    
+    # Vehicle identification for CFR 396.11 compliance
+    truck_info = serializers.SerializerMethodField()
+    trailer_info = serializers.SerializerMethodField()
+    
+    # CFR 396.11 compliance summary
+    cfr_compliance_summary = serializers.SerializerMethodField()
     
     class Meta:
         model = Inspection
         fields = '__all__'
+        read_only_fields = ['completed_at', 'completed_by', 'inspection_id']
+    
+    def get_is_inspection_passed(self, obj):
+        """Check if inspection passed all CFR 396.11 requirements"""
+        return obj.is_passed()
+    
+    def get_failed_items(self, obj):
+        """Get list of failed inspection items"""
+        return obj.get_failed_items()
+    
+    def get_truck_info(self, obj):
+        """Get truck information for inspection"""
+        if obj.truck:
+            return {
+                'id': obj.truck.id,
+                'truck_number': obj.truck.truck_number,
+                'license_plate': obj.truck.license_plate,
+                'make_model': f"{obj.truck.make} {obj.truck.model}",
+                'vin': obj.truck.vin,
+            }
+        return None
+    
+    def get_trailer_info(self, obj):
+        """Get trailer information for inspection"""
+        if obj.trailer:
+            return {
+                'id': obj.trailer.id,
+                'trailer_number': obj.trailer.trailer_number,
+                'license_plate': obj.trailer.license_plate,
+                'trailer_type': obj.trailer.trailer_type,
+                'unit_number': obj.trailer.unit_number,
+            }
+        return None
+    
+    def get_cfr_compliance_summary(self, obj):
+        """CFR 396.11 compliance summary"""
+        return {
+            'overall_passed': obj.is_passed(),
+            'has_safety_critical_defects': obj.has_safety_critical_defects(),
+            'failed_items_count': len(obj.get_failed_items()),
+            'cfr_reference': 'CFR 396.11 - Driver Vehicle Inspection Requirements'
+        }
 
 
 class TripsSerializer(serializers.ModelSerializer):
@@ -303,7 +368,14 @@ class TripsSerializer(serializers.ModelSerializer):
         return super().create(validated_data)
 
 
+# TripInspectionSerializer is now unified with InspectionSerializer
+# Use InspectionSerializer for all inspection types including trip inspections
+
 class TripInspectionSerializer(serializers.ModelSerializer):
+    """
+    LEGACY: Maintained for backward compatibility
+    Use InspectionSerializer for new development
+    """
     trip_number = serializers.CharField(source='trip.trip_number', read_only=True)
     trip_id = serializers.CharField(source='trip.id', read_only=True)
     inspection_type_display = serializers.CharField(source='get_inspection_type_display', read_only=True)
@@ -318,7 +390,7 @@ class TripInspectionSerializer(serializers.ModelSerializer):
     cfr_compliance_summary = serializers.SerializerMethodField()
     
     class Meta:
-        model = TripInspection
+        model = Inspection  # Now uses unified Inspection model
         fields = '__all__'
         read_only_fields = ['completed_at', 'completed_by']
     

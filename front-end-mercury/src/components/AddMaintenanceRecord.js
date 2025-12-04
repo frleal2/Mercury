@@ -4,7 +4,7 @@ import axios from 'axios';
 import BASE_URL from '../config';
 import { XMarkIcon, TruckIcon, CalendarIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 
-function AddMaintenanceRecord({ onClose, onRecordAdded, trucks, trailers, inspectionData }) {
+function AddMaintenanceRecord({ onClose, onRecordAdded, trucks, trailers, inspectionData, inspectionContext }) {
   const { session } = useSession();
   const [formData, setFormData] = useState({
     vehicle_type: 'truck',
@@ -28,7 +28,21 @@ function AddMaintenanceRecord({ onClose, onRecordAdded, trucks, trailers, inspec
 
   // Pre-fill form when coming from failed inspection
   useEffect(() => {
-    if (inspectionData) {
+    if (inspectionContext) {
+      // New inspection context from ViewTripDetails
+      setFormData(prev => ({
+        ...prev,
+        vehicle_type: inspectionContext.vehicleType,
+        truck: inspectionContext.vehicleType === 'truck' ? inspectionContext.vehicleId : '',
+        trailer: inspectionContext.vehicleType === 'trailer' ? inspectionContext.vehicleId : '',
+        maintenance_type: 'other', // Use 'other' for inspection-related maintenance
+        priority: inspectionContext.priority?.toLowerCase() || 'high',
+        description: inspectionContext.description,
+        notes: `Related to ${inspectionContext.tripNumber} ${inspectionContext.inspectionType} inspection on ${inspectionContext.inspectionDate}`,
+        scheduled_date: new Date().toISOString().split('T')[0] // Today's date
+      }));
+    } else if (inspectionData) {
+      // Legacy inspection data support
       const inspectionDescription = `Failed ${inspectionData.inspectionType?.replace('_', '-')} inspection for Trip #${inspectionData.tripId}. Defects found: ${inspectionData.defects}`;
       
       setFormData(prev => ({
@@ -43,7 +57,7 @@ function AddMaintenanceRecord({ onClose, onRecordAdded, trucks, trailers, inspec
         scheduled_date: new Date().toISOString().split('T')[0] // Today's date
       }));
     }
-  }, [inspectionData]);
+  }, [inspectionContext, inspectionData]);
 
   // Maintenance type categories and options
   const maintenanceTypes = [
@@ -227,13 +241,16 @@ function AddMaintenanceRecord({ onClose, onRecordAdded, trucks, trailers, inspec
           <div>
             <h3 className="text-lg font-medium text-gray-900 flex items-center">
               <TruckIcon className="h-6 w-6 mr-2 text-blue-600" />
-              Add Maintenance Record
+              {inspectionContext ? 'Schedule Maintenance for Failed Inspection' : 'Add Maintenance Record'}
             </h3>
-            {inspectionData && (
+            {(inspectionContext || inspectionData) && (
               <div className="flex items-center mt-1">
                 <ExclamationTriangleIcon className="h-4 w-4 mr-1 text-orange-500" />
                 <span className="text-sm text-orange-600 font-medium">
-                  Created from Failed Inspection - Trip #{inspectionData.tripId}
+                  {inspectionContext 
+                    ? `From ${inspectionContext.tripNumber} - ${inspectionContext.vehicleName}` 
+                    : `Created from Failed Inspection - Trip #${inspectionData.tripId}`
+                  }
                 </span>
               </div>
             )}
@@ -245,6 +262,35 @@ function AddMaintenanceRecord({ onClose, onRecordAdded, trucks, trailers, inspec
             <XMarkIcon className="h-6 w-6" />
           </button>
         </div>
+
+        {/* Detailed Inspection Context */}
+        {inspectionContext && (
+          <div className="mb-6 p-4 bg-orange-50 border border-orange-200 rounded-lg">
+            <div className="flex items-start">
+              <div className="flex-shrink-0">
+                <ExclamationTriangleIcon className="h-5 w-5 text-orange-400" />
+              </div>
+              <div className="ml-3">
+                <h4 className="text-sm font-medium text-orange-800">
+                  Inspection Failed - {inspectionContext.inspectionType.toUpperCase()} on {inspectionContext.inspectionDate}
+                </h4>
+                <p className="text-sm text-orange-700 mt-1">
+                  Vehicle: {inspectionContext.vehicleName}
+                </p>
+                {inspectionContext.failedItems.length > 0 && (
+                  <div className="mt-2">
+                    <p className="text-sm font-medium text-orange-800">Failed Inspection Items:</p>
+                    <ul className="text-sm text-orange-700 mt-1 list-disc list-inside">
+                      {inspectionContext.failedItems.map((item, index) => (
+                        <li key={index}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Vehicle Selection */}

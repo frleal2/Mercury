@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useSession } from '../providers/SessionProvider';
 import BASE_URL from '../config';
+import AddMaintenanceRecord from './AddMaintenanceRecord';
 
 const ViewTripDetails = ({ tripId, onClose }) => {
   const { session, refreshAccessToken } = useSession();
@@ -12,11 +13,16 @@ const ViewTripDetails = ({ tripId, onClose }) => {
   const [inspections, setInspections] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
+  const [isAddMaintenanceOpen, setIsAddMaintenanceOpen] = useState(false);
+  const [maintenanceContext, setMaintenanceContext] = useState(null);
+  const [trucks, setTrucks] = useState([]);
+  const [trailers, setTrailers] = useState([]);
 
   useEffect(() => {
     if (tripId) {
       fetchTripDetails();
       fetchInspections();
+      fetchVehicles();
     }
   }, [tripId]);
 
@@ -47,6 +53,26 @@ const ViewTripDetails = ({ tripId, onClose }) => {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchVehicles = async () => {
+    try {
+      const [trucksRes, trailersRes] = await Promise.all([
+        axios.get(`${BASE_URL}/api/trucks/`, {
+          headers: { 'Authorization': `Bearer ${session.accessToken}` }
+        }),
+        axios.get(`${BASE_URL}/api/trailers/`, {
+          headers: { 'Authorization': `Bearer ${session.accessToken}` }
+        })
+      ]);
+      setTrucks(trucksRes.data);
+      setTrailers(trailersRes.data);
+    } catch (error) {
+      console.error('Error fetching vehicles:', error);
+      if (error.response?.status === 401) {
+        await refreshAccessToken();
+      }
     }
   };
 
@@ -103,27 +129,73 @@ const ViewTripDetails = ({ tripId, onClose }) => {
   };
 
   const handleCreateMaintenanceRecord = (inspection) => {
-    // Navigate to maintenance page and trigger add maintenance modal
-    // Pass inspection data via URL params or state
-    const inspectionData = {
-      tripId: trip.id,
-      truckId: trip.truck?.id,
-      trailerId: trip.trailer?.id,
-      defects: inspection.issues_found || 'Failed inspection items',
-      inspectionType: inspection.inspection_type,
-      inspectionId: inspection.id
+    // Create maintenance context from inspection data
+    const failedItems = [];
+    
+    // Check CFR 396.11 required items
+    const cfrItems = [
+      { key: 'service_brakes', name: 'Service Brakes' },
+      { key: 'parking_brake', name: 'Parking Brake' },
+      { key: 'steering_mechanism', name: 'Steering Mechanism' },
+      { key: 'lighting_devices', name: 'Lighting Devices & Reflectors' },
+      { key: 'tires_condition', name: 'Tires' },
+      { key: 'horn', name: 'Horn' },
+      { key: 'windshield_wipers', name: 'Windshield Wipers' },
+      { key: 'rear_vision_mirrors', name: 'Rear Vision Mirrors' },
+      { key: 'coupling_devices', name: 'Coupling Devices' },
+      { key: 'wheels_and_rims', name: 'Wheels and Rims' },
+      { key: 'emergency_equipment', name: 'Emergency Equipment' }
+    ];
+    
+    // Additional checks
+    const additionalItems = [
+      { key: 'vehicle_exterior_condition', name: 'Vehicle Exterior Condition' },
+      { key: 'engine_fluids_ok', name: 'Engine Fluids' }
+    ];
+    
+    // Trailer checks if applicable
+    const trailerItems = [
+      { key: 'trailer_attached_properly', name: 'Trailer Attachment' },
+      { key: 'trailer_lights_working', name: 'Trailer Lights' },
+      { key: 'cargo_secured', name: 'Cargo Security' }
+    ];
+    
+    // Collect all failed items
+    [...cfrItems, ...additionalItems, ...trailerItems].forEach(item => {
+      if (inspection[item.key] === 'fail') {
+        failedItems.push(item.name);
+      }
+    });
+    
+    const context = {
+      vehicleType: inspection.trip.truck ? 'truck' : 'trailer',
+      vehicleId: inspection.trip.truck?.id || inspection.trip.trailer?.id,
+      vehicleName: inspection.trip.truck ? 
+        `${inspection.trip.truck.unit_number} - ${inspection.trip.truck.make} ${inspection.trip.truck.model}` :
+        `${inspection.trip.trailer?.unit_number} - ${inspection.trip.trailer?.make} ${inspection.trip.trailer?.model}`,
+      tripId: inspection.trip.id,
+      tripNumber: inspection.trip.trip_number || `Trip #${inspection.trip.id}`,
+      inspectionType: inspection.inspection_type.replace('_', '-'),
+      inspectionDate: new Date(inspection.completed_at).toLocaleDateString(),
+      failedItems: failedItems,
+      description: `Repair required for failed ${inspection.inspection_type.replace('_', '-')} inspection items: ${failedItems.join(', ')}`,
+      priority: 'High',
+      category: 'Safety',
+      type: 'Repair'
     };
     
-    // Close this modal first
-    onClose();
-    
-    // Navigate to maintenance page with inspection context
-    navigate('/maintenance', { 
-      state: { 
-        openAddModal: true, 
-        inspectionData 
-      } 
-    });
+    setMaintenanceContext(context);
+    setIsAddMaintenanceOpen(true);
+  };
+  
+  const handleMaintenanceClose = () => {
+    setIsAddMaintenanceOpen(false);
+    setMaintenanceContext(null);
+  };
+  
+  const handleMaintenanceComplete = () => {
+    handleMaintenanceClose();
+    // Optionally refresh data or show success message
   };
 
   const renderInspectionChecklist = (inspection) => {
@@ -497,6 +569,25 @@ const ViewTripDetails = ({ tripId, onClose }) => {
                     </div>
                   </div>
 
+                  {/* Schedule Maintenance Button for Failed Inspections - Positioned at top for visibility */}
+                  {!getInspectionStatus(preTrip).passed && (
+                    <div className="mb-4 p-4 bg-orange-50 border border-orange-200 rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h6 className="text-sm font-medium text-orange-800">Inspection Failed - Maintenance Required</h6>
+                          <p className="text-xs text-orange-600 mt-1">Vehicle has failed inspection items that require maintenance attention</p>
+                        </div>
+                        <button
+                          onClick={() => handleCreateMaintenanceRecord(preTrip)}
+                          className="inline-flex items-center px-4 py-2 border border-orange-300 rounded-md shadow-sm text-sm font-medium text-orange-700 bg-white hover:bg-orange-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
+                        >
+                          <WrenchScrewdriverIcon className="h-4 w-4 mr-2" />
+                          Schedule Maintenance
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   <div>
                     <h5 className="font-medium text-gray-700 mb-3">Inspection Checklist (CFR 396.11 Compliant):</h5>
                     {renderInspectionChecklist(preTrip)}
@@ -513,20 +604,6 @@ const ViewTripDetails = ({ tripId, onClose }) => {
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Issues Found:</label>
                       <p className="text-sm text-red-700 bg-red-50 p-3 rounded border border-red-200">{preTrip.issues_found}</p>
-                      
-                      {/* Create Maintenance Record Button for Failed Inspections */}
-                      {!getInspectionStatus(preTrip).passed && (
-                        <div className="mt-4">
-                          <button
-                            onClick={() => handleCreateMaintenanceRecord(preTrip)}
-                            className="inline-flex items-center px-4 py-2 border border-orange-300 rounded-md shadow-sm text-sm font-medium text-orange-700 bg-orange-50 hover:bg-orange-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
-                          >
-                            <WrenchScrewdriverIcon className="h-4 w-4 mr-2" />
-                            Create Maintenance Record
-                          </button>
-                          <p className="text-xs text-gray-500 mt-1">Create maintenance records for failed inspection items</p>
-                        </div>
-                      )}
                     </div>
                   )}
                 </div>
@@ -600,6 +677,25 @@ const ViewTripDetails = ({ tripId, onClose }) => {
                     </div>
                   </div>
 
+                  {/* Schedule Maintenance Button for Failed Inspections - Positioned at top for visibility */}
+                  {!getInspectionStatus(postTrip).passed && (
+                    <div className="mb-4 p-4 bg-orange-50 border border-orange-200 rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h6 className="text-sm font-medium text-orange-800">Inspection Failed - Maintenance Required</h6>
+                          <p className="text-xs text-orange-600 mt-1">Vehicle has failed inspection items that require maintenance attention</p>
+                        </div>
+                        <button
+                          onClick={() => handleCreateMaintenanceRecord(postTrip)}
+                          className="inline-flex items-center px-4 py-2 border border-orange-300 rounded-md shadow-sm text-sm font-medium text-orange-700 bg-white hover:bg-orange-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
+                        >
+                          <WrenchScrewdriverIcon className="h-4 w-4 mr-2" />
+                          Schedule Maintenance
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   <div>
                     <h5 className="font-medium text-gray-700 mb-3">Inspection Checklist (CFR 396.11 Compliant):</h5>
                     {renderInspectionChecklist(postTrip)}
@@ -616,20 +712,6 @@ const ViewTripDetails = ({ tripId, onClose }) => {
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Issues Found:</label>
                       <p className="text-sm text-red-700 bg-red-50 p-3 rounded border border-red-200">{postTrip.issues_found}</p>
-                      
-                      {/* Create Maintenance Record Button for Failed Inspections */}
-                      {!getInspectionStatus(postTrip).passed && (
-                        <div className="mt-4">
-                          <button
-                            onClick={() => handleCreateMaintenanceRecord(postTrip)}
-                            className="inline-flex items-center px-4 py-2 border border-orange-300 rounded-md shadow-sm text-sm font-medium text-orange-700 bg-orange-50 hover:bg-orange-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
-                          >
-                            <WrenchScrewdriverIcon className="h-4 w-4 mr-2" />
-                            Create Maintenance Record
-                          </button>
-                          <p className="text-xs text-gray-500 mt-1">Create maintenance records for failed inspection items</p>
-                        </div>
-                      )}
                     </div>
                   )}
                 </div>
@@ -656,6 +738,17 @@ const ViewTripDetails = ({ tripId, onClose }) => {
           </div>
         )}
       </div>
+      
+      {/* Add Maintenance Modal */}
+      {isAddMaintenanceOpen && (
+        <AddMaintenanceRecord
+          onClose={handleMaintenanceClose}
+          onRecordAdded={handleMaintenanceComplete}
+          trucks={trucks}
+          trailers={trailers}
+          inspectionContext={maintenanceContext}
+        />
+      )}
     </div>
   );
 };

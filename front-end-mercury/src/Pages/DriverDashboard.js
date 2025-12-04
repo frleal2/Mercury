@@ -36,15 +36,12 @@ function DriverDashboard() {
 
   const fetchActiveTrips = async () => {
     try {
-      console.log('DEBUG: fetchActiveTrips called');
       setLoading(true);
       const response = await axios.get(`${BASE_URL}/api/driver/active-trips/`, {
         headers: {
           'Authorization': `Bearer ${session.accessToken}`,
         },
       });
-      console.log('DEBUG: fetchActiveTrips response:', response.data);
-      console.log('DEBUG: Trip statuses:', response.data.trips?.map(t => ({ id: t.id, status: t.status })));
       setActiveTrips(response.data.trips || []);
     } catch (error) {
       console.error('Error fetching active trips:', error);
@@ -112,16 +109,13 @@ function DriverDashboard() {
   };
 
   const handleInspectionCompleted = (inspectionResult) => {
-    console.log('DEBUG: handleInspectionCompleted called with:', inspectionResult);
     setInspectionModalOpen(false);
     
     if (inspectionResult.type === 'pre_trip') {
       if (inspectionResult.passed) {
-        console.log('DEBUG: Inspection passed, starting trip');
         // Inspection passed - start the trip
         startTrip(selectedTrip.id);
       } else {
-        console.log('DEBUG: Inspection failed, showing error message and refreshing trips');
         // Inspection failed - show message and refresh trips to show failed_inspection status
         setMessage({ 
           type: 'error', 
@@ -129,9 +123,7 @@ function DriverDashboard() {
         });
         
         // Refresh trips after a short delay to ensure backend has updated the status
-        console.log('DEBUG: Setting timeout to refresh trips in 500ms');
         setTimeout(() => {
-          console.log('DEBUG: Calling fetchActiveTrips to refresh trip status');
           fetchActiveTrips();
         }, 500);
       }

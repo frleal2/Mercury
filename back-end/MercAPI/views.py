@@ -20,7 +20,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework_simplejwt.views import TokenObtainPairView
-from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Tenant, UserProfile, Inspection, InspectionItem, Trips, InvitationToken, TripInspection, TripDocument, PasswordResetToken, QualifiedInspector, AnnualInspection, VehicleOperationStatus
+from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Tenant, UserProfile, Inspection, InspectionItem, Trips, InvitationToken, TripDocument, PasswordResetToken, QualifiedInspector, AnnualInspection, VehicleOperationStatus
 from rest_framework.serializers import ValidationError
 from rest_framework import serializers
 from django.core.files.storage import default_storage
@@ -73,9 +73,9 @@ class CompanyFilterMixin:
                 Q(inspection__driver__company__in=user_companies)
             )
         
-        if model_name == 'TripInspection':
-            # Filter through trip -> company
-            return queryset.filter(trip__company__in=user_companies)
+        if model_name == 'Inspection':
+            # Filter inspections by company (unified model)
+            return queryset.filter(company__in=user_companies)
         
         if model_name == 'MaintenanceRecord':
             # Filter through truck/trailer -> company
@@ -2121,10 +2121,6 @@ def driver_active_trips(request):
             status__in=['scheduled', 'in_progress', 'failed_inspection']
         ).order_by('-scheduled_start_date', '-start_time')
         
-        print(f"DEBUG: driver_active_trips returning {active_trips.count()} trips")
-        for trip in active_trips:
-            print(f"DEBUG: Trip {trip.id} - status: {trip.status}")
-        
         serializer = TripsSerializer(active_trips, many=True)
         return Response({
             'trips': serializer.data,
@@ -2324,10 +2320,11 @@ def available_trucks(request):
 class TripInspectionViewSet(DriverReadOnlyMixin, CompanyFilterMixin, ModelViewSet):
     """
     ViewSet for trip inspections (pre-trip and post-trip)
+    Uses unified Inspection model filtered for trip inspections
     """
-    serializer_class = TripInspectionSerializer
+    serializer_class = InspectionSerializer
     permission_classes = [IsAuthenticated]
-    queryset = TripInspection.objects.all()
+    queryset = Inspection.objects.filter(trip__isnull=False)
     
     def get_queryset(self):
         # Get company-filtered queryset first (tenant isolation)
@@ -2414,7 +2411,7 @@ def submit_inspection(request, trip_id, inspection_type):
             )
         
         # Check if inspection already exists
-        if TripInspection.objects.filter(trip=trip, inspection_type=inspection_type).exists():
+        if Inspection.objects.filter(trip=trip, inspection_type=inspection_type).exists():
             return Response(
                 {'error': f'{inspection_type.replace("_", "-").title()} inspection already completed'}, 
                 status=status.HTTP_400_BAD_REQUEST
@@ -2425,24 +2422,18 @@ def submit_inspection(request, trip_id, inspection_type):
         inspection_data['trip'] = trip.id
         inspection_data['inspection_type'] = inspection_type
         
-        serializer = TripInspectionSerializer(data=inspection_data)
+        serializer = InspectionSerializer(data=inspection_data)
         if serializer.is_valid():
-            print(f"DEBUG: Before inspection save - trip {trip.id} status: {trip.status}")
             inspection = serializer.save(completed_by=request.user)
-            print(f"DEBUG: After inspection save - inspection passed: {inspection.is_passed()}")
             
-            # Reload trip to get any status updates from TripInspection.save()
-            print(f"DEBUG: Before refresh_from_db - trip {trip.id} status: {trip.status}")
+            # Reload trip to get any status updates from Inspection.save()
             trip.refresh_from_db()
-            print(f"DEBUG: After refresh_from_db - trip {trip.id} status: {trip.status}")
             
             # Update trip inspection flags
             if inspection_type == 'pre_trip':
                 trip.pre_trip_inspection_completed = True
-                print(f"DEBUG: Before final save - trip {trip.id} status: {trip.status}")
                 # Only update the completion flag, not the status (which may have been set to failed_inspection)
                 trip.save(update_fields=['pre_trip_inspection_completed'])
-                print(f"DEBUG: After final save - trip {trip.id} status: {trip.status}")
             elif inspection_type == 'post_trip':
                 trip.post_trip_inspection_completed = True
                 trip.save(update_fields=['post_trip_inspection_completed'])
@@ -2697,7 +2688,7 @@ def dashboard_overview(request):
             maintenance_records = MaintenanceRecord.objects.filter(
                 Q(truck__company__in=user_companies) | Q(trailer__company__in=user_companies)
             )
-            inspections = TripInspection.objects.filter(trip__company__in=user_companies)
+            inspections = Inspection.objects.filter(company__in=user_companies)
         except Exception as e:
             logger.error(f"Dashboard: Error fetching data: {str(e)}")
             return Response({"error": f"Database query error: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
