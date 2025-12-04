@@ -623,6 +623,10 @@ class Inspection(models.Model):
         from django.apps import apps
         VehicleOperationStatus = apps.get_model('MercAPI', 'VehicleOperationStatus')
         
+        # Skip status update if no user is set (will be called again after save)
+        if not self.completed_by:
+            return
+        
         # Determine new status
         if self.has_safety_critical_defects():
             status = 'prohibited'

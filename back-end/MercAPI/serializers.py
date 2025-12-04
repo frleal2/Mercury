@@ -219,7 +219,7 @@ class InspectionSerializer(serializers.ModelSerializer):
         if obj.truck:
             return {
                 'id': obj.truck.id,
-                'truck_number': obj.truck.truck_number,
+                'unit_number': obj.truck.unit_number,
                 'license_plate': obj.truck.license_plate,
                 'make_model': f"{obj.truck.make} {obj.truck.model}",
                 'vin': obj.truck.vin,
@@ -231,10 +231,10 @@ class InspectionSerializer(serializers.ModelSerializer):
         if obj.trailer:
             return {
                 'id': obj.trailer.id,
-                'trailer_number': obj.trailer.trailer_number,
+                'unit_number': obj.trailer.unit_number,
                 'license_plate': obj.trailer.license_plate,
                 'trailer_type': obj.trailer.trailer_type,
-                'unit_number': obj.trailer.unit_number,
+                'model': obj.trailer.model,
             }
         return None
     
@@ -250,8 +250,8 @@ class InspectionSerializer(serializers.ModelSerializer):
 
 class TripsSerializer(serializers.ModelSerializer):
     driver_name = serializers.CharField(source='driver.get_full_name', read_only=True)
-    truck_number = serializers.CharField(source='truck.truck_number', read_only=True)
-    trailer_number = serializers.CharField(source='trailer.trailer_number', read_only=True)
+    truck_unit_number = serializers.CharField(source='truck.unit_number', read_only=True)
+    trailer_unit_number = serializers.CharField(source='trailer.unit_number', read_only=True)
     company_name = serializers.CharField(source='company.name', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     origin_display = serializers.CharField(source='get_origin_display', read_only=True)
@@ -282,7 +282,7 @@ class TripsSerializer(serializers.ModelSerializer):
             'mileage_start', 'mileage_end', 'created_by', 'created_at', 'updated_at',
             'cancellation_reason', 'cancelled_by', 'cancelled_at',
             # SerializerMethodFields (read-only)
-            'driver_name', 'truck_number', 'trailer_number', 'company_name', 'status_display',
+            'driver_name', 'truck_unit_number', 'trailer_unit_number', 'company_name', 'status_display',
             'origin_display', 'destination_display', 'duration_hours', 'total_miles',
             'can_start', 'can_complete', 'compliance_issues',
             # Write-only fields for frontend forms

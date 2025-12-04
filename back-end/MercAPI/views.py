@@ -9,7 +9,7 @@ from django.utils.html import strip_tags
 from datetime import datetime, timedelta
 from django.utils import timezone
 from urllib.parse import urlencode
-from .serializers import UserSerializer, DriverSerializer, TruckSerializer, CompanySerializer, TrailerSerializer, DriverTestSerializer, DriverHOSSerializer, DriverApplicationSerializer, MaintenanceCategorySerializer, MaintenanceTypeSerializer, MaintenanceRecordSerializer, MaintenanceAttachmentSerializer, DriverDocumentSerializer, InspectionSerializer, InspectionItemSerializer, TripsSerializer, TripInspectionSerializer, TripDocumentSerializer, QualifiedInspectorSerializer, AnnualInspectionSerializer, VehicleOperationStatusSerializer
+from .serializers import UserSerializer, DriverSerializer, TruckSerializer, CompanySerializer, TrailerSerializer, DriverTestSerializer, DriverHOSSerializer, DriverApplicationSerializer, MaintenanceCategorySerializer, MaintenanceTypeSerializer, MaintenanceRecordSerializer, MaintenanceAttachmentSerializer, DriverDocumentSerializer, InspectionSerializer, InspectionItemSerializer, TripsSerializer, TripDocumentSerializer, QualifiedInspectorSerializer, AnnualInspectionSerializer, VehicleOperationStatusSerializer
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -2425,6 +2425,9 @@ def submit_inspection(request, trip_id, inspection_type):
         serializer = InspectionSerializer(data=inspection_data)
         if serializer.is_valid():
             inspection = serializer.save(completed_by=request.user)
+            
+            # Update vehicle operation status now that we have completed_by user
+            inspection._update_vehicle_operation_status()
             
             # Reload trip to get any status updates from Inspection.save()
             trip.refresh_from_db()
