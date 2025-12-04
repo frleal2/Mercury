@@ -525,12 +525,12 @@ class Trips(models.Model):
         
         # CFR 396.17 - Annual inspection must be current
         if self.truck:
-            latest_annual = self.truck.annual_inspections.filter(is_current=True).first()
+            latest_annual = self.truck.annual_inspections.filter(compliant_until__gte=date.today()).first()
             if not latest_annual:
                 return False
         
         if self.trailer:
-            latest_annual = self.trailer.annual_inspections.filter(is_current=True).first()
+            latest_annual = self.trailer.annual_inspections.filter(compliant_until__gte=date.today()).first()
             if not latest_annual:
                 return False
         
