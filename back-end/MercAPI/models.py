@@ -1105,11 +1105,13 @@ class TripInspection(models.Model):
             self._update_vehicle_operation_status('safe')
         
         # Update trip status for failed pre-trip inspections
+        print(f"DEBUG: TripInspection save - is_new: {is_new}, inspection_type: {self.inspection_type}, is_passed: {self.is_passed()}")
         if is_new and self.inspection_type == 'pre_trip' and not self.is_passed():
             try:
+                print(f"DEBUG: Before status update - trip {self.trip.id} status: {self.trip.status}")
                 self.trip.status = 'failed_inspection'
                 self.trip.save()
-                print(f"DEBUG: Updated trip {self.trip.id} status to failed_inspection")
+                print(f"DEBUG: After status update - trip {self.trip.id} status: {self.trip.status}")
             except Exception as e:
                 print(f"DEBUG: Failed to update trip status: {e}")
     

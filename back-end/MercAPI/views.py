@@ -2423,16 +2423,22 @@ def submit_inspection(request, trip_id, inspection_type):
         
         serializer = TripInspectionSerializer(data=inspection_data)
         if serializer.is_valid():
+            print(f"DEBUG: Before inspection save - trip {trip.id} status: {trip.status}")
             inspection = serializer.save(completed_by=request.user)
+            print(f"DEBUG: After inspection save - inspection passed: {inspection.is_passed()}")
             
             # Reload trip to get any status updates from TripInspection.save()
+            print(f"DEBUG: Before refresh_from_db - trip {trip.id} status: {trip.status}")
             trip.refresh_from_db()
+            print(f"DEBUG: After refresh_from_db - trip {trip.id} status: {trip.status}")
             
             # Update trip inspection flags
             if inspection_type == 'pre_trip':
                 trip.pre_trip_inspection_completed = True
+                print(f"DEBUG: Before final save - trip {trip.id} status: {trip.status}")
                 # Only update the completion flag, not the status (which may have been set to failed_inspection)
                 trip.save(update_fields=['pre_trip_inspection_completed'])
+                print(f"DEBUG: After final save - trip {trip.id} status: {trip.status}")
             elif inspection_type == 'post_trip':
                 trip.post_trip_inspection_completed = True
                 trip.save(update_fields=['post_trip_inspection_completed'])

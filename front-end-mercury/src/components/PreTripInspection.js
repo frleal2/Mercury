@@ -173,12 +173,19 @@ const PreTripInspection = ({ isOpen, onClose, tripId, onInspectionComplete }) =>
         formData.append(`defect_photos_${index}`, photo);
       });
 
+      console.log('DEBUG: Submitting inspection with data:', {
+        defects_found: inspectionData.defects_found,
+        defects_description: inspectionData.defects_description
+      });
+      
       const response = await axios.post(`${BASE_URL}/api/trips/${tripId}/inspection/pre_trip/`, formData, {
         headers: {
           'Authorization': `Bearer ${session.accessToken}`,
           'Content-Type': 'multipart/form-data'
         }
       });
+      
+      console.log('DEBUG: Inspection submission response:', response.data);
       
       // Pass inspection result to the completion callback
       const inspectionResult = {
@@ -188,6 +195,7 @@ const PreTripInspection = ({ isOpen, onClose, tripId, onInspectionComplete }) =>
         defectsDescription: inspectionData.defects_description
       };
       
+      console.log('DEBUG: Calling onInspectionComplete with:', inspectionResult);
       onInspectionComplete(inspectionResult);
       onClose();
     } catch (error) {
