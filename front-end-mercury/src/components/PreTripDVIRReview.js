@@ -75,7 +75,7 @@ function PreTripDVIRReview({ isOpen, onClose, trip, onReviewCompleted }) {
         ? `DVIR Reviewed - Trip #${lastDVIR.trip.trip_number} (${formatDate(lastDVIR.completed_at)}): ${acknowledgment}`
         : `No Previous DVIR - New/First Trip: ${acknowledgment}`;
 
-      const response = await axios.patch(`${BASE_URL}/api/Trips/${trip.id}/`, {
+      const response = await axios.patch(`${BASE_URL}/api/driver/trips/${trip.id}/dvir-review/`, {
         last_dvir_reviewed: true,
         last_dvir_reviewed_at: new Date().toISOString(),
         last_dvir_acknowledgment: acknowledgmentText

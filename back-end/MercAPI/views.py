@@ -2107,6 +2107,52 @@ def driver_active_trips(request):
         )
 
 
+@api_view(['PATCH'])
+@permission_classes([IsAuthenticated])
+def driver_update_dvir_review(request, trip_id):
+    """
+    Allow drivers to update DVIR review status for their assigned trips
+    """
+    try:
+        # Check if user is a driver
+        if request.user.profile.role != 'driver':
+            return Response(
+                {'error': 'This endpoint is only for drivers'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Get the trip and verify it belongs to this driver
+        try:
+            trip = Trips.objects.get(id=trip_id, driver__user_account=request.user)
+        except Trips.DoesNotExist:
+            return Response(
+                {'error': 'Trip not found or not assigned to you'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Update DVIR review fields
+        trip.last_dvir_reviewed = request.data.get('last_dvir_reviewed', False)
+        if request.data.get('last_dvir_reviewed_at'):
+            trip.last_dvir_reviewed_at = request.data.get('last_dvir_reviewed_at')
+        if request.data.get('last_dvir_acknowledgment'):
+            trip.last_dvir_acknowledgment = request.data.get('last_dvir_acknowledgment')
+        
+        trip.save()
+        
+        return Response({
+            'message': 'DVIR review updated successfully',
+            'trip_id': trip.id,
+            'last_dvir_reviewed': trip.last_dvir_reviewed
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        logger.error(f"Error updating DVIR review: {str(e)}")
+        return Response(
+            {'error': 'Internal server error'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
 class TripInspectionViewSet(UserOrAboveMixin, CompanyFilterMixin, ModelViewSet):
     """
     ViewSet for trip inspections (pre-trip and post-trip)
