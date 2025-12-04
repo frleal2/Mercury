@@ -1197,17 +1197,15 @@ class TripInspection(models.Model):
             operation_impact = 'prohibited' if cfr_type in safety_critical_types else 'conditional'
             
             # Create repair certification
-            certification = TripInspectionRepairCertification.objects.create(
+            # Create repair certification - this will auto-create maintenance record via save() method
+            TripInspectionRepairCertification.objects.create(
                 inspection=self,
                 defect_type=cfr_type,
                 defect_description=f"{failed_item}: Failed during pre-trip inspection. {self.issues_found or 'See inspection notes.'}",
                 operation_impact=operation_impact,
                 repair_required=True,
-                date_found=self.completed_at
+                certified_by=self.completed_by
             )
-            
-            # This will trigger the maintenance record creation and trip status update
-            certification.create_maintenance_record()
 
 
 class TripInspectionRepairCertification(models.Model):

@@ -307,17 +307,6 @@ function DriverDashboard() {
                     <div className="w-full sm:w-auto space-y-3">
                       {/* Action buttons - full width on mobile */}
                       <div className="flex flex-col space-y-2 sm:space-y-2">
-                        {/* Pre-trip Inspection */}
-                        {trip.status === 'scheduled' && !trip.pre_trip_inspection_completed && (
-                          <button
-                            onClick={() => openInspectionModal(trip, 'pre_trip')}
-                            className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-3 sm:py-2 border border-blue-300 rounded-lg text-sm font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 touch-manipulation"
-                          >
-                            <ClipboardDocumentCheckIcon className="h-4 w-4 mr-2" />
-                            Pre-Trip Inspection
-                          </button>
-                        )}
-                        
                         {/* Trip Actions Based on Status */}
                         {trip.status === 'scheduled' && !trip.last_dvir_reviewed ? (
                           <button
