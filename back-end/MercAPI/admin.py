@@ -4,7 +4,8 @@ from django.contrib.auth.models import User
 from .models import (Driver, Company, DriverTest, Truck, Trailer, Inspection, InspectionItem, 
                      Trips, DriverHOS, DriverApplication, Tenant, UserProfile, InvitationToken, 
                      TripDocument, DriverDocument, MaintenanceCategory, 
-                     MaintenanceType, MaintenanceRecord, MaintenanceAttachment, PasswordResetToken)
+                     MaintenanceType, MaintenanceRecord, MaintenanceAttachment, PasswordResetToken,
+                     TripInspectionRepairCertification, QualifiedInspector, AnnualInspection, VehicleOperationStatus)
 
 @admin.register(Tenant)
 class TenantAdmin(admin.ModelAdmin):
@@ -118,8 +119,7 @@ class TruckAdmin(admin.ModelAdmin):
     search_fields = ('unit_number', 'license_plate', 'vin')  # Add search fields
 
 # Register other models
-admin.site.register(DriverTest)
-admin.site.register(Trailer)
+# DriverTest and Trailer now have proper admin classes below
 
 @admin.register(DriverApplication)
 class DriverApplicationAdmin(admin.ModelAdmin):
@@ -323,3 +323,52 @@ class PasswordResetTokenAdmin(admin.ModelAdmin):
             'fields': ('used', 'created_at', 'expires_at')
         }),
     )
+
+class DriverTestAdmin(admin.ModelAdmin):
+    list_display = ('driver', 'test_type', 'test_date', 'test_result', 'test_completion_date')
+    list_filter = ('test_type', 'test_result', 'test_date', 'test_completion_date')
+    search_fields = ('driver__first_name', 'driver__last_name', 'test_type')
+    date_hierarchy = 'test_date'
+
+class TrailerAdmin(admin.ModelAdmin):
+    list_display = ('unit_number', 'license_plate', 'trailer_type', 'company', 'active')
+    list_filter = ('trailer_type', 'company', 'active')
+    search_fields = ('unit_number', 'license_plate', 'model')
+
+@admin.register(TripInspectionRepairCertification)
+class TripInspectionRepairCertificationAdmin(admin.ModelAdmin):
+    list_display = ('inspection', 'defect_type', 'operation_impact', 'affects_safety', 'repair_completed')
+    list_filter = ('defect_type', 'operation_impact', 'affects_safety', 'repair_completed')
+    search_fields = ('inspection__trip__trip_number', 'defect_description')
+
+@admin.register(QualifiedInspector)
+class QualifiedInspectorAdmin(admin.ModelAdmin):
+    list_display = ('name', 'inspector_id', 'inspector_type', 'certification_expiry', 'company', 'active')
+    list_filter = ('inspector_type', 'active', 'certification_expiry', 'company')
+    search_fields = ('name', 'inspector_id', 'email')
+    date_hierarchy = 'certification_expiry'
+
+@admin.register(AnnualInspection)
+class AnnualInspectionAdmin(admin.ModelAdmin):
+    list_display = ('truck', 'trailer', 'inspector', 'inspection_date', 'inspection_result', 'inspection_certificate_number')
+    list_filter = ('inspection_result', 'inspection_date', 'inspector__inspector_type')
+    search_fields = ('truck__unit_number', 'trailer__unit_number', 'inspection_certificate_number', 'inspector__name')
+    date_hierarchy = 'inspection_date'
+
+@admin.register(VehicleOperationStatus)
+class VehicleOperationStatusAdmin(admin.ModelAdmin):
+    list_display = ('get_vehicle', 'vehicle_type', 'current_status', 'status_set_at')
+    list_filter = ('vehicle_type', 'current_status', 'status_set_at')
+    search_fields = ('truck__unit_number', 'trailer__unit_number', 'status_reason')
+    
+    def get_vehicle(self, obj):
+        if obj.truck:
+            return f"Truck: {obj.truck.unit_number}"
+        elif obj.trailer:
+            return f"Trailer: {obj.trailer.unit_number}"
+        return "Unknown"
+    get_vehicle.short_description = 'Vehicle'
+
+# Register admin classes that were converted from simple registrations
+admin.site.register(DriverTest, DriverTestAdmin)
+admin.site.register(Trailer, TrailerAdmin)
