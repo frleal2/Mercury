@@ -196,7 +196,6 @@ class TripsSerializer(serializers.ModelSerializer):
     can_start = serializers.SerializerMethodField()
     can_complete = serializers.SerializerMethodField()
     compliance_issues = serializers.SerializerMethodField()
-    dvir_reviewed_info = serializers.SerializerMethodField()
     
     # Frontend form fields (write-only for trip creation)
     planned_departure = serializers.CharField(write_only=True, required=False)  # Accept date string
@@ -223,15 +222,6 @@ class TripsSerializer(serializers.ModelSerializer):
     
     def get_compliance_issues(self, obj):
         return obj.get_compliance_issues()
-    
-    def get_dvir_reviewed_info(self, obj):
-        if obj.last_dvir_reviewed:
-            return {
-                'reviewed': True,
-                'reviewed_at': obj.last_dvir_reviewed_at,
-                'reviewed_by': obj.last_dvir_reviewed_by.get_full_name() if obj.last_dvir_reviewed_by else None
-            }
-        return {'reviewed': False, 'reviewed_at': None, 'reviewed_by': None}
     
     def create(self, validated_data):
         """

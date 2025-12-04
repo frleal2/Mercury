@@ -33,7 +33,13 @@ Fleetly is a multi-tenant fleet management SaaS with Django REST Framework backe
 - **Tenant-Aware Routing**: `/accept-invitation/:token` for user onboarding with tenant assignment
 - **Modal Components**: Consistent pattern using state flags (e.g., `isAddDriverOpen`, `isEditDriverOpen`)
 - **API Configuration**: Environment-aware config via `config.js` (local vs render endpoints)
-### Component Structure**: 
+- **Modern UI Stack**: 
+  - **Headless UI**: `@headlessui/react` v2.2+ for accessible components (`Dialog`, `Transition`)
+  - **Heroicons**: `@heroicons/react` v2.2+ for consistent iconography (`24/outline` variants)
+  - **React Router**: v6.28+ for client-side routing with `_redirects` file for SPA deployment
+  - **Dropzone**: `react-dropzone` v14.3+ for file uploads in inspections and documents
+  - **Charts**: `chart.js` + `react-chartjs-2` for data visualization
+- **Component Structure**: 
   - `Pages/` for route components (Drivers, Companies, Trips, Maintenance, etc.)
   - `components/` for reusable UI (Add/Edit modals, Header navigation, Inspections)
 
@@ -63,6 +69,12 @@ cd front-end-mercury
 npm install
 npm start  # Runs on localhost:3000
 ```
+
+### Testing & Debugging
+- **Backend Migrations**: Always run `python manage.py makemigrations` followed by `migrate` after model changes
+- **CORS Issues**: Frontend runs on :3000, backend on :8000 - check `CORS_ALLOWED_ORIGINS` in Django settings
+- **JWT Token Debugging**: Use browser dev tools to inspect JWT payload for `tenant_id`, `companies[]` data
+- **Company Filtering**: If data doesn't appear, check user's `UserProfile.companies` assignment via Django admin
 
 ### Production Deployment
 - Backend uses `build.sh` script for Render deployment with `CREATE_SUPERUSER` env var
@@ -100,6 +112,12 @@ class CompanyFilterMixin:
         return queryset.filter(company__in=user_companies)
 ```
 
+### File Upload Patterns
+- **Dropzone Integration**: Use `react-dropzone` for drag-drop file uploads (see `PostTripInspection.js`, `PreTripInspection.js`)
+- **File Storage**: Backend uses Django's `FileField` with organized upload paths (`annual_inspections/%Y/%m/`, etc.)
+- **Document Types**: Support for PDFs, images, and documents with MIME type validation
+- **Related Models**: `TripDocument`, `DriverDocument`, `MaintenanceAttachment` for file associations
+
 ### Navigation Structure
 Header component uses Headless UI with dropdown menus. Main sections:
 - Safety Compliance (Companies, Drivers, Trucks, Trailers)
@@ -134,7 +152,15 @@ Header component uses Headless UI with dropdown menus. Main sections:
 - **Trip Management**: Full CRUD operations with status tracking (scheduled/in_progress/completed/cancelled)
 - **Trip Inspections**: Pre-trip and post-trip safety checks with detailed checklists
 - **Trip Documents**: File uploads for Bills of Lading, receipts, and photos
+- **Annual Inspections (CFR 396.17)**: `AnnualInspection` model with qualified inspectors, certificates, and compliance tracking
+- **Vehicle Operation Status (CFR 396.7)**: Status management system (safe/conditional/prohibited/out_of_service) linked to inspections
+- **Qualified Inspectors (CFR 396.19)**: Inspector certification management for DOT compliance
 - **Auto-Assignment Logic**: Driver selection auto-assigns associated truck and trailer
 - **Enhanced Trailers**: Added `unit_number` (unique) and `trailer_type` fields
+
+### CFR Compliance Architecture
+- **Regulatory Focus**: Models and workflows built around specific CFR requirements with help text referencing regulations
+- **Inspection Hierarchy**: `TripInspection` (daily) → `AnnualInspection` (yearly) → `VehicleOperationStatus` (operational control)
+- **Repair Certifications**: `TripInspectionRepairCertification` model for defect resolution tracking
 
 When adding new features, follow these established patterns for consistency with the existing codebase.

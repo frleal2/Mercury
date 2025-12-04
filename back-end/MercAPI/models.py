@@ -470,11 +470,6 @@ class Trips(models.Model):
     pre_trip_inspection_completed = models.BooleanField(default=False)
     post_trip_inspection_completed = models.BooleanField(default=False)
     
-    # CFR 396.13 - Pre-trip DVIR review requirement
-    last_dvir_reviewed = models.BooleanField(default=False, help_text="Driver reviewed last DVIR before starting trip (CFR 396.13)")
-    last_dvir_reviewed_at = models.DateTimeField(null=True, blank=True)
-    last_dvir_reviewed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='reviewed_dvirs')
-    
     # Mileage tracking
     mileage_start = models.IntegerField(null=True, blank=True)
     mileage_end = models.IntegerField(null=True, blank=True)
@@ -519,10 +514,6 @@ class Trips(models.Model):
         if not self.pre_trip_inspection_completed:
             return False
         
-        # CFR 396.13 - Driver must review last DVIR
-        if not self.last_dvir_reviewed:
-            return False
-        
         # CFR 396.7 - Vehicle must be safe to operate
         if hasattr(self.truck, 'operation_status'):
             if not self.truck.operation_status.can_operate():
@@ -555,9 +546,6 @@ class Trips(models.Model):
         
         if not self.pre_trip_inspection_completed:
             issues.append("Pre-trip inspection not completed (CFR 396.11)")
-        
-        if not self.last_dvir_reviewed:
-            issues.append("Last DVIR not reviewed by driver (CFR 396.13)")
         
         # Check vehicle operation status
         if hasattr(self.truck, 'operation_status') and not self.truck.operation_status.can_operate():
