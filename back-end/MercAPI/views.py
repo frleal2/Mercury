@@ -159,6 +159,34 @@ class DriverFilterMixin:
         return queryset
 
 
+class DriverReadOnlyMixin:
+    """
+    Mixin for viewsets that should allow drivers to read data (for DVIR purposes)
+    but restrict create/update/delete operations to user role and above.
+    """
+    def get_permissions(self):
+        permissions = super().get_permissions()
+        permissions.append(IsAuthenticated())
+        return permissions
+    
+    def check_permissions(self, request):
+        super().check_permissions(request)
+        
+        if not hasattr(request.user, 'profile'):
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("User profile not found")
+        
+        # Allow drivers to read (GET, HEAD, OPTIONS) but not modify data
+        if request.method in ['GET', 'HEAD', 'OPTIONS']:
+            # All authenticated users with profiles can read
+            return
+        
+        # For create/update/delete operations, require user role or above
+        if not request.user.profile.is_user_or_above():
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("User access or above required for modifications")
+
+
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def resolve_tenant_company(request, tenant_domain=None, company_slug=None):
@@ -2289,7 +2317,7 @@ def available_trucks(request):
         )
 
 
-class TripInspectionViewSet(UserOrAboveMixin, CompanyFilterMixin, ModelViewSet):
+class TripInspectionViewSet(DriverReadOnlyMixin, CompanyFilterMixin, ModelViewSet):
     """
     ViewSet for trip inspections (pre-trip and post-trip)
     """
@@ -2397,13 +2425,17 @@ def submit_inspection(request, trip_id, inspection_type):
         if serializer.is_valid():
             inspection = serializer.save(completed_by=request.user)
             
+            # Reload trip to get any status updates from TripInspection.save()
+            trip.refresh_from_db()
+            
             # Update trip inspection flags
             if inspection_type == 'pre_trip':
                 trip.pre_trip_inspection_completed = True
+                # Only update the completion flag, not the status (which may have been set to failed_inspection)
+                trip.save(update_fields=['pre_trip_inspection_completed'])
             elif inspection_type == 'post_trip':
                 trip.post_trip_inspection_completed = True
-            
-            trip.save()
+                trip.save(update_fields=['post_trip_inspection_completed'])
             
             return Response({
                 'message': f'{inspection_type.replace("_", "-").title()} inspection submitted successfully',

@@ -1163,7 +1163,9 @@ class TripInspection(models.Model):
 
 class TripInspectionRepairCertification(models.Model):
     """
-    CFR 396.11 compliance - Certification of repairs for inspection defects
+    DEPRECATED: CFR 396.11 compliance - Certification of repairs for inspection defects
+    This model is no longer used in the manual maintenance workflow.
+    Kept for backward compatibility with existing data.
     """
     # CFR 396.11 Defect Categories - Per §396.11, drivers must inspect these items
     CFR_DEFECT_TYPES = [

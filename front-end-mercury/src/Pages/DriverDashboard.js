@@ -57,6 +57,7 @@ function DriverDashboard() {
 
   const handleStartTripClick = (trip) => {
     // First step: Show DVIR Review modal
+    clearMessage(); // Clear any existing error messages
     setSelectedTrip(trip);
     setDvirReviewModalOpen(true);
   };
@@ -107,14 +108,38 @@ function DriverDashboard() {
     fetchActiveTrips();
   };
 
-  const handleInspectionCompleted = (inspectionData) => {
+  const handleInspectionCompleted = (inspectionResult) => {
     setInspectionModalOpen(false);
     
-    if (inspectionType === 'pre_trip') {
-      // After pre-trip inspection, start the trip
-      startTrip(selectedTrip.id);
-    } else if (inspectionType === 'post_trip') {
+    if (inspectionResult.type === 'pre_trip') {
+      if (inspectionResult.passed) {
+        // Inspection passed - start the trip
+        startTrip(selectedTrip.id);
+      } else {
+        // Inspection failed - show message and refresh trips to show failed_inspection status
+        setMessage({ 
+          type: 'error', 
+          text: `Pre-trip inspection failed due to defects. Trip cannot start until defects are resolved. Contact maintenance team.` 
+        });
+        
+        // Refresh trips after a short delay to ensure backend has updated the status
+        setTimeout(() => {
+          fetchActiveTrips();
+        }, 500);
+      }
+    } else if (inspectionResult.type === 'post_trip') {
       // Post-trip inspection completed - complete the trip
+      if (inspectionResult.hasDefects) {
+        setMessage({ 
+          type: 'success', 
+          text: `Trip completed. Defects reported and require maintenance attention before next use.` 
+        });
+      } else {
+        setMessage({ 
+          type: 'success', 
+          text: `Trip completed successfully with no defects found.` 
+        });
+      }
       completeTrip(selectedTrip.id);
     }
   };
@@ -124,6 +149,7 @@ function DriverDashboard() {
   const closeDVIRModal = () => {
     setDvirReviewModalOpen(false);
     setSelectedTrip(null);
+    clearMessage(); // Clear any error messages when modal is closed
   };
 
 

@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Inspection, InspectionItem, Trips, UserProfile, TripInspection, TripInspectionRepairCertification, TripDocument, QualifiedInspector, AnnualInspection, VehicleOperationStatus
+from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Inspection, InspectionItem, Trips, UserProfile, TripInspection, TripDocument, QualifiedInspector, AnnualInspection, VehicleOperationStatus
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -377,27 +377,29 @@ class TripInspectionSerializer(serializers.ModelSerializer):
         return cfr_items
 
 
-class TripInspectionRepairCertificationSerializer(serializers.ModelSerializer):
-    inspection_details = serializers.SerializerMethodField()
-    certified_by_name = serializers.CharField(source='certified_by.get_full_name', read_only=True)
-    
-    class Meta:
-        model = TripInspectionRepairCertification
-        fields = [
-            'id', 'inspection', 'defect_description', 'affects_safety', 
-            'repair_completed', 'repair_description', 'certified_by', 
-            'certified_at', 'created_at', 'inspection_details', 
-            'certified_by_name', 'defect_type', 'operation_impact', 'maintenance_record'
-        ]
-        read_only_fields = ['certified_at', 'created_at', 'maintenance_record']
-    
-    def get_inspection_details(self, obj):
-        return {
-            'trip_id': obj.inspection.trip.id,
-            'trip_number': obj.inspection.trip.trip_number,
-            'inspection_type': obj.inspection.get_inspection_type_display(),
-            'inspection_date': obj.inspection.completed_at,
-        }
+# DEPRECATED: TripInspectionRepairCertificationSerializer
+# This serializer is no longer used in the manual maintenance workflow
+# class TripInspectionRepairCertificationSerializer(serializers.ModelSerializer):
+#     inspection_details = serializers.SerializerMethodField()
+#     certified_by_name = serializers.CharField(source='certified_by.get_full_name', read_only=True)
+#     
+#     class Meta:
+#         model = TripInspectionRepairCertification
+#         fields = [
+#             'id', 'inspection', 'defect_description', 'affects_safety', 
+#             'repair_completed', 'repair_description', 'certified_by', 
+#             'certified_at', 'created_at', 'inspection_details', 
+#             'certified_by_name', 'defect_type', 'operation_impact', 'maintenance_record'
+#         ]
+#         read_only_fields = ['certified_at', 'created_at', 'maintenance_record']
+#     
+#     def get_inspection_details(self, obj):
+#         return {
+#             'trip_id': obj.inspection.trip.id,
+#             'trip_number': obj.inspection.trip.trip_number,
+#             'inspection_type': obj.inspection.get_inspection_type_display(),
+#             'inspection_date': obj.inspection.completed_at,
+#         }
 
 
 class TripDocumentSerializer(serializers.ModelSerializer):

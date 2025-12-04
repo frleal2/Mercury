@@ -23,6 +23,9 @@ function PreTripDVIRReview({ isOpen, onClose, trip, onReviewCompleted }) {
 
   useEffect(() => {
     if (trip && isOpen) {
+      // Clear any existing error state when modal opens
+      setError('');
+      setLastDVIR(null);
       fetchLastDVIR();
     }
   }, [trip, isOpen]);
@@ -30,12 +33,13 @@ function PreTripDVIRReview({ isOpen, onClose, trip, onReviewCompleted }) {
   const fetchLastDVIR = async () => {
     try {
       setLoading(true);
+      setError(''); // Clear any previous errors
       
       console.log('Fetching last DVIR for trip:', trip);
       console.log('Truck ID:', trip.truck);
       
       // Get the last post-trip inspection for this truck
-      const response = await axios.get(`${BASE_URL}/api/TripInspection/`, {
+      const response = await axios.get(`${BASE_URL}/api/trip-inspections/`, {
         headers: { 'Authorization': `Bearer ${session.accessToken}` },
         params: {
           truck: trip.truck,
@@ -54,8 +58,22 @@ function PreTripDVIRReview({ isOpen, onClose, trip, onReviewCompleted }) {
       }
     } catch (error) {
       console.error('Error fetching last DVIR:', error);
-      console.error('Error response:', error.response);
-      setError(`Failed to load last DVIR: ${error.response?.data?.detail || error.message}`);
+      
+      // Don't show error for expected cases:
+      // - 404: No previous DVIR exists (normal for new vehicles/first trips)
+      // - 401: Authentication issues (handled automatically by session management)
+      // - 403: Permission errors that result in empty data (normal for drivers)
+      if (error.response?.status === 404 || 
+          error.response?.status === 401 || 
+          (error.response?.status === 403 && error.response?.data?.detail?.includes('access'))) {
+        // These are expected scenarios - clear error and log
+        setError('');
+        console.log('Expected API response suppressed - no previous DVIR or permission limitation');
+      } else {
+        // Only show errors for unexpected issues
+        console.error('Unexpected error response:', error.response);
+        setError(`Failed to load last DVIR: ${error.response?.data?.detail || error.message}`);
+      }
     } finally {
       setLoading(false);
     }
