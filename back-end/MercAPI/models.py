@@ -452,6 +452,7 @@ class Trips(models.Model):
     """
     TRIP_STATUS_CHOICES = [
         ('scheduled', 'Scheduled'),
+        ('failed_inspection', 'Failed Inspection'),
         ('maintenance_hold', 'Maintenance Hold'),
         ('in_progress', 'In Progress'),
         ('completed', 'Completed'),
@@ -1162,9 +1163,9 @@ class TripInspection(models.Model):
             if not failed_items:
                 return
             
-            # For safety-critical pre-trip failures, put trip on maintenance hold immediately
-            if self.inspection_type == 'pre_trip' and self.has_safety_critical_defects():
-                self.trip.status = 'maintenance_hold'
+            # For failed pre-trip inspections, put trip on failed inspection status
+            if self.inspection_type == 'pre_trip' and not self.is_passed():
+                self.trip.status = 'failed_inspection'
                 self.trip.save()
                 
         except Exception as e:
@@ -1173,10 +1174,10 @@ class TripInspection(models.Model):
             logger = logging.getLogger(__name__)
             logger.error(f"Failed to process defects for inspection {self.id}: {e}")
             
-            # As fallback, if this is a failed pre-trip inspection, put on maintenance hold
+            # As fallback, if this is a failed pre-trip inspection, set failed status
             try:
                 if self.inspection_type == 'pre_trip' and not self.is_passed():
-                    self.trip.status = 'maintenance_hold' 
+                    self.trip.status = 'failed_inspection' 
                     self.trip.save()
             except Exception as fallback_error:
                 logger.error(f"Fallback maintenance hold failed for inspection {self.id}: {fallback_error}")

@@ -102,6 +102,30 @@ const ViewTripDetails = ({ tripId, onClose }) => {
     return { passed: passedChecks === totalChecks, passedChecks, totalChecks };
   };
 
+  const handleCreateMaintenanceRecord = (inspection) => {
+    // Navigate to maintenance page and trigger add maintenance modal
+    // Pass inspection data via URL params or state
+    const inspectionData = {
+      tripId: trip.id,
+      truckId: trip.truck?.id,
+      trailerId: trip.trailer?.id,
+      defects: inspection.issues_found || 'Failed inspection items',
+      inspectionType: inspection.inspection_type,
+      inspectionId: inspection.id
+    };
+    
+    // Close this modal first
+    onClose();
+    
+    // Navigate to maintenance page with inspection context
+    navigate('/maintenance', { 
+      state: { 
+        openAddModal: true, 
+        inspectionData 
+      } 
+    });
+  };
+
   const renderInspectionChecklist = (inspection) => {
     // CFR 396.11 Required Inspection Items
     const cfrChecks = [

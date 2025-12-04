@@ -29,6 +29,7 @@ function Maintenance() {
   const [trucks, setTrucks] = useState([]);
   const [trailers, setTrailers] = useState([]);
   const [maintenanceHoldTrips, setMaintenanceHoldTrips] = useState([]);
+  const [failedInspectionTrips, setFailedInspectionTrips] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -44,7 +45,7 @@ function Maintenance() {
 
   const fetchData = async () => {
     try {
-      const [recordsRes, trucksRes, trailersRes, tripsRes] = await Promise.all([
+      const [recordsRes, trucksRes, trailersRes, tripsRes, failedInspectionRes] = await Promise.all([
         axios.get(`${BASE_URL}/api/maintenance-records/`, {
           headers: { 'Authorization': `Bearer ${session.accessToken}` }
         }),
@@ -56,6 +57,9 @@ function Maintenance() {
         }),
         axios.get(`${BASE_URL}/api/trips/?status=maintenance_hold`, {
           headers: { 'Authorization': `Bearer ${session.accessToken}` }
+        }),
+        axios.get(`${BASE_URL}/api/trips/?status=failed_inspection`, {
+          headers: { 'Authorization': `Bearer ${session.accessToken}` }
         })
       ]);
 
@@ -63,6 +67,7 @@ function Maintenance() {
       setTrucks(trucksRes.data);
       setTrailers(trailersRes.data);
       setMaintenanceHoldTrips(tripsRes.data);
+      setFailedInspectionTrips(failedInspectionRes.data);
     } catch (error) {
       if (error.response && error.response.status === 401) {
         const newAccessToken = await refreshAccessToken();
@@ -197,6 +202,43 @@ function Maintenance() {
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Fleet Maintenance</h1>
         <p className="text-gray-600">Track and manage maintenance records for DOT compliance</p>
       </div>
+
+      {/* Failed Inspection Trips Alert */}
+      {failedInspectionTrips.length > 0 && (
+        <div className="mb-6 bg-red-50 border-l-4 border-red-400 p-4 rounded-lg">
+          <div className="flex items-center justify-between">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <ExclamationTriangleIcon className="h-5 w-5 text-red-400" />
+              </div>
+              <div className="ml-3">
+                <p className="text-sm text-red-700">
+                  <span className="font-medium">{failedInspectionTrips.length} trip{failedInspectionTrips.length !== 1 ? 's' : ''}</span> with failed inspections - requires immediate attention.
+                </p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {failedInspectionTrips.slice(0, 3).map((trip) => (
+                    <div key={trip.id} className="flex items-center bg-white rounded px-2 py-1 text-xs">
+                      <UserIcon className="h-3 w-3 text-gray-400 mr-1" />
+                      <span>{trip.driver_name}</span>
+                      <TruckIcon className="h-3 w-3 text-gray-400 ml-1 mr-1" />
+                      <span>{trip.truck_number}</span>
+                      <button
+                        onClick={() => handleCancelReassignTrip(trip)}
+                        className="ml-2 text-red-600 hover:text-red-800 text-xs underline"
+                      >
+                        Manage
+                      </button>
+                    </div>
+                  ))}
+                  {failedInspectionTrips.length > 3 && (
+                    <span className="text-xs text-red-600">+{failedInspectionTrips.length - 3} more</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Maintenance Hold Trips Alert */}
       {maintenanceHoldTrips.length > 0 && (

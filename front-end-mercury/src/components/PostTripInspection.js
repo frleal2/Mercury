@@ -158,14 +158,30 @@ const PostTripInspection = ({ isOpen, onClose, tripId, onInspectionComplete }) =
     try {
       const formData = new FormData();
       
-      // Add inspection data as strings
+      // Add inspection data as strings - ensure all fields have valid values
+      // Filter out fields that don't exist in the TripInspection model
+      const validFields = [
+        'service_brakes', 'parking_brake', 'steering_mechanism', 'lighting_devices',
+        'tires_condition', 'horn', 'windshield_wipers', 'rear_vision_mirrors',
+        'coupling_devices', 'wheels_and_rims', 'emergency_equipment',
+        'vehicle_exterior_condition', 'engine_fluids_ok', 'lights_working', 
+        'brakes_working', 'trailer_attached_properly', 'trailer_lights_working',
+        'cargo_secured', 'inspection_notes', 'issues_found'
+      ];
+      
       Object.keys(inspectionData).forEach(key => {
-        formData.append(key, inspectionData[key]);
+        if (validFields.includes(key)) {
+          let value = inspectionData[key];
+          // Convert empty strings to 'na' for optional fields, except text fields
+          if (value === '' && !['inspection_notes', 'issues_found'].includes(key)) {
+            value = 'na';
+          }
+          formData.append(key, value);
+        }
       });
       
       formData.append('trip', tripId);
       formData.append('inspection_type', 'post_trip');
-      formData.append('inspection_datetime', new Date().toISOString());
       
       // Add defect photos
       defectPhotos.forEach((photo, index) => {

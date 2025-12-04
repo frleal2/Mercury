@@ -332,10 +332,15 @@ function DriverDashboard() {
                             <PlayIcon className="h-4 w-4 mr-2" />
                             Start Trip
                           </button>
-                        ) : trip.status === 'maintenance_hold' ? (
+                        ) : trip.status === 'failed_inspection' ? (
                           <div className="text-center py-2 px-4 bg-red-50 border border-red-200 rounded-lg">
-                            <p className="text-sm text-red-700 font-medium">Trip on Maintenance Hold</p>
-                            <p className="text-xs text-red-600">Vehicle requires repairs before operation</p>
+                            <p className="text-sm text-red-700 font-medium">Inspection Failed</p>
+                            <p className="text-xs text-red-600">Contact your supervisor - vehicle cannot be operated</p>
+                          </div>
+                        ) : trip.status === 'maintenance_hold' ? (
+                          <div className="text-center py-2 px-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                            <p className="text-sm text-yellow-700 font-medium">Trip on Maintenance Hold</p>
+                            <p className="text-xs text-yellow-600">Vehicle requires repairs before operation</p>
                           </div>
                         ) : null}
                         

@@ -88,6 +88,8 @@ function Trips() {
         return 'bg-blue-100 text-blue-800';
       case 'in_progress':
         return 'bg-yellow-100 text-yellow-800';
+      case 'failed_inspection':
+        return 'bg-red-100 text-red-800';
       case 'maintenance_hold':
         return 'bg-orange-100 text-orange-800';
       case 'completed':
@@ -168,6 +170,7 @@ function Trips() {
             <option value="all">All Trips</option>
             <option value="scheduled">Scheduled</option>
             <option value="in_progress">In Progress</option>
+            <option value="failed_inspection">Failed Inspection</option>
             <option value="maintenance_hold">Maintenance Hold</option>
             <option value="completed">Completed</option>
             <option value="cancelled">Cancelled</option>
@@ -328,8 +331,8 @@ function Trips() {
                             </svg>
                           </button>
                           
-                          {/* Cancel & Reassign button for maintenance_hold trips */}
-                          {trip.status === 'maintenance_hold' && canCreateTrips() && (
+                          {/* Cancel & Reassign button for failed_inspection and maintenance_hold trips */}
+                          {(trip.status === 'failed_inspection' || trip.status === 'maintenance_hold') && canCreateTrips() && (
                             <button
                               onClick={() => handleCancelReassignTrip(trip)}
                               className="text-orange-600 hover:text-orange-800 p-1 hover:bg-orange-50 rounded"
