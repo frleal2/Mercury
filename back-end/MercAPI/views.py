@@ -3009,7 +3009,7 @@ def generate_recent_activity(trips, inspections, maintenance_records):
 
 # CFR Compliance ViewSets
 
-class QualifiedInspectorViewSet(AdminMixin, CompanyFilterMixin, ModelViewSet):
+class QualifiedInspectorViewSet(AdminOnlyMixin, CompanyFilterMixin, ModelViewSet):
     """
     CFR 396.19 - Inspector qualification tracking
     """
