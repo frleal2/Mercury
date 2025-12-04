@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { XMarkIcon, CheckCircleIcon, XCircleIcon, ClipboardDocumentCheckIcon } from '@heroicons/react/24/outline';
+import { XMarkIcon, CheckCircleIcon, XCircleIcon, ClipboardDocumentCheckIcon, WrenchScrewdriverIcon } from '@heroicons/react/24/outline';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useSession } from '../providers/SessionProvider';
 import BASE_URL from '../config';
 
 const ViewTripDetails = ({ tripId, onClose }) => {
   const { session, refreshAccessToken } = useSession();
+  const navigate = useNavigate();
   const [trip, setTrip] = useState(null);
   const [inspections, setInspections] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -487,6 +489,20 @@ const ViewTripDetails = ({ tripId, onClose }) => {
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Issues Found:</label>
                       <p className="text-sm text-red-700 bg-red-50 p-3 rounded border border-red-200">{preTrip.issues_found}</p>
+                      
+                      {/* Create Maintenance Record Button for Failed Inspections */}
+                      {!getInspectionStatus(preTrip).passed && (
+                        <div className="mt-4">
+                          <button
+                            onClick={() => handleCreateMaintenanceRecord(preTrip)}
+                            className="inline-flex items-center px-4 py-2 border border-orange-300 rounded-md shadow-sm text-sm font-medium text-orange-700 bg-orange-50 hover:bg-orange-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
+                          >
+                            <WrenchScrewdriverIcon className="h-4 w-4 mr-2" />
+                            Create Maintenance Record
+                          </button>
+                          <p className="text-xs text-gray-500 mt-1">Create maintenance records for failed inspection items</p>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -576,6 +592,20 @@ const ViewTripDetails = ({ tripId, onClose }) => {
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Issues Found:</label>
                       <p className="text-sm text-red-700 bg-red-50 p-3 rounded border border-red-200">{postTrip.issues_found}</p>
+                      
+                      {/* Create Maintenance Record Button for Failed Inspections */}
+                      {!getInspectionStatus(postTrip).passed && (
+                        <div className="mt-4">
+                          <button
+                            onClick={() => handleCreateMaintenanceRecord(postTrip)}
+                            className="inline-flex items-center px-4 py-2 border border-orange-300 rounded-md shadow-sm text-sm font-medium text-orange-700 bg-orange-50 hover:bg-orange-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
+                          >
+                            <WrenchScrewdriverIcon className="h-4 w-4 mr-2" />
+                            Create Maintenance Record
+                          </button>
+                          <p className="text-xs text-gray-500 mt-1">Create maintenance records for failed inspection items</p>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

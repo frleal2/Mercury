@@ -1156,56 +1156,30 @@ class TripInspection(models.Model):
 
     def _create_repair_certifications_for_defects(self):
         """Auto-create repair certifications for failed inspection items"""
-        failed_items = self.get_failed_items()
-        
-        if not failed_items:
-            return
-        
-        # Import here to avoid circular imports
-        from django.apps import apps
-        TripInspectionRepairCertification = apps.get_model('MercAPI', 'TripInspectionRepairCertification')
-        
-        # Map failed items to CFR defect types
-        item_to_cfr_mapping = {
-            'Service Brakes': 'service_brakes',
-            'Parking Brake': 'parking_brake',
-            'Steering Mechanism': 'steering_mechanism',
-            'Lighting Devices': 'lighting_devices',
-            'Tires': 'tires',
-            'Horn': 'horn',
-            'Windshield Wipers': 'windshield_wipers',
-            'Rear Vision Mirrors': 'rear_vision_mirrors',
-            'Coupling Devices': 'coupling_devices',
-            'Wheels and Rims': 'wheels_and_rims',
-            'Emergency Equipment': 'emergency_equipment',
-            'Vehicle Exterior': 'vehicle_exterior',
-            'Engine Fluids': 'engine_fluids',
-            'Trailer Attachment': 'trailer_coupling',
-            'Trailer Lights': 'lighting_devices',
-            'Cargo Security': 'cargo_securement'
-        }
-        
-        for failed_item in failed_items:
-            cfr_type = item_to_cfr_mapping.get(failed_item, 'other')
+        try:
+            failed_items = self.get_failed_items()
             
-            # Determine operation impact based on defect type
-            safety_critical_types = [
-                'service_brakes', 'parking_brake', 'steering_mechanism', 
-                'tires', 'wheels_and_rims', 'lighting_devices'
-            ]
+            if not failed_items:
+                return
             
-            operation_impact = 'prohibited' if cfr_type in safety_critical_types else 'conditional'
+            # For safety-critical pre-trip failures, put trip on maintenance hold immediately
+            if self.inspection_type == 'pre_trip' and self.has_safety_critical_defects():
+                self.trip.status = 'maintenance_hold'
+                self.trip.save()
+                
+        except Exception as e:
+            # Log the error but don't fail the inspection save
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Failed to process defects for inspection {self.id}: {e}")
             
-            # Create repair certification
-            # Create repair certification - this will auto-create maintenance record via save() method
-            TripInspectionRepairCertification.objects.create(
-                inspection=self,
-                defect_type=cfr_type,
-                defect_description=f"{failed_item}: Failed during pre-trip inspection. {self.issues_found or 'See inspection notes.'}",
-                operation_impact=operation_impact,
-                repair_required=True,
-                certified_by=self.completed_by
-            )
+            # As fallback, if this is a failed pre-trip inspection, put on maintenance hold
+            try:
+                if self.inspection_type == 'pre_trip' and not self.is_passed():
+                    self.trip.status = 'maintenance_hold' 
+                    self.trip.save()
+            except Exception as fallback_error:
+                logger.error(f"Fallback maintenance hold failed for inspection {self.id}: {fallback_error}")
 
 
 class TripInspectionRepairCertification(models.Model):

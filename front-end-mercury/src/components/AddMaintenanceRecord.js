@@ -4,7 +4,7 @@ import axios from 'axios';
 import BASE_URL from '../config';
 import { XMarkIcon, TruckIcon, CalendarIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 
-function AddMaintenanceRecord({ onClose, onRecordAdded, trucks, trailers }) {
+function AddMaintenanceRecord({ onClose, onRecordAdded, trucks, trailers, inspectionData }) {
   const { session } = useSession();
   const [formData, setFormData] = useState({
     vehicle_type: 'truck',
@@ -25,6 +25,25 @@ function AddMaintenanceRecord({ onClose, onRecordAdded, trucks, trailers }) {
   });
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
+
+  // Pre-fill form when coming from failed inspection
+  useEffect(() => {
+    if (inspectionData) {
+      const inspectionDescription = `Failed ${inspectionData.inspectionType?.replace('_', '-')} inspection for Trip #${inspectionData.tripId}. Defects found: ${inspectionData.defects}`;
+      
+      setFormData(prev => ({
+        ...prev,
+        vehicle_type: inspectionData.truckId ? 'truck' : 'trailer',
+        truck: inspectionData.truckId || '',
+        trailer: inspectionData.trailerId || '',
+        maintenance_type: 'other', // Default to 'other' for inspection-related maintenance
+        priority: 'high', // Failed inspections are high priority
+        description: inspectionDescription,
+        notes: `Created from failed inspection ID: ${inspectionData.inspectionId}. Original inspection notes: ${inspectionData.defects}`,
+        scheduled_date: new Date().toISOString().split('T')[0] // Today's date
+      }));
+    }
+  }, [inspectionData]);
 
   // Maintenance type categories and options
   const maintenanceTypes = [
@@ -205,10 +224,20 @@ function AddMaintenanceRecord({ onClose, onRecordAdded, trucks, trailers }) {
     <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
       <div className="relative top-10 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-2/3 xl:w-1/2 shadow-lg rounded-md bg-white max-h-[90vh] overflow-y-auto">
         <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-medium text-gray-900 flex items-center">
-            <TruckIcon className="h-6 w-6 mr-2 text-blue-600" />
-            Add Maintenance Record
-          </h3>
+          <div>
+            <h3 className="text-lg font-medium text-gray-900 flex items-center">
+              <TruckIcon className="h-6 w-6 mr-2 text-blue-600" />
+              Add Maintenance Record
+            </h3>
+            {inspectionData && (
+              <div className="flex items-center mt-1">
+                <ExclamationTriangleIcon className="h-4 w-4 mr-1 text-orange-500" />
+                <span className="text-sm text-orange-600 font-medium">
+                  Created from Failed Inspection - Trip #{inspectionData.tripId}
+                </span>
+              </div>
+            )}
+          </div>
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600"

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useSession } from '../providers/SessionProvider';
 import axios from 'axios';
 import BASE_URL from '../config';
@@ -23,6 +24,7 @@ import {
 
 function Maintenance() {
   const { session, refreshAccessToken } = useSession();
+  const location = useLocation();
   const [maintenanceRecords, setMaintenanceRecords] = useState([]);
   const [trucks, setTrucks] = useState([]);
   const [trailers, setTrailers] = useState([]);
@@ -38,6 +40,7 @@ function Maintenance() {
   const [isEditRecordOpen, setIsEditRecordOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
   const [cancelReassignTrip, setCancelReassignTrip] = useState(null);
+  const [inspectionData, setInspectionData] = useState(null);
 
   const fetchData = async () => {
     try {
@@ -249,7 +252,7 @@ function Maintenance() {
           </div>
           <button
             className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium flex items-center space-x-2 transition-colors"
-            onClick={() => setIsAddRecordOpen(true)}
+            onClick={() => { setInspectionData(null); setIsAddRecordOpen(true); }}
           >
             <PlusIcon className="h-5 w-5" />
             <span>Add Maintenance</span>
@@ -443,7 +446,7 @@ function Maintenance() {
                 {!searchTerm && (
                   <div className="mt-6">
                     <button
-                      onClick={() => setIsAddRecordOpen(true)}
+                      onClick={() => { setInspectionData(null); setIsAddRecordOpen(true); }}
                       className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
                     >
                       <PlusIcon className="h-5 w-5 mr-2" />
@@ -460,10 +463,11 @@ function Maintenance() {
       {/* Add Maintenance Record Modal */}
       {isAddRecordOpen && (
         <AddMaintenanceRecord
-          onClose={() => setIsAddRecordOpen(false)}
+          onClose={() => { setIsAddRecordOpen(false); setInspectionData(null); }}
           onRecordAdded={handleRecordAdded}
           trucks={trucks}
           trailers={trailers}
+          inspectionData={inspectionData}
         />
       )}
 
