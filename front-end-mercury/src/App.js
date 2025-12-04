@@ -23,6 +23,7 @@ import Settings from './Pages/Settings';
 import VehicleCompliancePage from './Pages/VehicleCompliancePage';
 import DVIRReviewPage from './Pages/DVIRReviewPage';
 import InspectorQualificationPage from './Pages/InspectorQualificationPage';
+import AnnualInspectionPage from './Pages/AnnualInspectionPage';
 
 function AppContent() {
     const { session } = useSession();
@@ -68,6 +69,7 @@ function AppContent() {
                             <Route path="/VehicleCompliance" element={<><Header /><VehicleCompliancePage /></>} />
                             <Route path="/DVIRReview" element={<><Header /><DVIRReviewPage /></>} />
                             <Route path="/InspectorQualification" element={<><Header /><InspectorQualificationPage /></>} />
+                            <Route path="/AnnualInspection" element={<><Header /><AnnualInspectionPage /></>} />
                             <Route path="/Settings" element={<><Header /><Settings /></>} />
                         </>
                     )}

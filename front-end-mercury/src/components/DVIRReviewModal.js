@@ -266,8 +266,8 @@ function DVIRReviewModal({ isOpen, onClose, trip, onReviewCompleted }) {
             </div>
           </div>
         </Dialog>
-      );
-    }
+      </Transition>
+    );
   }
 
   return (
