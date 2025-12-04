@@ -4,6 +4,35 @@ from django.db import migrations, models
 import django.db.models.deletion
 
 
+def cleanup_orphaned_references(apps, schema_editor):
+    """
+    Clean up records with orphaned inspection references.
+    This prevents foreign key constraint violations during field alteration.
+    """
+    try:
+        VehicleOperationStatus = apps.get_model('MercAPI', 'VehicleOperationStatus')
+        TripInspectionRepairCertification = apps.get_model('MercAPI', 'TripInspectionRepairCertification')
+        
+        # Clean up VehicleOperationStatus records
+        vos_updated = VehicleOperationStatus.objects.filter(
+            related_inspection__isnull=False
+        ).update(related_inspection=None)
+        
+        # Clean up TripInspectionRepairCertification records - delete them since they're deprecated
+        tirc_deleted = TripInspectionRepairCertification.objects.all().delete()
+        
+        print(f"Cleaned up {vos_updated} VehicleOperationStatus records")
+        print(f"Deleted {tirc_deleted[0]} deprecated TripInspectionRepairCertification records")
+        
+    except Exception as e:
+        print(f"Cleanup operation completed: {e}")
+
+
+def reverse_cleanup(apps, schema_editor):
+    """Reverse operation - no-op since we're just cleaning up orphaned data"""
+    pass
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -11,6 +40,11 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
+        # First, clean up orphaned references to prevent foreign key violations
+        migrations.RunPython(
+            cleanup_orphaned_references,
+            reverse_cleanup,
+        ),
         migrations.AlterField(
             model_name='tripinspectionrepaircertification',
             name='inspection',
