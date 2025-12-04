@@ -139,12 +139,6 @@ function DriverDashboard() {
     setSelectedTrip(null);
   };
 
-  const closeInspectionModal = () => {
-    setInspectionModalOpen(false);
-    setSelectedTrip(null);
-    setInspectionType(null);
-  };
-
   const closeRepairCertificationModal = () => {
     setRepairCertificationModalOpen(false);
     setCompletedInspection(null);
