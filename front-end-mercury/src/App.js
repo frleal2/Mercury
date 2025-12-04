@@ -21,6 +21,8 @@ import ResetPassword from './Pages/ResetPassword';
 import LandingPage from './Pages/LandingPage';
 import Settings from './Pages/Settings';
 import VehicleCompliancePage from './Pages/VehicleCompliancePage';
+import DVIRReviewPage from './Pages/DVIRReviewPage';
+import InspectorQualificationPage from './Pages/InspectorQualificationPage';
 
 function AppContent() {
     const { session } = useSession();
@@ -64,6 +66,8 @@ function AppContent() {
                             <Route path="/Recruitment" element={<><Header /><Recruitment /></>} />
                             <Route path="/UserManagement" element={<><Header /><UserManagement /></>} />
                             <Route path="/VehicleCompliance" element={<><Header /><VehicleCompliancePage /></>} />
+                            <Route path="/DVIRReview" element={<><Header /><DVIRReviewPage /></>} />
+                            <Route path="/InspectorQualification" element={<><Header /><InspectorQualificationPage /></>} />
                             <Route path="/Settings" element={<><Header /><Settings /></>} />
                         </>
                     )}
