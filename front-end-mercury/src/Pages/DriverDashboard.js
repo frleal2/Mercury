@@ -5,7 +5,7 @@ import BASE_URL from '../config';
 import PreTripInspection from '../components/PreTripInspection';
 import PostTripInspection from '../components/PostTripInspection';
 import PreTripDVIRReview from '../components/PreTripDVIRReview';
-import RepairCertificationModal from '../components/RepairCertificationModal';
+
 import { 
   TruckIcon,
   ClockIcon,
@@ -27,8 +27,8 @@ function DriverDashboard() {
   const [inspectionModalOpen, setInspectionModalOpen] = useState(false);
   const [inspectionType, setInspectionType] = useState(null); // 'pre_trip' or 'post_trip'
   const [dvirReviewModalOpen, setDvirReviewModalOpen] = useState(false);
-  const [repairCertificationModalOpen, setRepairCertificationModalOpen] = useState(false);
-  const [completedInspection, setCompletedInspection] = useState(null);
+
+
 
   useEffect(() => {
     fetchActiveTrips();
@@ -114,35 +114,19 @@ function DriverDashboard() {
       // After pre-trip inspection, start the trip
       startTrip(selectedTrip.id);
     } else if (inspectionType === 'post_trip') {
-      // Check if defects were found
-      setCompletedInspection(inspectionData);
-      const hasDefects = inspectionData.overall_status !== 'satisfactory' || inspectionData.issues_found;
-      
-      if (hasDefects) {
-        // Show repair certification modal for defects
-        setRepairCertificationModalOpen(true);
-      } else {
-        // No defects, complete the trip
-        completeTrip(selectedTrip.id);
-      }
+      // Post-trip inspection completed - complete the trip
+      completeTrip(selectedTrip.id);
     }
   };
 
-  const handleRepairCertificationCompleted = () => {
-    setRepairCertificationModalOpen(false);
-    // Complete the trip after repair certification
-    completeTrip(selectedTrip.id);
-  };
+
 
   const closeDVIRModal = () => {
     setDvirReviewModalOpen(false);
     setSelectedTrip(null);
   };
 
-  const closeRepairCertificationModal = () => {
-    setRepairCertificationModalOpen(false);
-    setCompletedInspection(null);
-  };
+
 
   const closeInspectionModal = () => {
     setSelectedTrip(null);
@@ -445,14 +429,7 @@ function DriverDashboard() {
       )}
 
       {/* Repair Certification Modal */}
-      {repairCertificationModalOpen && completedInspection && (
-        <RepairCertificationModal
-          isOpen={repairCertificationModalOpen}
-          onClose={closeRepairCertificationModal}
-          inspection={completedInspection}
-          onRepairCompleted={handleRepairCertificationCompleted}
-        />
-      )}
+
     </div>
   );
 }

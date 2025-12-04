@@ -1104,9 +1104,14 @@ class TripInspection(models.Model):
         else:
             self._update_vehicle_operation_status('safe')
         
-        # Auto-create repair certifications for failed pre-trip inspections (CFR 396.11)
+        # Update trip status for failed pre-trip inspections
         if is_new and self.inspection_type == 'pre_trip' and not self.is_passed():
-            self._create_repair_certifications_for_defects()
+            try:
+                self.trip.status = 'failed_inspection'
+                self.trip.save()
+                print(f"DEBUG: Updated trip {self.trip.id} status to failed_inspection")
+            except Exception as e:
+                print(f"DEBUG: Failed to update trip status: {e}")
     
     def _update_vehicle_operation_status(self, status):
         """Update vehicle operation status based on inspection results"""
@@ -1154,33 +1159,6 @@ class TripInspection(models.Model):
                     failed_items = self.get_failed_items()
                     trailer_status.status_reason += f": Failed items - {', '.join(failed_items)}"
                 trailer_status.save()
-
-    def _create_repair_certifications_for_defects(self):
-        """Auto-create repair certifications for failed inspection items"""
-        try:
-            failed_items = self.get_failed_items()
-            
-            if not failed_items:
-                return
-            
-            # For failed pre-trip inspections, put trip on failed inspection status
-            if self.inspection_type == 'pre_trip' and not self.is_passed():
-                self.trip.status = 'failed_inspection'
-                self.trip.save()
-                
-        except Exception as e:
-            # Log the error but don't fail the inspection save
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.error(f"Failed to process defects for inspection {self.id}: {e}")
-            
-            # As fallback, if this is a failed pre-trip inspection, set failed status
-            try:
-                if self.inspection_type == 'pre_trip' and not self.is_passed():
-                    self.trip.status = 'failed_inspection' 
-                    self.trip.save()
-            except Exception as fallback_error:
-                logger.error(f"Fallback maintenance hold failed for inspection {self.id}: {fallback_error}")
 
 
 class TripInspectionRepairCertification(models.Model):
