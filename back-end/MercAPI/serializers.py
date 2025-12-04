@@ -206,7 +206,18 @@ class TripsSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Trips
-        fields = '__all__'
+        fields = [
+            'id', 'company', 'driver', 'truck', 'trailer', 'trip_number', 'origin', 'destination',
+            'pre_trip_inspection', 'post_trip_inspection', 'start_time', 'end_time', 
+            'start_location', 'end_location', 'miles_driven', 'notes',
+            'scheduled_start_date', 'scheduled_end_date', 'actual_start_date', 'actual_end_date',
+            'status', 'pre_trip_inspection_completed', 'post_trip_inspection_completed',
+            'mileage_start', 'mileage_end', 'created_by', 'created_at', 'updated_at',
+            # SerializerMethodFields
+            'driver_name', 'truck_number', 'trailer_number', 'company_name', 'status_display',
+            'origin_display', 'destination_display', 'duration_hours', 'total_miles',
+            'can_start', 'can_complete', 'compliance_issues'
+        ]
     
     def get_duration_hours(self, obj):
         return obj.get_duration_hours()
