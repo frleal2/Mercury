@@ -4,6 +4,7 @@ import { useSession } from '../providers/SessionProvider';
 import BASE_URL from '../config';
 import AddTrip from '../components/AddTrip';
 import ViewTripDetails from '../components/ViewTripDetails';
+import CancelReassignTripModal from '../components/CancelReassignTripModal';
 import { 
   PlusIcon,
   TruckIcon,
@@ -12,7 +13,9 @@ import {
   MapPinIcon,
   PlayIcon,
   CheckCircleIcon,
-  ExclamationTriangleIcon
+  ExclamationTriangleIcon,
+  XCircleIcon,
+  ArrowPathIcon
 } from '@heroicons/react/24/outline';
 
 function Trips() {
@@ -23,6 +26,7 @@ function Trips() {
   const [selectedTripId, setSelectedTripId] = useState(null);
   const [filter, setFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [cancelReassignTrip, setCancelReassignTrip] = useState(null);
 
   useEffect(() => {
     fetchTrips();
@@ -64,12 +68,28 @@ function Trips() {
     setSelectedTripId(null);
   };
 
+  const handleCancelReassignTrip = (trip) => {
+    setCancelReassignTrip(trip);
+  };
+
+  const handleCloseCancelReassign = () => {
+    setCancelReassignTrip(null);
+  };
+
+  const handleTripCancelled = (result) => {
+    console.log('Trip cancellation result:', result);
+    fetchTrips(); // Refresh the trips list
+    setCancelReassignTrip(null);
+  };
+
   const getStatusColor = (status) => {
     switch (status) {
       case 'scheduled':
         return 'bg-blue-100 text-blue-800';
       case 'in_progress':
         return 'bg-yellow-100 text-yellow-800';
+      case 'maintenance_hold':
+        return 'bg-orange-100 text-orange-800';
       case 'completed':
         return 'bg-green-100 text-green-800';
       case 'cancelled':
@@ -85,10 +105,12 @@ function Trips() {
         return ClockIcon;
       case 'in_progress':
         return PlayIcon;
+      case 'maintenance_hold':
+        return ExclamationTriangleIcon;
       case 'completed':
         return CheckCircleIcon;
       case 'cancelled':
-        return ExclamationTriangleIcon;
+        return XCircleIcon;
       default:
         return ClockIcon;
     }
@@ -146,6 +168,7 @@ function Trips() {
             <option value="all">All Trips</option>
             <option value="scheduled">Scheduled</option>
             <option value="in_progress">In Progress</option>
+            <option value="maintenance_hold">Maintenance Hold</option>
             <option value="completed">Completed</option>
             <option value="cancelled">Cancelled</option>
           </select>
@@ -304,6 +327,17 @@ function Trips() {
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                             </svg>
                           </button>
+                          
+                          {/* Cancel & Reassign button for maintenance_hold trips */}
+                          {trip.status === 'maintenance_hold' && canCreateTrips() && (
+                            <button
+                              onClick={() => handleCancelReassignTrip(trip)}
+                              className="text-orange-600 hover:text-orange-800 p-1 hover:bg-orange-50 rounded"
+                              title="Cancel & Reassign Trip"
+                            >
+                              <ArrowPathIcon className="h-5 w-5" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -327,6 +361,16 @@ function Trips() {
         <ViewTripDetails
           tripId={selectedTripId}
           onClose={handleCloseTripDetails}
+        />
+      )}
+
+      {/* Cancel & Reassign Trip Modal */}
+      {cancelReassignTrip && (
+        <CancelReassignTripModal
+          isOpen={!!cancelReassignTrip}
+          onClose={handleCloseCancelReassign}
+          trip={cancelReassignTrip}
+          onTripCancelled={handleTripCancelled}
         />
       )}
     </div>

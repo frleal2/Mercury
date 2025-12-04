@@ -5,6 +5,7 @@ import BASE_URL from '../config';
 import AddMaintenanceRecord from '../components/AddMaintenanceRecord';
 import ViewMaintenanceRecord from '../components/ViewMaintenanceRecord';
 import EditMaintenanceRecord from '../components/EditMaintenanceRecord';
+import CancelReassignTripModal from '../components/CancelReassignTripModal';
 import {
   WrenchScrewdriverIcon,
   TruckIcon,
@@ -16,7 +17,8 @@ import {
   EyeIcon,
   PencilIcon,
   DocumentArrowUpIcon,
-  FunnelIcon
+  ArrowPathIcon,
+  UserIcon
 } from '@heroicons/react/24/outline';
 
 function Maintenance() {
@@ -24,6 +26,7 @@ function Maintenance() {
   const [maintenanceRecords, setMaintenanceRecords] = useState([]);
   const [trucks, setTrucks] = useState([]);
   const [trailers, setTrailers] = useState([]);
+  const [maintenanceHoldTrips, setMaintenanceHoldTrips] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -34,10 +37,11 @@ function Maintenance() {
   const [isAddRecordOpen, setIsAddRecordOpen] = useState(false);
   const [isEditRecordOpen, setIsEditRecordOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
+  const [cancelReassignTrip, setCancelReassignTrip] = useState(null);
 
   const fetchData = async () => {
     try {
-      const [recordsRes, trucksRes, trailersRes] = await Promise.all([
+      const [recordsRes, trucksRes, trailersRes, tripsRes] = await Promise.all([
         axios.get(`${BASE_URL}/api/maintenance-records/`, {
           headers: { 'Authorization': `Bearer ${session.accessToken}` }
         }),
@@ -46,12 +50,16 @@ function Maintenance() {
         }),
         axios.get(`${BASE_URL}/api/trailers/`, {
           headers: { 'Authorization': `Bearer ${session.accessToken}` }
+        }),
+        axios.get(`${BASE_URL}/api/trips/?status=maintenance_hold`, {
+          headers: { 'Authorization': `Bearer ${session.accessToken}` }
         })
       ]);
 
       setMaintenanceRecords(recordsRes.data);
       setTrucks(trucksRes.data);
       setTrailers(trailersRes.data);
+      setMaintenanceHoldTrips(tripsRes.data);
     } catch (error) {
       if (error.response && error.response.status === 401) {
         const newAccessToken = await refreshAccessToken();
@@ -68,7 +76,7 @@ function Maintenance() {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleRecordAdded = () => {
     fetchData(); // Refresh the data after adding a new record
@@ -76,6 +84,25 @@ function Maintenance() {
 
   const handleRecordUpdated = () => {
     fetchData(); // Refresh the data after updating a record
+  };
+
+  const handleCancelReassignTrip = (trip) => {
+    setCancelReassignTrip(trip);
+  };
+
+  const handleCloseCancelReassign = () => {
+    setCancelReassignTrip(null);
+  };
+
+  const handleTripCancelled = (result) => {
+    console.log('Trip cancellation result:', result);
+    fetchData(); // Refresh all data
+    setCancelReassignTrip(null);
+  };
+
+  const canManageTrips = () => {
+    const userRole = session?.userInfo?.role;
+    return userRole === 'admin' || userRole === 'user';
   };
 
   const filteredRecords = maintenanceRecords.filter((record) => {
@@ -167,6 +194,46 @@ function Maintenance() {
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Fleet Maintenance</h1>
         <p className="text-gray-600">Track and manage maintenance records for DOT compliance</p>
       </div>
+
+      {/* Maintenance Hold Trips Alert */}
+      {maintenanceHoldTrips.length > 0 && (
+        <div className="mb-6 bg-orange-50 border-l-4 border-orange-400 p-4 rounded-lg">
+          <div className="flex items-center justify-between">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <ExclamationTriangleIcon className="h-5 w-5 text-orange-400" />
+              </div>
+              <div className="ml-3">
+                <p className="text-sm text-orange-700">
+                  <span className="font-medium">{maintenanceHoldTrips.length} trip{maintenanceHoldTrips.length !== 1 ? 's' : ''}</span> currently on maintenance hold due to inspection defects.
+                </p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {maintenanceHoldTrips.slice(0, 3).map((trip) => (
+                    <div key={trip.id} className="flex items-center bg-white rounded px-2 py-1 text-xs">
+                      <UserIcon className="h-3 w-3 text-gray-400 mr-1" />
+                      <span>{trip.driver_name}</span>
+                      <TruckIcon className="h-3 w-3 text-gray-400 ml-1 mr-1" />
+                      <span>{trip.truck_number}</span>
+                      {canManageTrips() && (
+                        <button
+                          onClick={() => handleCancelReassignTrip(trip)}
+                          className="ml-2 text-orange-600 hover:text-orange-800"
+                          title="Cancel & Reassign Trip"
+                        >
+                          <ArrowPathIcon className="h-3 w-3" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  {maintenanceHoldTrips.length > 3 && (
+                    <span className="text-xs text-orange-600">+{maintenanceHoldTrips.length - 3} more</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Filters and Search */}
       <div className="mb-6 space-y-4">
@@ -419,6 +486,16 @@ function Maintenance() {
           onRecordUpdated={handleRecordUpdated}
           trucks={trucks}
           trailers={trailers}
+        />
+      )}
+
+      {/* Cancel & Reassign Trip Modal */}
+      {cancelReassignTrip && (
+        <CancelReassignTripModal
+          isOpen={!!cancelReassignTrip}
+          onClose={handleCloseCancelReassign}
+          trip={cancelReassignTrip}
+          onTripCancelled={handleTripCancelled}
         />
       )}
     </div>

@@ -1092,6 +1092,7 @@ class TripInspection(models.Model):
         return [item for item, status in all_checks.items() if status == 'fail']
     
     def save(self, *args, **kwargs):
+        is_new = self.pk is None
         super().save(*args, **kwargs)
         
         # Auto-update vehicle operation status based on inspection results (CFR 396.7)
@@ -1101,6 +1102,10 @@ class TripInspection(models.Model):
             self._update_vehicle_operation_status('conditional')
         else:
             self._update_vehicle_operation_status('safe')
+        
+        # Auto-create repair certifications for failed pre-trip inspections (CFR 396.11)
+        if is_new and self.inspection_type == 'pre_trip' and not self.is_passed():
+            self._create_repair_certifications_for_defects()
     
     def _update_vehicle_operation_status(self, status):
         """Update vehicle operation status based on inspection results"""
@@ -1149,6 +1154,61 @@ class TripInspection(models.Model):
                     trailer_status.status_reason += f": Failed items - {', '.join(failed_items)}"
                 trailer_status.save()
 
+    def _create_repair_certifications_for_defects(self):
+        """Auto-create repair certifications for failed inspection items"""
+        failed_items = self.get_failed_items()
+        
+        if not failed_items:
+            return
+        
+        # Import here to avoid circular imports
+        from django.apps import apps
+        TripInspectionRepairCertification = apps.get_model('MercAPI', 'TripInspectionRepairCertification')
+        
+        # Map failed items to CFR defect types
+        item_to_cfr_mapping = {
+            'Service Brakes': 'service_brakes',
+            'Parking Brake': 'parking_brake',
+            'Steering Mechanism': 'steering_mechanism',
+            'Lighting Devices': 'lighting_devices',
+            'Tires': 'tires',
+            'Horn': 'horn',
+            'Windshield Wipers': 'windshield_wipers',
+            'Rear Vision Mirrors': 'rear_vision_mirrors',
+            'Coupling Devices': 'coupling_devices',
+            'Wheels and Rims': 'wheels_and_rims',
+            'Emergency Equipment': 'emergency_equipment',
+            'Vehicle Exterior': 'vehicle_exterior',
+            'Engine Fluids': 'engine_fluids',
+            'Trailer Attachment': 'trailer_coupling',
+            'Trailer Lights': 'lighting_devices',
+            'Cargo Security': 'cargo_securement'
+        }
+        
+        for failed_item in failed_items:
+            cfr_type = item_to_cfr_mapping.get(failed_item, 'other')
+            
+            # Determine operation impact based on defect type
+            safety_critical_types = [
+                'service_brakes', 'parking_brake', 'steering_mechanism', 
+                'tires', 'wheels_and_rims', 'lighting_devices'
+            ]
+            
+            operation_impact = 'prohibited' if cfr_type in safety_critical_types else 'conditional'
+            
+            # Create repair certification
+            certification = TripInspectionRepairCertification.objects.create(
+                inspection=self,
+                defect_type=cfr_type,
+                defect_description=f"{failed_item}: Failed during pre-trip inspection. {self.issues_found or 'See inspection notes.'}",
+                operation_impact=operation_impact,
+                repair_required=True,
+                date_found=self.completed_at
+            )
+            
+            # This will trigger the maintenance record creation and trip status update
+            certification.create_maintenance_record()
+
 
 class TripInspectionRepairCertification(models.Model):
     """
@@ -1167,6 +1227,10 @@ class TripInspectionRepairCertification(models.Model):
         ('coupling_devices', 'Coupling Devices (CFR 396.11(a)(1)(ix))'),
         ('wheels_and_rims', 'Wheels and Rims (CFR 396.11(a)(1)(x))'),
         ('emergency_equipment', 'Emergency Equipment (CFR 396.11(a)(1)(xi))'),
+        ('vehicle_exterior', 'Vehicle Exterior Condition'),
+        ('engine_fluids', 'Engine Fluids & Systems'),
+        ('trailer_coupling', 'Trailer Coupling & Attachment'),
+        ('cargo_securement', 'Cargo Security & Load'),
         ('other', 'Other Safety-Related Defect')
     ]
     
