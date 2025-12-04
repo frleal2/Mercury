@@ -318,7 +318,7 @@ function DriverDashboard() {
                           </button>
                         )}
                         
-                        {/* DVIR Review or Direct Pre-Inspection */}
+                        {/* Trip Actions Based on Status */}
                         {trip.status === 'scheduled' && !trip.last_dvir_reviewed ? (
                           <button
                             onClick={() => handleStartTripClick(trip)}
@@ -335,7 +335,7 @@ function DriverDashboard() {
                             <ClipboardDocumentCheckIcon className="h-4 w-4 mr-2" />
                             Start Pre-Inspection
                           </button>
-                        ) : trip.can_start && trip.pre_trip_inspection_completed ? (
+                        ) : trip.status === 'scheduled' && trip.can_start && trip.pre_trip_inspection_completed ? (
                           <button
                             onClick={() => startTrip(trip.id)}
                             className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-3 sm:py-2 border border-green-300 rounded-lg text-sm font-medium text-green-700 bg-green-50 hover:bg-green-100 touch-manipulation"
@@ -343,6 +343,11 @@ function DriverDashboard() {
                             <PlayIcon className="h-4 w-4 mr-2" />
                             Start Trip
                           </button>
+                        ) : trip.status === 'maintenance_hold' ? (
+                          <div className="text-center py-2 px-4 bg-red-50 border border-red-200 rounded-lg">
+                            <p className="text-sm text-red-700 font-medium">Trip on Maintenance Hold</p>
+                            <p className="text-xs text-red-600">Vehicle requires repairs before operation</p>
+                          </div>
                         ) : null}
                         
                         {/* Post-trip Inspection */}
@@ -398,6 +403,11 @@ function DriverDashboard() {
                             {!trip.last_dvir_reviewed ? 'Step 1: Review DVIR' :
                              !trip.pre_trip_inspection_completed ? 'Step 2: Pre-Inspection' :
                              'Ready to Start'}
+                          </span>
+                        )}
+                        {trip.status === 'maintenance_hold' && (
+                          <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-red-100 text-red-800">
+                            🔧 Maintenance Hold - Repairs Needed
                           </span>
                         )}
                       </div>

@@ -297,6 +297,27 @@ class Truck(models.Model):
     annual_dot_inspection_date = models.DateField(null=True, blank=True, default=date(2000, 1, 1))  # Add Annual DOT inspection date
     active = models.BooleanField(default=True)  # Status field (active/inactive)
 
+    def can_accept_new_trips(self):
+        """Check if truck can accept new trip assignments"""
+        # Check if truck is active
+        if not self.active:
+            return False
+        
+        # Check operation status
+        if hasattr(self, 'operation_status'):
+            if self.operation_status.current_status in ['out_of_service', 'prohibited']:
+                return False
+        
+        # Check for pending maintenance that blocks operation
+        pending_maintenance = self.maintenancerecord_set.filter(
+            blocks_operation=True,
+            status__in=['scheduled', 'in_progress']
+        )
+        if pending_maintenance.exists():
+            return False
+            
+        return True
+
     def __str__(self):
         return f"Truck {self.unit_number} - {self.license_plate}"  # Update string representation
 
@@ -431,6 +452,7 @@ class Trips(models.Model):
     """
     TRIP_STATUS_CHOICES = [
         ('scheduled', 'Scheduled'),
+        ('maintenance_hold', 'Maintenance Hold'),
         ('in_progress', 'In Progress'),
         ('completed', 'Completed'),
         ('cancelled', 'Cancelled'),
@@ -484,6 +506,11 @@ class Trips(models.Model):
     created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_trips', null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
     updated_at = models.DateTimeField(auto_now=True, null=True, blank=True)
+    
+    # Cancellation tracking
+    cancellation_reason = models.TextField(null=True, blank=True, help_text="Reason for trip cancellation")
+    cancelled_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='cancelled_trips')
+    cancelled_at = models.DateTimeField(null=True, blank=True)
     
     class Meta:
         ordering = ['-scheduled_start_date', '-start_time']
@@ -589,6 +616,39 @@ class Trips(models.Model):
                 issues.append(f"Trailer {self.trailer.license_plate} annual inspection expired (CFR 396.17)")
         
         return issues
+    
+    def can_resume_from_maintenance_hold(self):
+        """Check if all blocking maintenance for this trip is completed"""
+        if self.status != 'maintenance_hold':
+            return False
+            
+        # Check if all related maintenance records that block operation are completed
+        blocking_maintenance = self.related_maintenance_records.filter(
+            blocks_operation=True,
+            status__in=['scheduled', 'in_progress']  # Not completed
+        )
+        
+        return not blocking_maintenance.exists()
+    
+    def cancel_trip(self, user, reason):
+        """Cancel trip and track cancellation details"""
+        from django.utils import timezone
+        
+        self.status = 'cancelled'
+        self.cancellation_reason = reason
+        self.cancelled_by = user
+        self.cancelled_at = timezone.now()
+        self.save()
+        
+        return True
+    
+    def resume_from_maintenance_hold(self):
+        """Resume trip from maintenance hold if all blocking maintenance is complete"""
+        if self.can_resume_from_maintenance_hold():
+            self.status = 'scheduled'
+            self.save()
+            return True
+        return False
     
     def get_last_dvir_for_truck(self):
         """Get the last post-trip DVIR for this truck"""
@@ -770,6 +830,13 @@ class MaintenanceRecord(models.Model):
     notes = models.TextField(blank=True, null=True)
     warranty_expiration = models.DateField(null=True, blank=True)
     
+    # Trip-Maintenance Association
+    related_trip = models.ForeignKey('Trips', on_delete=models.SET_NULL, null=True, blank=True, 
+                                   related_name='related_maintenance_records',
+                                   help_text="Trip that identified this maintenance need")
+    blocks_operation = models.BooleanField(default=False, 
+                                         help_text="Whether this maintenance prevents vehicle operation")
+    
     # Tracking
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -778,6 +845,17 @@ class MaintenanceRecord(models.Model):
     class Meta:
         ordering = ['-scheduled_date', '-created_at']
     
+    def save(self, *args, **kwargs):
+        # Check if this maintenance record was just completed
+        if self.pk:
+            old_record = MaintenanceRecord.objects.get(pk=self.pk)
+            if old_record.status != 'completed' and self.status == 'completed':
+                # Maintenance was just completed, check if related trip can resume
+                if self.related_trip and self.blocks_operation:
+                    self.related_trip.resume_from_maintenance_hold()
+        
+        super().save(*args, **kwargs)
+
     def __str__(self):
         vehicle = self.truck.unit_number if self.truck else self.trailer.license_plate
         return f"WO-{self.work_order_number}: {self.get_maintenance_type_display()} on {vehicle}"
@@ -1152,6 +1230,9 @@ class TripInspectionRepairCertification(models.Model):
                 defaults={'description': f'Safety defect in {self.get_defect_type_display()}'}
             )
             
+            # Determine if this defect blocks operation
+            blocks_operation = self.operation_impact in ['prohibited']
+            
             # Create maintenance record
             maintenance_record = MaintenanceRecord.objects.create(
                 truck=self.inspection.trip.truck,
@@ -1163,12 +1244,20 @@ class TripInspectionRepairCertification(models.Model):
                 cost=0.00,  # Will be updated when actual repair is done
                 odometer_reading=self.inspection.trip.mileage_start or 0,
                 performed_by="DVIR System",
-                notes=f"Defect found during post-trip DVIR. Operation Impact: {self.get_operation_impact_display()}",
-                origin=f"DVIR Post-Trip Inspection - Trip #{self.inspection.trip.trip_number}"
+                notes=f"Defect found during {self.inspection.get_inspection_type_display()} DVIR. Operation Impact: {self.get_operation_impact_display()}",
+                origin=f"DVIR {self.inspection.get_inspection_type_display()} Inspection - Trip #{self.inspection.trip.trip_number}",
+                related_trip=self.inspection.trip,
+                blocks_operation=blocks_operation
             )
             
             # Link this certification to the maintenance record
             self.maintenance_record = maintenance_record
+            
+            # If this is a pre-trip inspection with prohibited operation impact, put trip on maintenance hold
+            if self.inspection.inspection_type == 'pre_trip' and blocks_operation:
+                trip = self.inspection.trip
+                trip.status = 'maintenance_hold'
+                trip.save()
             
         except Exception as e:
             # Log error but don't fail the save

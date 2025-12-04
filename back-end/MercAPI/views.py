@@ -2153,6 +2153,142 @@ def driver_update_dvir_review(request, trip_id):
         )
 
 
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def cancel_and_reassign_trip(request, trip_id):
+    """
+    Cancel a maintenance-held trip and optionally create a new trip with different truck
+    """
+    try:
+        # Check if user has admin/user role
+        if request.user.profile.role not in ['admin', 'user']:
+            return Response(
+                {'error': 'Only admin and user roles can cancel trips'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Get the trip
+        try:
+            trip = Trips.objects.get(id=trip_id)
+        except Trips.DoesNotExist:
+            return Response(
+                {'error': 'Trip not found'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Verify trip is in maintenance_hold status
+        if trip.status != 'maintenance_hold':
+            return Response(
+                {'error': 'Can only cancel trips that are on maintenance hold'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Get request data
+        cancellation_reason = request.data.get('reason', 'Cancelled due to maintenance delays')
+        create_new_trip = request.data.get('create_new_trip', False)
+        new_truck_id = request.data.get('new_truck_id', None)
+        
+        # Cancel the original trip
+        trip.cancel_trip(request.user, cancellation_reason)
+        
+        response_data = {
+            'message': 'Trip cancelled successfully',
+            'cancelled_trip_id': trip.id,
+            'new_trip_id': None
+        }
+        
+        # Create new trip if requested
+        if create_new_trip and new_truck_id:
+            try:
+                new_truck = Truck.objects.get(id=new_truck_id)
+                
+                # Check if new truck can accept trips
+                if not new_truck.can_accept_new_trips():
+                    return Response(
+                        {'error': f'Truck {new_truck.unit_number} is not available for new trips'}, 
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                
+                # Create new trip with same details but different truck
+                new_trip = Trips.objects.create(
+                    company=trip.company,
+                    driver=trip.driver,
+                    truck=new_truck,
+                    trailer=trip.trailer,  # Keep same trailer if compatible
+                    origin=trip.origin,
+                    destination=trip.destination,
+                    scheduled_start_date=trip.scheduled_start_date,
+                    scheduled_end_date=trip.scheduled_end_date,
+                    start_time=trip.start_time,
+                    notes=f"Reassigned from trip #{trip.trip_number} due to maintenance",
+                    created_by=request.user
+                )
+                
+                response_data['new_trip_id'] = new_trip.id
+                response_data['message'] = f'Trip cancelled and reassigned to truck {new_truck.unit_number}'
+                
+            except Truck.DoesNotExist:
+                return Response(
+                    {'error': 'New truck not found'}, 
+                    status=status.HTTP_404_NOT_FOUND
+                )
+        
+        return Response(response_data, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        logger.error(f"Error cancelling and reassigning trip: {str(e)}")
+        return Response(
+            {'error': 'Internal server error'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def available_trucks(request):
+    """
+    Get list of trucks available for new trip assignments
+    """
+    try:
+        # Check if user has admin/user role
+        if request.user.profile.role not in ['admin', 'user']:
+            return Response(
+                {'error': 'Only admin and user roles can access this endpoint'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Get user's companies
+        user_companies = request.user.profile.companies.all()
+        
+        # Get all active trucks from user's companies
+        trucks = Truck.objects.filter(company__in=user_companies, active=True)
+        
+        # Filter to only trucks that can accept new trips
+        available_trucks = []
+        for truck in trucks:
+            if truck.can_accept_new_trips():
+                available_trucks.append({
+                    'id': truck.id,
+                    'unit_number': truck.unit_number,
+                    'license_plate': truck.license_plate,
+                    'make': truck.make,
+                    'model': truck.model,
+                    'company_name': truck.company.name
+                })
+        
+        return Response({
+            'available_trucks': available_trucks,
+            'count': len(available_trucks)
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        logger.error(f"Error fetching available trucks: {str(e)}")
+        return Response(
+            {'error': 'Internal server error'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
 class TripInspectionViewSet(UserOrAboveMixin, CompanyFilterMixin, ModelViewSet):
     """
     ViewSet for trip inspections (pre-trip and post-trip)

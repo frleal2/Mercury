@@ -215,6 +215,7 @@ class TripsSerializer(serializers.ModelSerializer):
             'status', 'pre_trip_inspection_completed', 'post_trip_inspection_completed',
             'last_dvir_reviewed', 'last_dvir_reviewed_at', 'last_dvir_reviewed_by', 'last_dvir_acknowledgment',
             'mileage_start', 'mileage_end', 'created_by', 'created_at', 'updated_at',
+            'cancellation_reason', 'cancelled_by', 'cancelled_at',
             # SerializerMethodFields (read-only)
             'driver_name', 'truck_number', 'trailer_number', 'company_name', 'status_display',
             'origin_display', 'destination_display', 'duration_hours', 'total_miles',
