@@ -437,8 +437,8 @@ const PreTripInspection = ({ isOpen, onClose, tripId, onInspectionComplete }) =>
                           <input
                             type="radio"
                             name="vehicle_safe_to_operate"
-                            value="yes"
-                            checked={inspectionData.vehicle_safe_to_operate === 'yes'}
+                            value="pass"
+                            checked={inspectionData.vehicle_safe_to_operate === 'pass'}
                             onChange={(e) => handleInputChange('vehicle_safe_to_operate', e.target.value)}
                             className="mr-2 text-green-600 focus:ring-green-500"
                           />
@@ -448,8 +448,8 @@ const PreTripInspection = ({ isOpen, onClose, tripId, onInspectionComplete }) =>
                           <input
                             type="radio"
                             name="vehicle_safe_to_operate"
-                            value="no"
-                            checked={inspectionData.vehicle_safe_to_operate === 'no'}
+                            value="fail"
+                            checked={inspectionData.vehicle_safe_to_operate === 'fail'}
                             onChange={(e) => handleInputChange('vehicle_safe_to_operate', e.target.value)}
                             className="mr-2 text-red-600 focus:ring-red-500"
                           />

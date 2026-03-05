@@ -727,15 +727,15 @@ const ViewTripDetails = ({ tripId, onClose }) => {
                     <div className="flex items-start justify-between">
                       <span className="text-sm font-medium text-gray-700">Is this vehicle safe to operate?</span>
                       <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-                        preTrip.vehicle_safe_to_operate === 'yes'
+                        preTrip.vehicle_safe_to_operate === 'pass'
                           ? 'bg-green-100 text-green-800'
-                          : preTrip.vehicle_safe_to_operate === 'no'
+                          : preTrip.vehicle_safe_to_operate === 'fail'
                           ? 'bg-red-100 text-red-800'
                           : 'bg-gray-100 text-gray-600'
                       }`}>
-                        {preTrip.vehicle_safe_to_operate === 'yes'
+                        {preTrip.vehicle_safe_to_operate === 'pass'
                           ? '✓ Yes, safe to operate'
-                          : preTrip.vehicle_safe_to_operate === 'no'
+                          : preTrip.vehicle_safe_to_operate === 'fail'
                           ? '⚠️ No, unsafe to operate'
                           : 'Not specified'
                         }
@@ -930,15 +930,15 @@ const ViewTripDetails = ({ tripId, onClose }) => {
                     <div className="flex items-start justify-between">
                       <span className="text-sm font-medium text-gray-700">Is this vehicle safe to operate?</span>
                       <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-                        postTrip.vehicle_safe_to_operate === 'yes'
+                        postTrip.vehicle_safe_to_operate === 'pass'
                           ? 'bg-green-100 text-green-800'
-                          : postTrip.vehicle_safe_to_operate === 'no'
+                          : postTrip.vehicle_safe_to_operate === 'fail'
                           ? 'bg-red-100 text-red-800'
                           : 'bg-gray-100 text-gray-600'
                       }`}>
-                        {postTrip.vehicle_safe_to_operate === 'yes'
+                        {postTrip.vehicle_safe_to_operate === 'pass'
                           ? '✓ Yes, safe to operate'
-                          : postTrip.vehicle_safe_to_operate === 'no'
+                          : postTrip.vehicle_safe_to_operate === 'fail'
                           ? '⚠️ No, unsafe to operate'
                           : 'Not specified'
                         }
