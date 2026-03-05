@@ -1266,6 +1266,31 @@ class DriverDocumentViewSet(UserOrAboveMixin, CompanyFilterMixin, ModelViewSet):
         return queryset.order_by('-uploaded_at')
 
 
+class TripDocumentViewSet(UserOrAboveMixin, CompanyFilterMixin, ModelViewSet):
+    queryset = TripDocument.objects.all()
+    serializer_class = TripDocumentSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        # First apply company filtering
+        queryset = super().get_queryset()
+        
+        # Then apply additional filters
+        trip_id = self.request.query_params.get('trip', None)
+        document_type = self.request.query_params.get('document_type', None)
+        
+        if trip_id:
+            queryset = queryset.filter(trip_id=trip_id)
+        
+        if document_type:
+            queryset = queryset.filter(document_type=document_type)
+            
+        return queryset.order_by('-uploaded_at')
+    
+    def perform_create(self, serializer):
+        serializer.save(uploaded_by=self.request.user)
+
+
 class InspectionViewSet(CompanyFilterMixin, ModelViewSet):
     # TODO: Will need DriverFilterMixin when trip system is implemented
     # Drivers need to create pre/post trip inspections
@@ -2475,12 +2500,35 @@ def submit_inspection(request, trip_id, inspection_type):
         
         # Create inspection
         inspection_data = request.data.copy()
+        
+        # Extract and remove photo files from inspection data
+        photo_files = []
+        keys_to_remove = []
+        for key, value in inspection_data.items():
+            if key.startswith('defect_photos_') and hasattr(value, 'read'):
+                photo_files.append(value)
+                keys_to_remove.append(key)
+        
+        # Remove photo files from inspection data
+        for key in keys_to_remove:
+            del inspection_data[key]
+            
         inspection_data['trip'] = trip.id
         inspection_data['inspection_type'] = inspection_type
         
         serializer = InspectionSerializer(data=inspection_data)
         if serializer.is_valid():
             inspection = serializer.save(completed_by=request.user)
+            
+            # Save inspection photos as trip documents
+            for index, photo_file in enumerate(photo_files):
+                TripDocument.objects.create(
+                    trip=trip,
+                    document_type='photo',
+                    file=photo_file,
+                    description=f'{inspection_type.replace("_", "-").title()} inspection defect photo {index + 1}',
+                    uploaded_by=request.user
+                )
             
             # Update vehicle operation status now that we have completed_by user
             inspection._update_vehicle_operation_status()

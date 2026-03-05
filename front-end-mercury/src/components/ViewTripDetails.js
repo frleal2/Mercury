@@ -11,6 +11,7 @@ const ViewTripDetails = ({ tripId, onClose }) => {
   const navigate = useNavigate();
   const [trip, setTrip] = useState(null);
   const [inspections, setInspections] = useState([]);
+  const [tripDocuments, setTripDocuments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
   const [isAddMaintenanceOpen, setIsAddMaintenanceOpen] = useState(false);
@@ -22,6 +23,7 @@ const ViewTripDetails = ({ tripId, onClose }) => {
     if (tripId) {
       fetchTripDetails();
       fetchInspections();
+      fetchTripDocuments();
       fetchVehicles();
     }
   }, [tripId]);
@@ -53,6 +55,20 @@ const ViewTripDetails = ({ tripId, onClose }) => {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchTripDocuments = async () => {
+    try {
+      const response = await axios.get(`${BASE_URL}/api/trip-documents/?trip=${tripId}`, {
+        headers: { 'Authorization': `Bearer ${session.accessToken}` }
+      });
+      setTripDocuments(response.data);
+    } catch (error) {
+      console.error('Error fetching trip documents:', error);
+      if (error.response?.status === 401) {
+        await refreshAccessToken();
+      }
     }
   };
 
@@ -357,6 +373,43 @@ const ViewTripDetails = ({ tripId, onClose }) => {
     );
   };
 
+  const renderInspectionPhotos = (inspectionType) => {
+    // Filter photos by inspection type
+    const inspectionPhotos = tripDocuments.filter(doc => 
+      doc.document_type === 'photo' && 
+      doc.description && 
+      doc.description.toLowerCase().includes(inspectionType.replace('_', '-'))
+    );
+
+    if (inspectionPhotos.length === 0) {
+      return null;
+    }
+
+    return (
+      <div className="mt-4">
+        <h6 className="text-sm font-semibold text-gray-800 mb-3 border-b pb-1">Inspection Photos</h6>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {inspectionPhotos.map((photo, index) => (
+            <div key={photo.id} className="border rounded-lg p-2 bg-gray-50">
+              <img
+                src={`${BASE_URL}${photo.file_url}`}
+                alt={photo.description || `Inspection Photo ${index + 1}`}
+                className="w-full h-32 object-cover rounded cursor-pointer hover:opacity-90 transition-opacity"
+                onClick={() => window.open(`${BASE_URL}${photo.file_url}`, '_blank')}
+              />
+              <div className="mt-2">
+                <p className="text-xs text-gray-600">{photo.description}</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  Uploaded {new Date(photo.uploaded_at).toLocaleDateString()} by {photo.uploaded_by_name}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
@@ -637,6 +690,9 @@ const ViewTripDetails = ({ tripId, onClose }) => {
                       <p className="text-sm text-red-700 bg-red-50 p-3 rounded border border-red-200">{preTrip.issues_found}</p>
                     </div>
                   )}
+                  
+                  {/* Display inspection photos */}
+                  {renderInspectionPhotos('pre_trip')}
                 </div>
               ) : (
                 <p className="text-sm text-gray-500">Pre-trip inspection has not been completed yet.</p>
@@ -776,6 +832,9 @@ const ViewTripDetails = ({ tripId, onClose }) => {
                       <p className="text-sm text-red-700 bg-red-50 p-3 rounded border border-red-200">{postTrip.issues_found}</p>
                     </div>
                   )}
+                  
+                  {/* Display inspection photos */}
+                  {renderInspectionPhotos('post_trip')}
                 </div>
               ) : (
                 <p className="text-sm text-gray-500">Post-trip inspection has not been completed yet.</p>
