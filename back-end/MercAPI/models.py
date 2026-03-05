@@ -1415,45 +1415,6 @@ class TripDocument(models.Model):
         return f"{self.get_document_type_display()} - Trip {trip_id}"
 
 
-class QualifiedInspector(models.Model):
-    """
-    CFR 396.19 - Inspector qualification tracking
-    """
-    INSPECTOR_TYPE_CHOICES = [
-        ('dot_certified', 'DOT Certified Inspector'),
-        ('company_qualified', 'Company Qualified Inspector'),
-        ('external_shop', 'External Shop Inspector'),
-    ]
-    
-    inspector_id = models.CharField(max_length=50, unique=True, help_text="Inspector certification ID")
-    name = models.CharField(max_length=255)
-    inspector_type = models.CharField(max_length=20, choices=INSPECTOR_TYPE_CHOICES)
-    certification_number = models.CharField(max_length=100, blank=True, null=True)
-    certification_expiry = models.DateField(null=True, blank=True)
-    company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name='qualified_inspectors')
-    
-    # Inspector qualifications
-    qualified_for_annual = models.BooleanField(default=False)
-    qualified_for_periodic = models.BooleanField(default=False)
-    qualified_for_roadside = models.BooleanField(default=False)
-    
-    active = models.BooleanField(default=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    
-    class Meta:
-        ordering = ['name']
-        verbose_name = "Qualified Inspector (CFR 396.19)"
-        verbose_name_plural = "Qualified Inspectors (CFR 396.19)"
-    
-    def __str__(self):
-        return f"{self.name} ({self.inspector_id}) - {self.get_inspector_type_display()}"
-    
-    def is_certification_valid(self):
-        """Check if inspector certification is still valid"""
-        if not self.certification_expiry:
-            return True  # No expiry date set
-        return date.today() <= self.certification_expiry
-
 
 class AnnualInspection(models.Model):
     """
@@ -1478,7 +1439,7 @@ class AnnualInspection(models.Model):
     # Inspection details
     inspection_date = models.DateField()
     next_inspection_due = models.DateField(help_text="Next annual inspection due date")
-    inspector = models.ForeignKey(QualifiedInspector, on_delete=models.CASCADE)
+    inspector_name = models.CharField(max_length=255, default="Unknown Inspector", help_text="Name of the inspector who performed the inspection")
     inspection_result = models.CharField(max_length=20, choices=INSPECTION_RESULT_CHOICES)
     
     # CFR 396.17 inspection certificate/report

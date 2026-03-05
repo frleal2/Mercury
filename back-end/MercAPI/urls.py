@@ -22,7 +22,7 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from django.conf import settings
 from django.conf.urls.static import static
 from MercAPI import views  # Corrected to match the actual directory name
-from MercAPI.views import RegisterUserView, CustomTokenObtainPairView, DriverViewSet, TruckViewSet, CompanyViewSet, TrailerViewSet, DriverTestViewSet, DriverHOSViewSet, DriverApplicationViewSet, MaintenanceCategoryViewSet, MaintenanceTypeViewSet, MaintenanceRecordViewSet, MaintenanceAttachmentViewSet, DriverDocumentViewSet, MaintenanceAttachmentUploadView, DriverDocumentUploadView, InspectionViewSet, InspectionItemViewSet, TripsViewSet, TripsManagementViewSet, TripInspectionViewSet, QualifiedInspectorViewSet, AnnualInspectionViewSet, VehicleOperationStatusViewSet, driver_update_dvir_review, cancel_and_reassign_trip, available_trucks
+from MercAPI.views import RegisterUserView, CustomTokenObtainPairView, DriverViewSet, TruckViewSet, CompanyViewSet, TrailerViewSet, DriverTestViewSet, DriverHOSViewSet, DriverApplicationViewSet, MaintenanceCategoryViewSet, MaintenanceTypeViewSet, MaintenanceRecordViewSet, MaintenanceAttachmentViewSet, DriverDocumentViewSet, MaintenanceAttachmentUploadView, DriverDocumentUploadView, InspectionViewSet, InspectionItemViewSet, TripsViewSet, TripsManagementViewSet, TripInspectionViewSet, AnnualInspectionViewSet, VehicleOperationStatusViewSet, driver_update_dvir_review, cancel_trip, cancel_and_reassign_trip, available_trucks
 
 router = DefaultRouter()
 router.register(r'drivers', DriverViewSet, basename='driver')  # Register DriverViewSet
@@ -42,7 +42,6 @@ router.register(r'inspection-items', InspectionItemViewSet, basename='inspection
 router.register(r'trips', TripsManagementViewSet, basename='trips')
 router.register(r'trip-inspections', TripInspectionViewSet, basename='trip-inspection')
 # CFR Compliance endpoints
-router.register(r'qualified-inspectors', QualifiedInspectorViewSet, basename='qualified-inspector')
 router.register(r'annual-inspections', AnnualInspectionViewSet, basename='annual-inspection')
 router.register(r'vehicle-operation-status', VehicleOperationStatusViewSet, basename='vehicle-operation-status')
 
@@ -75,6 +74,7 @@ urlpatterns = [
     # Trip management endpoints
     path('api/trips/<int:trip_id>/start/', views.start_trip, name='start_trip'),
     path('api/trips/<int:trip_id>/complete/', views.complete_trip, name='complete_trip'),
+    path('api/trips/<int:trip_id>/cancel/', views.cancel_trip, name='cancel_trip'),
     path('api/driver/active-trips/', views.driver_active_trips, name='driver_active_trips'),
     path('api/driver/trips/<int:trip_id>/dvir-review/', views.driver_update_dvir_review, name='driver_update_dvir_review'),
     path('api/trips/<int:trip_id>/cancel-reassign/', views.cancel_and_reassign_trip, name='cancel_and_reassign_trip'),

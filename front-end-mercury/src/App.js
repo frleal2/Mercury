@@ -21,7 +21,6 @@ import ResetPassword from './Pages/ResetPassword';
 import LandingPage from './Pages/LandingPage';
 import Settings from './Pages/Settings';
 import VehicleCompliancePage from './Pages/VehicleCompliancePage';
-import InspectorQualificationPage from './Pages/InspectorQualificationPage';
 import AnnualInspectionPage from './Pages/AnnualInspectionPage';
 
 function AppContent() {
@@ -66,7 +65,7 @@ function AppContent() {
                             <Route path="/Recruitment" element={<><Header /><Recruitment /></>} />
                             <Route path="/UserManagement" element={<><Header /><UserManagement /></>} />
                             <Route path="/VehicleCompliance" element={<><Header /><VehicleCompliancePage /></>} />
-                            <Route path="/InspectorQualification" element={<><Header /><InspectorQualificationPage /></>} />
+
                             <Route path="/AnnualInspection" element={<><Header /><AnnualInspectionPage /></>} />
                             <Route path="/Settings" element={<><Header /><Settings /></>} />
                         </>

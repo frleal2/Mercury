@@ -9,7 +9,7 @@ from django.utils.html import strip_tags
 from datetime import datetime, timedelta
 from django.utils import timezone
 from urllib.parse import urlencode
-from .serializers import UserSerializer, DriverSerializer, TruckSerializer, CompanySerializer, TrailerSerializer, DriverTestSerializer, DriverHOSSerializer, DriverApplicationSerializer, MaintenanceCategorySerializer, MaintenanceTypeSerializer, MaintenanceRecordSerializer, MaintenanceAttachmentSerializer, DriverDocumentSerializer, InspectionSerializer, InspectionItemSerializer, TripsSerializer, TripDocumentSerializer, QualifiedInspectorSerializer, AnnualInspectionSerializer, VehicleOperationStatusSerializer
+from .serializers import UserSerializer, DriverSerializer, TruckSerializer, CompanySerializer, TrailerSerializer, DriverTestSerializer, DriverHOSSerializer, DriverApplicationSerializer, MaintenanceCategorySerializer, MaintenanceTypeSerializer, MaintenanceRecordSerializer, MaintenanceAttachmentSerializer, DriverDocumentSerializer, InspectionSerializer, InspectionItemSerializer, TripsSerializer, TripDocumentSerializer, AnnualInspectionSerializer, VehicleOperationStatusSerializer
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -20,7 +20,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework_simplejwt.views import TokenObtainPairView
-from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Tenant, UserProfile, Inspection, InspectionItem, Trips, InvitationToken, TripDocument, PasswordResetToken, QualifiedInspector, AnnualInspection, VehicleOperationStatus
+from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Tenant, UserProfile, Inspection, InspectionItem, Trips, InvitationToken, TripDocument, PasswordResetToken, AnnualInspection, VehicleOperationStatus
 from rest_framework.serializers import ValidationError
 from rest_framework import serializers
 from django.core.files.storage import default_storage
@@ -2183,6 +2183,62 @@ def driver_update_dvir_review(request, trip_id):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
+def cancel_trip(request, trip_id):
+    """
+    Cancel a trip that is scheduled or in progress
+    """
+    try:
+        # Check if user has admin/user role
+        if request.user.profile.role not in ['admin', 'user']:
+            return Response(
+                {'error': 'Only admin and user roles can cancel trips'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Get the trip
+        try:
+            trip = Trips.objects.get(id=trip_id)
+        except Trips.DoesNotExist:
+            return Response(
+                {'error': 'Trip not found'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Verify trip can be cancelled
+        if trip.status not in ['scheduled', 'in_progress', 'failed_inspection']:
+            return Response(
+                {'error': f'Cannot cancel trip with status: {trip.status}'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Get cancellation reason
+        cancellation_reason = request.data.get('reason', 'Trip cancelled')
+        
+        if not cancellation_reason or cancellation_reason.strip() == '':
+            return Response(
+                {'error': 'Cancellation reason is required'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Cancel the trip
+        trip.cancel_trip(request.user, cancellation_reason)
+        
+        return Response({
+            'message': 'Trip cancelled successfully',
+            'cancelled_trip_id': trip.id,
+            'trip_number': trip.trip_number
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        logger.error(f"Error cancelling trip: {str(e)}")
+        return Response(
+            {'error': 'An error occurred while cancelling the trip'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def cancel_and_reassign_trip(request, trip_id):
     """
     Cancel a maintenance-held trip and optionally create a new trip with different truck
@@ -3239,18 +3295,6 @@ def generate_recent_activity(trips, inspections, maintenance_records):
 
 
 # CFR Compliance ViewSets
-
-class QualifiedInspectorViewSet(AdminOnlyMixin, CompanyFilterMixin, ModelViewSet):
-    """
-    CFR 396.19 - Inspector qualification tracking
-    """
-    serializer_class = QualifiedInspectorSerializer
-    
-    def get_queryset(self):
-        return QualifiedInspector.objects.filter(
-            company__in=self.request.user.profile.companies.all()
-        ).order_by('name')
-
 
 class AnnualInspectionViewSet(UserOrAboveMixin, CompanyFilterMixin, ModelViewSet):
     """

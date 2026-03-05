@@ -5,6 +5,7 @@ import BASE_URL from '../config';
 import AddTrip from '../components/AddTrip';
 import ViewTripDetails from '../components/ViewTripDetails';
 import CancelReassignTripModal from '../components/CancelReassignTripModal';
+import CancelTripModal from '../components/CancelTripModal';
 import { 
   PlusIcon,
   TruckIcon,
@@ -27,6 +28,7 @@ function Trips() {
   const [filter, setFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [cancelReassignTrip, setCancelReassignTrip] = useState(null);
+  const [cancelTrip, setCancelTrip] = useState(null);
 
   useEffect(() => {
     fetchTrips();
@@ -76,10 +78,19 @@ function Trips() {
     setCancelReassignTrip(null);
   };
 
+  const handleCancelTrip = (trip) => {
+    setCancelTrip(trip);
+  };
+
+  const handleCloseCancelTrip = () => {
+    setCancelTrip(null);
+  };
+
   const handleTripCancelled = (result) => {
     console.log('Trip cancellation result:', result);
     fetchTrips(); // Refresh the trips list
     setCancelReassignTrip(null);
+    setCancelTrip(null);
   };
 
   const getStatusColor = (status) => {
@@ -320,6 +331,7 @@ function Trips() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         <div className="flex justify-end space-x-2">
+                          {/* View Trip Details button */}
                           <button
                             onClick={() => handleViewTripDetails(trip.id)}
                             className="text-blue-600 hover:text-blue-800 p-1 hover:bg-blue-50 rounded"
@@ -331,8 +343,19 @@ function Trips() {
                             </svg>
                           </button>
                           
-                          {/* Cancel & Reassign button for failed_inspection and maintenance_hold trips */}
-                          {(trip.status === 'failed_inspection' || trip.status === 'maintenance_hold') && canCreateTrips() && (
+                          {/* Cancel button for scheduled, in_progress, and failed_inspection trips */}
+                          {(['scheduled', 'in_progress', 'failed_inspection'].includes(trip.status)) && canCreateTrips() && (
+                            <button
+                              onClick={() => handleCancelTrip(trip)}
+                              className="text-red-600 hover:text-red-800 p-1 hover:bg-red-50 rounded"
+                              title={`Cancel ${trip.status_display} Trip`}
+                            >
+                              <XCircleIcon className="h-5 w-5" />
+                            </button>
+                          )}
+                          
+                          {/* Cancel & Reassign button for maintenance_hold trips */}
+                          {trip.status === 'maintenance_hold' && canCreateTrips() && (
                             <button
                               onClick={() => handleCancelReassignTrip(trip)}
                               className="text-orange-600 hover:text-orange-800 p-1 hover:bg-orange-50 rounded"
@@ -373,6 +396,16 @@ function Trips() {
           isOpen={!!cancelReassignTrip}
           onClose={handleCloseCancelReassign}
           trip={cancelReassignTrip}
+          onTripCancelled={handleTripCancelled}
+        />
+      )}
+
+      {/* Cancel Trip Modal */}
+      {cancelTrip && (
+        <CancelTripModal
+          isOpen={!!cancelTrip}
+          onClose={handleCloseCancelTrip}
+          trip={cancelTrip}
           onTripCancelled={handleTripCancelled}
         />
       )}

@@ -17,7 +17,6 @@ function EditAnnualInspection({ isOpen, onClose, inspection, onInspectionUpdated
   const { session, refreshAccessToken } = useSession();
   const [trucks, setTrucks] = useState([]);
   const [trailers, setTrailers] = useState([]);
-  const [qualifiedInspectors, setQualifiedInspectors] = useState([]);
   const [formData, setFormData] = useState({
     vehicle_type: 'truck',
     truck: '',
@@ -60,21 +59,17 @@ function EditAnnualInspection({ isOpen, onClose, inspection, onInspectionUpdated
     try {
       setDataLoading(true);
       
-      const [trucksResponse, trailersResponse, inspectorsResponse] = await Promise.all([
+      const [trucksResponse, trailersResponse] = await Promise.all([
         axios.get(`${BASE_URL}/api/trucks/`, {
           headers: { 'Authorization': `Bearer ${session.accessToken}` }
         }),
         axios.get(`${BASE_URL}/api/trailers/`, {
-          headers: { 'Authorization': `Bearer ${session.accessToken}` }
-        }),
-        axios.get(`${BASE_URL}/api/qualified-inspectors/`, {
           headers: { 'Authorization': `Bearer ${session.accessToken}` }
         })
       ]);
 
       setTrucks(trucksResponse.data);
       setTrailers(trailersResponse.data);
-      setQualifiedInspectors(inspectorsResponse.data);
       
     } catch (error) {
       console.error('Error fetching form data:', error);
@@ -276,20 +271,15 @@ function EditAnnualInspection({ isOpen, onClose, inspection, onInspectionUpdated
                       <label htmlFor="inspector_name" className="block text-sm font-medium text-gray-700 mb-1">
                         Inspector Name *
                       </label>
-                      <select
+                      <input
+                        type="text"
                         id="inspector_name"
                         value={formData.inspector_name}
                         onChange={(e) => setFormData(prev => ({ ...prev, inspector_name: e.target.value }))}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="Enter inspector name"
                         required
-                      >
-                        <option value="">Select inspector...</option>
-                        {qualifiedInspectors.map((inspector) => (
-                          <option key={inspector.id} value={inspector.name}>
-                            {inspector.name} - {inspector.certification_number}
-                          </option>
-                        ))}
-                      </select>
+                      />
                     </div>
                   </div>
 

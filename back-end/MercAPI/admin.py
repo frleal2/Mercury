@@ -5,7 +5,7 @@ from .models import (Driver, Company, DriverTest, Truck, Trailer, Inspection, In
                      Trips, DriverHOS, DriverApplication, Tenant, UserProfile, InvitationToken, 
                      TripDocument, DriverDocument, MaintenanceCategory, 
                      MaintenanceType, MaintenanceRecord, MaintenanceAttachment, PasswordResetToken,
-                     TripInspectionRepairCertification, QualifiedInspector, AnnualInspection, VehicleOperationStatus)
+                     TripInspectionRepairCertification, AnnualInspection, VehicleOperationStatus)
 
 @admin.register(Tenant)
 class TenantAdmin(admin.ModelAdmin):
@@ -341,18 +341,11 @@ class TripInspectionRepairCertificationAdmin(admin.ModelAdmin):
     list_filter = ('defect_type', 'operation_impact', 'affects_safety', 'repair_completed')
     search_fields = ('inspection__trip__trip_number', 'defect_description')
 
-@admin.register(QualifiedInspector)
-class QualifiedInspectorAdmin(admin.ModelAdmin):
-    list_display = ('name', 'inspector_id', 'inspector_type', 'certification_expiry', 'company', 'active')
-    list_filter = ('inspector_type', 'active', 'certification_expiry', 'company')
-    search_fields = ('name', 'inspector_id', 'email')
-    date_hierarchy = 'certification_expiry'
-
 @admin.register(AnnualInspection)
 class AnnualInspectionAdmin(admin.ModelAdmin):
-    list_display = ('truck', 'trailer', 'inspector', 'inspection_date', 'inspection_result', 'inspection_certificate_number')
-    list_filter = ('inspection_result', 'inspection_date', 'inspector__inspector_type')
-    search_fields = ('truck__unit_number', 'trailer__unit_number', 'inspection_certificate_number', 'inspector__name')
+    list_display = ('truck', 'trailer', 'inspector_name', 'inspection_date', 'inspection_result', 'inspection_certificate_number')
+    list_filter = ('inspection_result', 'inspection_date')
+    search_fields = ('truck__unit_number', 'trailer__unit_number', 'inspection_certificate_number', 'inspector_name')
     date_hierarchy = 'inspection_date'
 
 @admin.register(VehicleOperationStatus)

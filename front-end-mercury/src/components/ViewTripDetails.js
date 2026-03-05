@@ -468,11 +468,11 @@ const ViewTripDetails = ({ tripId, onClose }) => {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Truck</label>
-                  <p className="mt-1 text-sm text-gray-900">{trip.truck_number}</p>
+                  <p className="mt-1 text-sm text-gray-900">{trip.truck_unit_number || 'No truck assigned'}</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Trailer</label>
-                  <p className="mt-1 text-sm text-gray-900">{trip.trailer_number || 'No trailer assigned'}</p>
+                  <p className="mt-1 text-sm text-gray-900">{trip.trailer_unit_number || 'No trailer assigned'}</p>
                 </div>
               </div>
             </div>
@@ -544,25 +544,56 @@ const ViewTripDetails = ({ tripId, onClose }) => {
                       <div>
                         <label className="font-medium text-gray-700">Truck:</label>
                         <p className="text-gray-900">
-                          Unit #{trip.truck?.unit_number} - {trip.truck?.license_plate}
-                          <br />
-                          <span className="text-gray-600">
-                            {trip.truck?.year} {trip.truck?.make} {trip.truck?.model}
-                          </span>
-                          {trip.truck?.vin && (
-                            <><br /><span className="text-xs text-gray-500">VIN: {trip.truck.vin}</span></>
+                          {preTrip.truck_info ? (
+                            <>
+                              Unit #{preTrip.truck_info.unit_number} - {preTrip.truck_info.license_plate}
+                              <br />
+                              <span className="text-gray-600">
+                                {preTrip.truck_info.make_model}
+                              </span>
+                              {preTrip.truck_info.vin && (
+                                <><br /><span className="text-xs text-gray-500">VIN: {preTrip.truck_info.vin}</span></>
+                              )}
+                            </>
+                          ) : trip.truck ? (
+                            <>
+                              Unit #{trip.truck.unit_number} - {trip.truck.license_plate}
+                              <br />
+                              <span className="text-gray-600">
+                                {trip.truck.year} {trip.truck.make} {trip.truck.model}
+                              </span>
+                              {trip.truck.vin && (
+                                <><br /><span className="text-xs text-gray-500">VIN: {trip.truck.vin}</span></>
+                              )}
+                            </>
+                          ) : (
+                            'No truck information available'
                           )}
                         </p>
                       </div>
-                      {trip.trailer && (
+                      {(preTrip.trailer_info || trip.trailer) && (
                         <div>
                           <label className="font-medium text-gray-700">Trailer:</label>
                           <p className="text-gray-900">
-                            Unit #{trip.trailer?.unit_number} - {trip.trailer?.license_plate}
-                            <br />
-                            <span className="text-gray-600">
-                              {trip.trailer?.trailer_type} {trip.trailer?.model}
-                            </span>
+                            {preTrip.trailer_info ? (
+                              <>
+                                Unit #{preTrip.trailer_info.unit_number} - {preTrip.trailer_info.license_plate}
+                                <br />
+                                <span className="text-gray-600">
+                                  {preTrip.trailer_info.trailer_type} {preTrip.trailer_info.model}
+                                </span>
+                              </>
+                            ) : trip.trailer ? (
+                              <>
+                                Unit #{trip.trailer.unit_number} - {trip.trailer.license_plate}
+                                <br />
+                                <span className="text-gray-600">
+                                  {trip.trailer.trailer_type} {trip.trailer.model}
+                                </span>
+                              </>
+                            ) : (
+                              'No trailer information available'
+                            )}
                           </p>
                         </div>
                       )}
@@ -652,25 +683,56 @@ const ViewTripDetails = ({ tripId, onClose }) => {
                       <div>
                         <label className="font-medium text-gray-700">Truck:</label>
                         <p className="text-gray-900">
-                          Unit #{trip.truck?.unit_number} - {trip.truck?.license_plate}
-                          <br />
-                          <span className="text-gray-600">
-                            {trip.truck?.year} {trip.truck?.make} {trip.truck?.model}
-                          </span>
-                          {trip.truck?.vin && (
-                            <><br /><span className="text-xs text-gray-500">VIN: {trip.truck.vin}</span></>
+                          {postTrip.truck_info ? (
+                            <>
+                              Unit #{postTrip.truck_info.unit_number} - {postTrip.truck_info.license_plate}
+                              <br />
+                              <span className="text-gray-600">
+                                {postTrip.truck_info.make_model}
+                              </span>
+                              {postTrip.truck_info.vin && (
+                                <><br /><span className="text-xs text-gray-500">VIN: {postTrip.truck_info.vin}</span></>
+                              )}
+                            </>
+                          ) : trip.truck ? (
+                            <>
+                              Unit #{trip.truck.unit_number} - {trip.truck.license_plate}
+                              <br />
+                              <span className="text-gray-600">
+                                {trip.truck.year} {trip.truck.make} {trip.truck.model}
+                              </span>
+                              {trip.truck.vin && (
+                                <><br /><span className="text-xs text-gray-500">VIN: {trip.truck.vin}</span></>
+                              )}
+                            </>
+                          ) : (
+                            'No truck information available'
                           )}
                         </p>
                       </div>
-                      {trip.trailer && (
+                      {(postTrip.trailer_info || trip.trailer) && (
                         <div>
                           <label className="font-medium text-gray-700">Trailer:</label>
                           <p className="text-gray-900">
-                            Unit #{trip.trailer?.unit_number} - {trip.trailer?.license_plate}
-                            <br />
-                            <span className="text-gray-600">
-                              {trip.trailer?.trailer_type} {trip.trailer?.model}
-                            </span>
+                            {postTrip.trailer_info ? (
+                              <>
+                                Unit #{postTrip.trailer_info.unit_number} - {postTrip.trailer_info.license_plate}
+                                <br />
+                                <span className="text-gray-600">
+                                  {postTrip.trailer_info.trailer_type} {postTrip.trailer_info.model}
+                                </span>
+                              </>
+                            ) : trip.trailer ? (
+                              <>
+                                Unit #{trip.trailer.unit_number} - {trip.trailer.license_plate}
+                                <br />
+                                <span className="text-gray-600">
+                                  {trip.trailer.trailer_type} {trip.trailer.model}
+                                </span>
+                              </>
+                            ) : (
+                              'No trailer information available'
+                            )}
                           </p>
                         </div>
                       )}

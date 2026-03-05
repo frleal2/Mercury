@@ -17,7 +17,6 @@ const getNavigationItems = (userRole) => {
     { name: 'Safety Compliance', href: '#', current: false, dropdown: true, options: [
         { name: 'Vehicle Status', href: '/VehicleCompliance' },
         { name: 'Annual Inspections', href: '/AnnualInspection' },
-        { name: 'Inspector Qualification', href: '/InspectorQualification' },
         { name: 'Companies', href: '/ActiveCompanies' },
         { name: 'Drivers', href: '/ActiveDrivers' },
         { name: 'Trucks', href: '/ActiveTrucks' },

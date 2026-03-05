@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Inspection, InspectionItem, Trips, UserProfile, TripDocument, QualifiedInspector, AnnualInspection, VehicleOperationStatus
+from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Inspection, InspectionItem, Trips, UserProfile, TripDocument, AnnualInspection, VehicleOperationStatus
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -491,20 +491,8 @@ class TripDocumentSerializer(serializers.ModelSerializer):
         return None
 
 
-class QualifiedInspectorSerializer(serializers.ModelSerializer):
-    inspector_type_display = serializers.CharField(source='get_inspector_type_display', read_only=True)
-    company_name = serializers.CharField(source='company.name', read_only=True)
-    is_certification_valid = serializers.BooleanField(read_only=True)
-    
-    class Meta:
-        model = QualifiedInspector
-        fields = '__all__'
-        read_only_fields = ['created_at']
-
 
 class AnnualInspectionSerializer(serializers.ModelSerializer):
-    inspector_name = serializers.CharField(source='inspector.name', read_only=True)
-    inspector_certification = serializers.CharField(source='inspector.certification_number', read_only=True)
     vehicle_identifier = serializers.CharField(read_only=True)
     inspection_result_display = serializers.CharField(source='get_inspection_result_display', read_only=True)
     is_current = serializers.BooleanField(read_only=True)
