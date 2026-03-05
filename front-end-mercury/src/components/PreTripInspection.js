@@ -36,6 +36,13 @@ const PreTripInspection = ({ isOpen, onClose, tripId, onInspectionComplete }) =>
     trailer_lights_working: '',
     cargo_secured: '',
     
+    // Vehicle safety assessment
+    vehicle_safe_to_operate: '',
+    
+    // Defects assessment
+    defects_found: false,
+    defects_description: '',
+    
     // Documentation
     inspection_notes: '',
     issues_found: ''
@@ -151,14 +158,15 @@ const PreTripInspection = ({ isOpen, onClose, tripId, onInspectionComplete }) =>
         'coupling_devices', 'wheels_and_rims', 'emergency_equipment',
         'vehicle_exterior_condition', 'engine_fluids_ok', 'lights_working', 
         'brakes_working', 'trailer_attached_properly', 'trailer_lights_working',
-        'cargo_secured', 'inspection_notes', 'issues_found'
+        'cargo_secured', 'vehicle_safe_to_operate', 'defects_found', 
+        'defects_description', 'inspection_notes', 'issues_found'
       ];
       
       Object.keys(inspectionData).forEach(key => {
         if (validFields.includes(key)) {
           let value = inspectionData[key];
-          // Convert empty strings to 'na' for optional fields, except text fields
-          if (value === '' && !['inspection_notes', 'issues_found'].includes(key)) {
+          // Convert empty strings to 'na' for optional fields, except text and boolean fields
+          if (value === '' && !['inspection_notes', 'issues_found', 'defects_description'].includes(key)) {
             value = 'na';
           }
           formData.append(key, value);

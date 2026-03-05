@@ -2522,7 +2522,7 @@ def submit_inspection(request, trip_id, inspection_type):
         
         serializer = InspectionSerializer(data=inspection_data)
         if serializer.is_valid():
-            inspection = serializer.save(completed_by=request.user)
+            # Create inspection with trip context\n            inspection = serializer.save(\n                completed_by=request.user,\n                truck=trip.truck,\n                trailer=trip.trailer,\n                driver=trip.driver,\n                company=trip.company\n            )
             
             # Save inspection photos as trip documents
             try:
@@ -2541,19 +2541,33 @@ def submit_inspection(request, trip_id, inspection_type):
                 pass
             
             # Update vehicle operation status now that we have completed_by user
-            inspection._update_vehicle_operation_status()
+            try:
+                inspection._update_vehicle_operation_status()
+            except Exception as status_error:
+                logger.error(f"Error updating vehicle operation status: {str(status_error)}")
+                # Don't fail the entire inspection if status update fails
+                pass
             
             # Reload trip to get any status updates from Inspection.save()
-            trip.refresh_from_db()
+            try:
+                trip.refresh_from_db()
+            except Exception as refresh_error:
+                logger.error(f"Error refreshing trip from db: {str(refresh_error)}")
+                pass
             
             # Update trip inspection flags
-            if inspection_type == 'pre_trip':
-                trip.pre_trip_inspection_completed = True
-                # Only update the completion flag, not the status (which may have been set to failed_inspection)
-                trip.save(update_fields=['pre_trip_inspection_completed'])
-            elif inspection_type == 'post_trip':
-                trip.post_trip_inspection_completed = True
-                trip.save(update_fields=['post_trip_inspection_completed'])
+            try:
+                if inspection_type == 'pre_trip':
+                    trip.pre_trip_inspection_completed = True
+                    # Only update the completion flag, not the status (which may have been set to failed_inspection)
+                    trip.save(update_fields=['pre_trip_inspection_completed'])
+                elif inspection_type == 'post_trip':
+                    trip.post_trip_inspection_completed = True
+                    trip.save(update_fields=['post_trip_inspection_completed'])
+            except Exception as trip_update_error:
+                logger.error(f"Error updating trip inspection flags: {str(trip_update_error)}")
+                # Don't fail if trip update fails
+                pass
             
             return Response({
                 'message': f'{inspection_type.replace("_", "-").title()} inspection submitted successfully',

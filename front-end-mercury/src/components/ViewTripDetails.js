@@ -47,6 +47,7 @@ const ViewTripDetails = ({ tripId, onClose }) => {
       const response = await axios.get(`${BASE_URL}/api/trip-inspections/?trip=${tripId}`, {
         headers: { 'Authorization': `Bearer ${session.accessToken}` }
       });
+      console.log('Inspection data:', response.data);
       setInspections(response.data);
     } catch (error) {
       console.error('Error fetching inspections:', error);
@@ -63,6 +64,7 @@ const ViewTripDetails = ({ tripId, onClose }) => {
       const response = await axios.get(`${BASE_URL}/api/trip-documents/?trip=${tripId}`, {
         headers: { 'Authorization': `Bearer ${session.accessToken}` }
       });
+      console.log('Trip documents data:', response.data);
       setTripDocuments(response.data);
     } catch (error) {
       console.error('Error fetching trip documents:', error);
@@ -392,10 +394,13 @@ const ViewTripDetails = ({ tripId, onClose }) => {
           {inspectionPhotos.map((photo, index) => (
             <div key={photo.id} className="border rounded-lg p-2 bg-gray-50">
               <img
-                src={`${BASE_URL}${photo.file_url}`}
+                src={photo.file_url.startsWith('http') ? photo.file_url : `${BASE_URL.replace(/\/$/, '')}${photo.file_url}`}
                 alt={photo.description || `Inspection Photo ${index + 1}`}
                 className="w-full h-32 object-cover rounded cursor-pointer hover:opacity-90 transition-opacity"
-                onClick={() => window.open(`${BASE_URL}${photo.file_url}`, '_blank')}
+                onClick={() => {
+                  const photoUrl = photo.file_url.startsWith('http') ? photo.file_url : `${BASE_URL.replace(/\/$/, '')}${photo.file_url}`;
+                  window.open(photoUrl, '_blank');
+                }}
               />
               <div className="mt-2">
                 <p className="text-xs text-gray-600">{photo.description}</p>
@@ -684,20 +689,33 @@ const ViewTripDetails = ({ tripId, onClose }) => {
                       <div className="flex items-start justify-between">
                         <span className="text-sm font-medium text-gray-700">Were any defects found during inspection?</span>
                         <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-                          preTrip.defects_found
+                          preTrip.defects_found === true
                             ? 'bg-red-100 text-red-800'
-                            : 'bg-green-100 text-green-800'
+                            : preTrip.defects_found === false 
+                            ? 'bg-green-100 text-green-800'
+                            : 'bg-gray-100 text-gray-600'
                         }`}>
-                          {preTrip.defects_found ? '⚠️ Yes, defects found' : '✓ No defects found'}
+                          {preTrip.defects_found === true ? '⚠️ Yes, defects found' : 
+                           preTrip.defects_found === false ? '✓ No defects found' : 
+                           'Not specified'}
                         </span>
                       </div>
                       
-                      {preTrip.defects_found && preTrip.defects_description && (
+                      {/* Show defects description if available */}
+                      {(preTrip.defects_found === true && preTrip.defects_description) && (
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-2">Defects Description:</label>
-                          <p className="text-sm text-red-700 bg-red-50 p-3 rounded border border-red-200">
-                            {preTrip.defects_description}
-                          </p>
+                          <div className="text-sm text-red-700 bg-red-50 p-3 rounded border border-red-200">
+                            <p className="whitespace-pre-wrap">{preTrip.defects_description}</p>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Debug info - remove in production */}
+                      {process.env.NODE_ENV === 'development' && (
+                        <div className="text-xs text-gray-500 mt-2 p-2 bg-gray-100 rounded">
+                          Debug: defects_found = {JSON.stringify(preTrip.defects_found)}, 
+                          defects_description = {JSON.stringify(preTrip.defects_description)}
                         </div>
                       )}
                     </div>
@@ -874,20 +892,33 @@ const ViewTripDetails = ({ tripId, onClose }) => {
                       <div className="flex items-start justify-between">
                         <span className="text-sm font-medium text-gray-700">Were any defects found during inspection?</span>
                         <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-                          postTrip.defects_found
+                          postTrip.defects_found === true
                             ? 'bg-red-100 text-red-800'
-                            : 'bg-green-100 text-green-800'
+                            : postTrip.defects_found === false 
+                            ? 'bg-green-100 text-green-800'
+                            : 'bg-gray-100 text-gray-600'
                         }`}>
-                          {postTrip.defects_found ? '⚠️ Yes, defects found' : '✓ No defects found'}
+                          {postTrip.defects_found === true ? '⚠️ Yes, defects found' : 
+                           postTrip.defects_found === false ? '✓ No defects found' : 
+                           'Not specified'}
                         </span>
                       </div>
                       
-                      {postTrip.defects_found && postTrip.defects_description && (
+                      {/* Show defects description if available */}
+                      {(postTrip.defects_found === true && postTrip.defects_description) && (
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-2">Defects Description:</label>
-                          <p className="text-sm text-red-700 bg-red-50 p-3 rounded border border-red-200">
-                            {postTrip.defects_description}
-                          </p>
+                          <div className="text-sm text-red-700 bg-red-50 p-3 rounded border border-red-200">
+                            <p className="whitespace-pre-wrap">{postTrip.defects_description}</p>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Debug info - remove in production */}
+                      {process.env.NODE_ENV === 'development' && (
+                        <div className="text-xs text-gray-500 mt-2 p-2 bg-gray-100 rounded">
+                          Debug: defects_found = {JSON.stringify(postTrip.defects_found)}, 
+                          defects_description = {JSON.stringify(postTrip.defects_description)}
                         </div>
                       )}
                     </div>
