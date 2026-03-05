@@ -677,6 +677,54 @@ const ViewTripDetails = ({ tripId, onClose }) => {
                     {renderInspectionChecklist(preTrip)}
                   </div>
 
+                  {/* Defects Assessment */}
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                    <h5 className="font-medium text-gray-800 mb-3 border-b border-yellow-300 pb-2">Defects Assessment</h5>
+                    <div className="space-y-3">
+                      <div className="flex items-start justify-between">
+                        <span className="text-sm font-medium text-gray-700">Were any defects found during inspection?</span>
+                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+                          preTrip.defects_found
+                            ? 'bg-red-100 text-red-800'
+                            : 'bg-green-100 text-green-800'
+                        }`}>
+                          {preTrip.defects_found ? '⚠️ Yes, defects found' : '✓ No defects found'}
+                        </span>
+                      </div>
+                      
+                      {preTrip.defects_found && preTrip.defects_description && (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Defects Description:</label>
+                          <p className="text-sm text-red-700 bg-red-50 p-3 rounded border border-red-200">
+                            {preTrip.defects_description}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Overall Vehicle Safety Assessment */}
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <h5 className="font-medium text-gray-800 mb-3 border-b border-blue-300 pb-2">Overall Vehicle Safety Assessment</h5>
+                    <div className="flex items-start justify-between">
+                      <span className="text-sm font-medium text-gray-700">Is this vehicle safe to operate?</span>
+                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+                        preTrip.vehicle_safe_to_operate === 'yes'
+                          ? 'bg-green-100 text-green-800'
+                          : preTrip.vehicle_safe_to_operate === 'no'
+                          ? 'bg-red-100 text-red-800'
+                          : 'bg-gray-100 text-gray-600'
+                      }`}>
+                        {preTrip.vehicle_safe_to_operate === 'yes'
+                          ? '✓ Yes, safe to operate'
+                          : preTrip.vehicle_safe_to_operate === 'no'
+                          ? '⚠️ No, unsafe to operate'
+                          : 'Not specified'
+                        }
+                      </span>
+                    </div>
+                  </div>
+
                   {preTrip.inspection_notes && (
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Notes:</label>
@@ -817,6 +865,54 @@ const ViewTripDetails = ({ tripId, onClose }) => {
                   <div>
                     <h5 className="font-medium text-gray-700 mb-3">Inspection Checklist (CFR 396.11 Compliant):</h5>
                     {renderInspectionChecklist(postTrip)}
+                  </div>
+
+                  {/* Defects Assessment */}
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                    <h5 className="font-medium text-gray-800 mb-3 border-b border-yellow-300 pb-2">Defects Assessment</h5>
+                    <div className="space-y-3">
+                      <div className="flex items-start justify-between">
+                        <span className="text-sm font-medium text-gray-700">Were any defects found during inspection?</span>
+                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+                          postTrip.defects_found
+                            ? 'bg-red-100 text-red-800'
+                            : 'bg-green-100 text-green-800'
+                        }`}>
+                          {postTrip.defects_found ? '⚠️ Yes, defects found' : '✓ No defects found'}
+                        </span>
+                      </div>
+                      
+                      {postTrip.defects_found && postTrip.defects_description && (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Defects Description:</label>
+                          <p className="text-sm text-red-700 bg-red-50 p-3 rounded border border-red-200">
+                            {postTrip.defects_description}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Overall Vehicle Safety Assessment */}
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <h5 className="font-medium text-gray-800 mb-3 border-b border-blue-300 pb-2">Overall Vehicle Safety Assessment</h5>
+                    <div className="flex items-start justify-between">
+                      <span className="text-sm font-medium text-gray-700">Is this vehicle safe to operate?</span>
+                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+                        postTrip.vehicle_safe_to_operate === 'yes'
+                          ? 'bg-green-100 text-green-800'
+                          : postTrip.vehicle_safe_to_operate === 'no'
+                          ? 'bg-red-100 text-red-800'
+                          : 'bg-gray-100 text-gray-600'
+                      }`}>
+                        {postTrip.vehicle_safe_to_operate === 'yes'
+                          ? '✓ Yes, safe to operate'
+                          : postTrip.vehicle_safe_to_operate === 'no'
+                          ? '⚠️ No, unsafe to operate'
+                          : 'Not specified'
+                        }
+                      </span>
+                    </div>
                   </div>
 
                   {postTrip.inspection_notes && (

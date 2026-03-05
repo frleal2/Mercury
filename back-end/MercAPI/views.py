@@ -1266,16 +1266,20 @@ class DriverDocumentViewSet(UserOrAboveMixin, CompanyFilterMixin, ModelViewSet):
         return queryset.order_by('-uploaded_at')
 
 
-class TripDocumentViewSet(UserOrAboveMixin, CompanyFilterMixin, ModelViewSet):
+class TripDocumentViewSet(UserOrAboveMixin, ModelViewSet):
     queryset = TripDocument.objects.all()
     serializer_class = TripDocumentSerializer
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
-        # First apply company filtering
-        queryset = super().get_queryset()
+        # Filter by user's companies through trip relationship
+        if not hasattr(self.request.user, 'profile') or not self.request.user.profile:
+            return TripDocument.objects.none()
         
-        # Then apply additional filters
+        user_companies = self.request.user.profile.companies.all()
+        queryset = TripDocument.objects.filter(trip__company__in=user_companies)
+        
+        # Apply additional filters
         trip_id = self.request.query_params.get('trip', None)
         document_type = self.request.query_params.get('document_type', None)
         
@@ -2521,14 +2525,20 @@ def submit_inspection(request, trip_id, inspection_type):
             inspection = serializer.save(completed_by=request.user)
             
             # Save inspection photos as trip documents
-            for index, photo_file in enumerate(photo_files):
-                TripDocument.objects.create(
-                    trip=trip,
-                    document_type='photo',
-                    file=photo_file,
-                    description=f'{inspection_type.replace("_", "-").title()} inspection defect photo {index + 1}',
-                    uploaded_by=request.user
-                )
+            try:
+                for index, photo_file in enumerate(photo_files):
+                    TripDocument.objects.create(
+                        trip=trip,
+                        document_type='photo',
+                        file=photo_file,
+                        description=f'{inspection_type.replace("_", "-").title()} inspection defect photo {index + 1}',
+                        uploaded_by=request.user
+                    )
+                logger.info(f"Successfully saved {len(photo_files)} photos for inspection {inspection.id}")
+            except Exception as photo_error:
+                logger.error(f"Error saving inspection photos: {str(photo_error)}")
+                # Don't fail the entire inspection if photo saving fails
+                pass
             
             # Update vehicle operation status now that we have completed_by user
             inspection._update_vehicle_operation_status()
