@@ -89,12 +89,15 @@ const PreTripInspection = ({ isOpen, onClose, tripId, onInspectionComplete }) =>
       if (response.status === 201) {
         alert('Pre-trip inspection completed successfully!');
         
-        // Pass minimal inspection result to the completion callback
+        // Calculate if inspection actually passed based on CFR 396.11 fields
+        const cfrFields = cfrItems.map(item => item.key);
+        const inspectionPassed = cfrFields.every(field => inspectionData[field] === 'pass');
+        
         const inspectionResult = {
           type: 'pre_trip',
-          passed: true, // Simplified approach assumes completion means passed
-          hasDefects: false,
-          defectsDescription: ''
+          passed: inspectionPassed,
+          hasDefects: !inspectionPassed, // Has defects if any CFR items failed
+          defectsDescription: inspectionPassed ? '' : 'One or more CFR 396.11 required items failed inspection'
         };
         
         onInspectionComplete?.(inspectionResult);
