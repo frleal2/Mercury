@@ -88,7 +88,16 @@ const PreTripInspection = ({ isOpen, onClose, tripId, onInspectionComplete }) =>
 
       if (response.status === 201) {
         alert('Pre-trip inspection completed successfully!');
-        onInspectionComplete?.();
+        
+        // Pass minimal inspection result to the completion callback
+        const inspectionResult = {
+          type: 'pre_trip',
+          passed: true, // Simplified approach assumes completion means passed
+          hasDefects: false,
+          defectsDescription: ''
+        };
+        
+        onInspectionComplete?.(inspectionResult);
         onClose();
         
         // Reset form
