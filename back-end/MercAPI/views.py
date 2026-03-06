@@ -2520,12 +2520,13 @@ def submit_inspection(request, trip_id, inspection_type):
             )
             
             # Update vehicle operation status now that we have completed_by user
-            try:
-                inspection._update_vehicle_operation_status()
-            except Exception as status_error:
-                logger.error(f"Error updating vehicle operation status: {str(status_error)}")
-                # Don't fail the entire inspection if status update fails
-                pass
+            # Temporarily disabled to prevent 500 errors during debugging
+            # try:
+            #     inspection._update_vehicle_operation_status()
+            # except Exception as status_error:
+            #     logger.error(f"Error updating vehicle operation status: {str(status_error)}")
+            #     # Don't fail the entire inspection if status update fails
+            #     pass
             
             # Reload trip to get any status updates from Inspection.save()
             try:

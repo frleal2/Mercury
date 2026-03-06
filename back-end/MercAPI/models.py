@@ -533,8 +533,9 @@ class Inspection(models.Model):
         super().save(*args, **kwargs)
         
         # Update vehicle operation status based on inspection results
-        if is_new:
-            self._update_vehicle_operation_status()
+        # Temporarily disabled to prevent 500 errors during debugging
+        # if is_new:
+        #     self._update_vehicle_operation_status()
             
         # Update trip status for failed pre-trip inspections
         if is_new and self.inspection_type == 'pre_trip' and self.trip and not self.is_passed():
@@ -637,37 +638,37 @@ class Inspection(models.Model):
         
         # Update truck status if applicable
         if self.truck:
-            truck_status, created = VehicleOperationStatus.objects.get_or_create(
-                truck=self.truck,
-                vehicle_type='truck',
-                defaults={
-                    'current_status': status,
-                    'status_set_by': self.completed_by,
-                    'related_inspection': self
-                }
-            )
-            if not created:
+            try:
+                truck_status = VehicleOperationStatus.objects.get(truck=self.truck, vehicle_type='truck')
                 truck_status.current_status = status
                 truck_status.status_set_by = self.completed_by
                 truck_status.related_inspection = self
                 truck_status.save()
+            except VehicleOperationStatus.DoesNotExist:
+                VehicleOperationStatus.objects.create(
+                    truck=self.truck,
+                    vehicle_type='truck',
+                    current_status=status,
+                    status_set_by=self.completed_by,
+                    related_inspection=self
+                )
         
         # Update trailer status if applicable
         if self.trailer:
-            trailer_status, created = VehicleOperationStatus.objects.get_or_create(
-                trailer=self.trailer,
-                vehicle_type='trailer',
-                defaults={
-                    'current_status': status,
-                    'status_set_by': self.completed_by,
-                    'related_inspection': self
-                }
-            )
-            if not created:
+            try:
+                trailer_status = VehicleOperationStatus.objects.get(trailer=self.trailer, vehicle_type='trailer')
                 trailer_status.current_status = status
                 trailer_status.status_set_by = self.completed_by
                 trailer_status.related_inspection = self
                 trailer_status.save()
+            except VehicleOperationStatus.DoesNotExist:
+                VehicleOperationStatus.objects.create(
+                    trailer=self.trailer,
+                    vehicle_type='trailer',
+                    current_status=status,
+                    status_set_by=self.completed_by,
+                    related_inspection=self
+                )
 
 class InspectionItem(models.Model):
     item_id = models.AutoField(primary_key=True)
