@@ -2021,8 +2021,30 @@ def start_trip(request, trip_id):
         
         # Check if trip can be started
         if not trip.can_start_trip():
+            # Add detailed logging for debugging
+            logger.error(f"Trip {trip_id} cannot be started. Debug info:")
+            logger.error(f"  - Status: {trip.status}")
+            logger.error(f"  - last_dvir_reviewed: {trip.last_dvir_reviewed}")
+            logger.error(f"  - pre_trip_inspection_completed: {trip.pre_trip_inspection_completed}")
+            if trip.truck and hasattr(trip.truck, 'operation_status'):
+                logger.error(f"  - truck operation status: {trip.truck.operation_status.current_status}")
+            if trip.trailer and hasattr(trip.trailer, 'operation_status'):
+                logger.error(f"  - trailer operation status: {trip.trailer.operation_status.current_status}")
+            
+            error_message = 'Trip cannot be started. '
+            if trip.status != 'scheduled':
+                error_message += f'Trip status is "{trip.status}" but must be "scheduled". '
+            if not trip.last_dvir_reviewed:
+                error_message += 'Driver must review last DVIR first. '
+            if not trip.pre_trip_inspection_completed:
+                error_message += 'Pre-trip inspection must be completed first. '
+            if trip.truck and hasattr(trip.truck, 'operation_status') and trip.truck.operation_status.current_status == 'out_of_service':
+                error_message += 'Truck is out of service. '
+            if trip.trailer and hasattr(trip.trailer, 'operation_status') and not trip.trailer.operation_status.can_operate():
+                error_message += 'Trailer cannot operate. '
+            
             return Response(
-                {'error': 'Trip cannot be started. Pre-trip inspection must be completed first.'}, 
+                {'error': error_message}, 
                 status=status.HTTP_400_BAD_REQUEST
             )
         
@@ -2508,6 +2530,9 @@ def submit_inspection(request, trip_id, inspection_type):
         inspection_data['trip'] = trip.id
         inspection_data['inspection_type'] = inspection_type
         
+        # Log the data being submitted for debugging
+        logger.info(f"Submitting inspection data: {inspection_data}")
+        
         serializer = InspectionSerializer(data=inspection_data)
         if serializer.is_valid():
             # Create inspection with trip context
@@ -2556,7 +2581,15 @@ def submit_inspection(request, trip_id, inspection_type):
                 'cfr_compliance': 'CFR 396.11 Driver Vehicle Inspection Requirements'
             }, status=status.HTTP_201_CREATED)
         else:
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            # Log detailed validation errors for debugging
+            logger.error(f"Inspection serializer validation failed for trip {trip_id}:")
+            for field, errors in serializer.errors.items():
+                logger.error(f"  {field}: {errors}")
+            
+            return Response({
+                'error': 'Validation failed', 
+                'details': serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
         
     except Trips.DoesNotExist:
         return Response(

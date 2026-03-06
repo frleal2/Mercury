@@ -11,17 +11,18 @@ const PreTripInspection = ({ isOpen, onClose, tripId, onInspectionComplete }) =>
   
   const [inspectionData, setInspectionData] = useState({
     // CFR 396.11 Required Inspection Items (49 CFR 396.11(a)(1)(i-xi))
-    service_brakes: '',
-    parking_brake: '',
-    steering_mechanism: '',
-    lighting_devices: '',
-    tires_condition: '',
-    horn: '',
-    windshield_wipers: '',
-    rear_vision_mirrors: '',
-    coupling_devices: '',
-    wheels_and_rims: '',
-    emergency_equipment: '',
+    // Initialize with 'fail' default to match backend model expectations
+    service_brakes: 'fail',
+    parking_brake: 'fail',
+    steering_mechanism: 'fail',
+    lighting_devices: 'fail',
+    tires_condition: 'fail',
+    horn: 'fail',
+    windshield_wipers: 'fail',
+    rear_vision_mirrors: 'fail',
+    coupling_devices: 'fail',
+    wheels_and_rims: 'fail',
+    emergency_equipment: 'fail',
   });
 
   const cfrItems = [
@@ -49,8 +50,13 @@ const PreTripInspection = ({ isOpen, onClose, tripId, onInspectionComplete }) =>
     const requiredFields = cfrItems.map(item => item.key);
     
     for (const field of requiredFields) {
-      if (!inspectionData[field]) {
+      if (!inspectionData[field] || inspectionData[field] === '') {
         alert(`Please complete: ${cfrItems.find(item => item.key === field)?.label}`);
+        return false;
+      }
+      // Ensure valid choice (pass, fail, na)
+      if (!['pass', 'fail', 'na'].includes(inspectionData[field])) {
+        alert(`Invalid selection for: ${cfrItems.find(item => item.key === field)?.label}`);
         return false;
       }
     }
@@ -79,6 +85,9 @@ const PreTripInspection = ({ isOpen, onClose, tripId, onInspectionComplete }) =>
       formData.append('trip', tripId);
       formData.append('inspection_type', 'pre_trip');
 
+      // Log the data being sent for debugging
+      console.log('Submitting pre-trip inspection with data:', Object.fromEntries(formData));
+
       const response = await axios.post(`${BASE_URL}/api/trips/${tripId}/inspection/pre_trip/`, formData, {
         headers: {
           'Authorization': `Bearer ${session.accessToken}`,
@@ -105,28 +114,43 @@ const PreTripInspection = ({ isOpen, onClose, tripId, onInspectionComplete }) =>
         
         // Reset form
         setInspectionData({
-          service_brakes: '',
-          parking_brake: '',
-          steering_mechanism: '',
-          lighting_devices: '',
-          tires_condition: '',
-          horn: '',
-          windshield_wipers: '',
-          rear_vision_mirrors: '',
-          coupling_devices: '',
-          wheels_and_rims: '',
-          emergency_equipment: '',
+          service_brakes: 'fail',
+          parking_brake: 'fail',
+          steering_mechanism: 'fail',
+          lighting_devices: 'fail',
+          tires_condition: 'fail',
+          horn: 'fail',
+          windshield_wipers: 'fail',
+          rear_vision_mirrors: 'fail',
+          coupling_devices: 'fail',
+          wheels_and_rims: 'fail',
+          emergency_equipment: 'fail',
         });
       }
     } catch (error) {
       console.error('Error submitting inspection:', error);
+      console.error('Error response:', error.response?.data);
       if (error.response?.status === 401) {
         await refreshAccessToken();
       } else {
-        const errorMessage = error.response?.data ? 
-          JSON.stringify(error.response.data) : 
-          error.message;
-        alert(`Error submitting inspection. Please try again.\nDetails: ${errorMessage}`);
+        let errorMessage = 'Error submitting inspection. Please try again.';
+        
+        if (error.response?.data?.details) {
+          // Show detailed validation errors
+          const validationErrors = error.response.data.details;
+          const errorDetails = Object.entries(validationErrors)
+            .map(([field, errors]) => `${field}: ${Array.isArray(errors) ? errors.join(', ') : errors}`)
+            .join('\n');
+          errorMessage += `\n\nValidation errors:\n${errorDetails}`;
+        } else if (error.response?.data?.error) {
+          errorMessage += `\n\nDetails: ${error.response.data.error}`;
+        } else if (error.response?.data) {
+          errorMessage += `\n\nDetails: ${JSON.stringify(error.response.data)}`;
+        } else {
+          errorMessage += `\n\nDetails: ${error.message}`;
+        }
+        
+        alert(errorMessage);
       }
     } finally {
       setLoading(false);

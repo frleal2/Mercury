@@ -64,16 +64,22 @@ function DriverDashboard() {
 
   const startTrip = async (tripId) => {
     try {
+      console.log(`Attempting to start trip ${tripId}...`);
       const response = await axios.post(`${BASE_URL}/api/trips/${tripId}/start/`, {}, {
         headers: {
           'Authorization': `Bearer ${session.accessToken}`,
         },
       });
       
+      console.log('Trip started successfully:', response.data);
       setMessage({ type: 'success', text: 'Trip started successfully!' });
       fetchActiveTrips(); // Refresh trips
     } catch (error) {
       console.error('Error starting trip:', error);
+      console.error('Error response data:', error.response?.data);
+      console.error('Error response status:', error.response?.status);
+      console.error('Error response headers:', error.response?.headers);
+      
       const errorMessage = error.response?.data?.error || 'Failed to start trip';
       setMessage({ type: 'error', text: errorMessage });
     }
@@ -108,13 +114,29 @@ function DriverDashboard() {
     fetchActiveTrips();
   };
 
-  const handleInspectionCompleted = (inspectionResult) => {
+  const handleInspectionCompleted = async (inspectionResult) => {
     setInspectionModalOpen(false);
     
     if (inspectionResult.type === 'pre_trip') {
       if (inspectionResult.passed) {
-        // Inspection passed - start the trip
-        startTrip(selectedTrip.id);
+        // Inspection passed - refresh trip data first, then start the trip
+        console.log('Pre-trip inspection passed. Refreshing trip data before starting...');
+        
+        try {
+          // Refresh the trips to get updated state from backend
+          await fetchActiveTrips();
+          
+          // Add a small delay to ensure backend has processed the inspection
+          setTimeout(() => {
+            startTrip(selectedTrip.id);
+          }, 500);
+        } catch (error) {
+          console.error('Error refreshing trips before starting:', error);
+          setMessage({ 
+            type: 'error', 
+            text: 'Failed to refresh trip data. Please try starting the trip manually.' 
+          });
+        }
       } else {
         // Inspection failed - show message and refresh trips to show failed_inspection status
         setMessage({ 
