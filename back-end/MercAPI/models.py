@@ -562,11 +562,12 @@ class Inspection(models.Model):
             self.emergency_equipment == 'pass',
         ]
         
-        # Additional safety checks
-        additional_checks = [
-            self.vehicle_exterior_condition == 'pass',
-            self.engine_fluids_ok == 'pass',
-        ]
+        # Additional safety checks (only if they have values from frontend)
+        additional_checks = []
+        if self.vehicle_exterior_condition is not None:
+            additional_checks.append(self.vehicle_exterior_condition == 'pass')
+        if self.engine_fluids_ok is not None:
+            additional_checks.append(self.engine_fluids_ok == 'pass')
         
         # Add trailer checks if trailer is assigned and not 'na'
         if self.trailer or (self.trip and self.trip.trailer):
