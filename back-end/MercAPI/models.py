@@ -464,12 +464,12 @@ class Inspection(models.Model):
     issues_found = models.TextField(blank=True, null=True, help_text="Issues identified during inspection")
     
     # Inspection metadata
-    completed_at = models.DateTimeField(default=datetime.now, help_text="When inspection was completed")
+    completed_at = models.DateTimeField(default=timezone.now, help_text="When inspection was completed")
     completed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, help_text="User who completed the inspection")
     inspection_notes = models.TextField(blank=True, null=True, help_text="Additional inspection notes")
     
     # Legacy compatibility
-    inspection_date = models.DateTimeField(default=datetime.now, help_text="Legacy field - use completed_at instead")
+    inspection_date = models.DateTimeField(default=timezone.now, help_text="Legacy field - use completed_at instead")
     overall_status = models.CharField(
         max_length=10,
         choices=[
@@ -482,7 +482,7 @@ class Inspection(models.Model):
     # Legacy fields  
     notes = models.TextField(blank=True, null=True, help_text="Legacy notes field")
     signed_by = models.CharField(max_length=255, blank=True, null=True, help_text="Legacy signature field")
-    signed_at = models.DateTimeField(default=datetime.now, help_text="Legacy signature timestamp")
+    signed_at = models.DateTimeField(default=timezone.now, help_text="Legacy signature timestamp")
     
     class Meta:
         db_table = 'inspections'

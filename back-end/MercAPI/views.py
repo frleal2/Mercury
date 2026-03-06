@@ -2551,7 +2551,7 @@ def submit_inspection(request, trip_id, inspection_type):
             
             return Response({
                 'message': f'CFR 396.11 {inspection_type.replace("_", "-").title()} inspection completed',
-                'inspection_id': inspection.id,
+                'inspection_id': inspection.inspection_id,
                 'inspection_passed': inspection.is_passed(),
                 'cfr_compliance': 'CFR 396.11 Driver Vehicle Inspection Requirements'
             }, status=status.HTTP_201_CREATED)
