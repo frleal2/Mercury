@@ -2404,8 +2404,8 @@ def available_trucks(request):
 
 class TripInspectionViewSet(DriverReadOnlyMixin, CompanyFilterMixin, ModelViewSet):
     """
-    ViewSet for trip inspections (pre-trip and post-trip)
-    Uses unified Inspection model filtered for trip inspections
+    ViewSet for simplified CFR 396.11 trip inspections (pre-trip and post-trip)
+    Focuses on 11 required inspection items with pass/fail validation
     """
     serializer_class = InspectionSerializer
     permission_classes = [IsAuthenticated]
@@ -2463,7 +2463,8 @@ class TripInspectionViewSet(DriverReadOnlyMixin, CompanyFilterMixin, ModelViewSe
 @permission_classes([IsAuthenticated])
 def submit_inspection(request, trip_id, inspection_type):
     """
-    Submit a trip inspection (pre-trip or post-trip) with tenant isolation
+    Submit a simplified CFR 396.11 trip inspection (pre-trip or post-trip)
+    Focuses on 11 required inspection items only - no photos, comments, or additional complexity
     """
     try:
         # Ensure user has profile and companies
@@ -2502,43 +2503,21 @@ def submit_inspection(request, trip_id, inspection_type):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # Create inspection
+        # Create CFR 396.11 inspection (simplified - no photo uploads)
         inspection_data = request.data.copy()
-        
-        # Extract and remove photo files from inspection data
-        photo_files = []
-        keys_to_remove = []
-        for key, value in inspection_data.items():
-            if key.startswith('defect_photos_') and hasattr(value, 'read'):
-                photo_files.append(value)
-                keys_to_remove.append(key)
-        
-        # Remove photo files from inspection data
-        for key in keys_to_remove:
-            del inspection_data[key]
-            
         inspection_data['trip'] = trip.id
         inspection_data['inspection_type'] = inspection_type
         
         serializer = InspectionSerializer(data=inspection_data)
         if serializer.is_valid():
-            # Create inspection with trip context\n            inspection = serializer.save(\n                completed_by=request.user,\n                truck=trip.truck,\n                trailer=trip.trailer,\n                driver=trip.driver,\n                company=trip.company\n            )
-            
-            # Save inspection photos as trip documents
-            try:
-                for index, photo_file in enumerate(photo_files):
-                    TripDocument.objects.create(
-                        trip=trip,
-                        document_type='photo',
-                        file=photo_file,
-                        description=f'{inspection_type.replace("_", "-").title()} inspection defect photo {index + 1}',
-                        uploaded_by=request.user
-                    )
-                logger.info(f"Successfully saved {len(photo_files)} photos for inspection {inspection.id}")
-            except Exception as photo_error:
-                logger.error(f"Error saving inspection photos: {str(photo_error)}")
-                # Don't fail the entire inspection if photo saving fails
-                pass
+            # Create inspection with trip context
+            inspection = serializer.save(
+                completed_by=request.user,
+                truck=trip.truck,
+                trailer=trip.trailer,
+                driver=trip.driver,
+                company=trip.company
+            )
             
             # Update vehicle operation status now that we have completed_by user
             try:
@@ -2570,9 +2549,10 @@ def submit_inspection(request, trip_id, inspection_type):
                 pass
             
             return Response({
-                'message': f'{inspection_type.replace("_", "-").title()} inspection submitted successfully',
+                'message': f'CFR 396.11 {inspection_type.replace("_", "-").title()} inspection completed',
                 'inspection_id': inspection.id,
-                'inspection_passed': inspection.is_passed()
+                'inspection_passed': inspection.is_passed(),
+                'cfr_compliance': 'CFR 396.11 Driver Vehicle Inspection Requirements'
             }, status=status.HTTP_201_CREATED)
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

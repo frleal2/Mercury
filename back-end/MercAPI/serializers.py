@@ -177,8 +177,9 @@ class InspectionItemSerializer(serializers.ModelSerializer):
 
 class InspectionSerializer(serializers.ModelSerializer):
     """
-    Unified serializer for all inspection types including trip inspections.
-    Replaces TripInspectionSerializer for consistent API.
+    Simplified inspection serializer focused on CFR 396.11 compliance.
+    Handles the 11 required inspection items for commercial vehicle safety.
+    Legacy fields maintained for backward compatibility but not emphasized.
     """
     items = InspectionItemSerializer(many=True, read_only=True)
     
