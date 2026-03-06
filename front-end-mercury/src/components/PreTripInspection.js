@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from '@headlessui/react';
-import { XMarkIcon } from '@heroicons/react/24/outline';
+import { XMarkIcon, TruckIcon } from '@heroicons/react/24/outline';
 import axios from 'axios';
 import { useSession } from '../providers/SessionProvider';
 import BASE_URL from '../config';
@@ -23,20 +23,31 @@ const PreTripInspection = ({ isOpen, onClose, tripId, onInspectionComplete }) =>
     coupling_devices: 'fail',
     wheels_and_rims: 'fail',
     emergency_equipment: 'fail',
+    
+    // Trailer-specific CFR 396.11 Requirements (when trailer is attached)
+    trailer_attached_properly: 'fail',
+    trailer_lights_working: 'fail',
+    cargo_secured: 'fail',
   });
 
   const cfrItems = [
-    { key: 'service_brakes', label: 'Service Brakes', help: 'Service brakes including trailer brake connections' },
-    { key: 'parking_brake', label: 'Parking Brake', help: 'Parking brake operational' },
-    { key: 'steering_mechanism', label: 'Steering Mechanism', help: 'Steering mechanism responsive' },
-    { key: 'lighting_devices', label: 'Lighting Devices & Reflectors', help: 'Lighting devices and reflectors' },
-    { key: 'tires_condition', label: 'Tires', help: 'Tires - proper pressure, no damage' },
-    { key: 'horn', label: 'Horn', help: 'Horn functional' },
-    { key: 'windshield_wipers', label: 'Windshield Wipers', help: 'Windshield wipers operational' },
-    { key: 'rear_vision_mirrors', label: 'Rear Vision Mirrors', help: 'Rear vision mirrors properly adjusted' },
-    { key: 'coupling_devices', label: 'Coupling Devices', help: 'Coupling devices secure' },
-    { key: 'wheels_and_rims', label: 'Wheels and Rims', help: 'Wheels and rims - no cracks or damage' },
-    { key: 'emergency_equipment', label: 'Emergency Equipment', help: 'Emergency equipment present and functional' },
+    { key: 'service_brakes', label: 'Service Brakes & Trailer Brake Connections', help: 'Service brakes including trailer brake connections (CFR 396.11(a)(1)(i))', section: 'truck' },
+    { key: 'parking_brake', label: 'Parking Brake', help: 'Parking brake operational', section: 'truck' },
+    { key: 'steering_mechanism', label: 'Steering Mechanism', help: 'Steering mechanism responsive', section: 'truck' },
+    { key: 'lighting_devices', label: 'Lighting Devices & Reflectors', help: 'Lighting devices and reflectors', section: 'truck' },
+    { key: 'tires_condition', label: 'Tires', help: 'Tires - proper pressure, no damage', section: 'truck' },
+    { key: 'horn', label: 'Horn', help: 'Horn functional', section: 'truck' },
+    { key: 'windshield_wipers', label: 'Windshield Wipers', help: 'Windshield wipers operational', section: 'truck' },
+    { key: 'rear_vision_mirrors', label: 'Rear Vision Mirrors', help: 'Rear vision mirrors properly adjusted', section: 'truck' },
+    { key: 'coupling_devices', label: 'Coupling Devices', help: 'Coupling devices secure', section: 'truck' },
+    { key: 'wheels_and_rims', label: 'Wheels and Rims', help: 'Wheels and rims - no cracks or damage', section: 'truck' },
+    { key: 'emergency_equipment', label: 'Emergency Equipment', help: 'Emergency equipment present and functional', section: 'truck' },
+  ];
+
+  const trailerItems = [
+    { key: 'trailer_attached_properly', label: 'Trailer Attachment', help: 'King pin, fifth wheel connection secure (CFR 396.11(b)(v))', section: 'trailer' },
+    { key: 'trailer_lights_working', label: 'Trailer Lights & Markers', help: 'Trailer lights, markers, conspicuity material (CFR 396.11(b)(ii))', section: 'trailer' },  
+    { key: 'cargo_secured', label: 'Cargo Securement', help: 'Cargo properly secured per regulations', section: 'trailer' },
   ];
 
   const handleInputChange = (key, value) => {
@@ -47,16 +58,18 @@ const PreTripInspection = ({ isOpen, onClose, tripId, onInspectionComplete }) =>
   };
 
   const validateForm = () => {
-    const requiredFields = cfrItems.map(item => item.key);
+    const allRequiredFields = [...cfrItems.map(item => item.key), ...trailerItems.map(item => item.key)];
     
-    for (const field of requiredFields) {
+    for (const field of allRequiredFields) {
       if (!inspectionData[field] || inspectionData[field] === '') {
-        alert(`Please complete: ${cfrItems.find(item => item.key === field)?.label}`);
+        const fieldItem = [...cfrItems, ...trailerItems].find(item => item.key === field);
+        alert(`Please complete: ${fieldItem?.label}`);
         return false;
       }
       // Ensure valid choice (pass, fail, na)
       if (!['pass', 'fail', 'na'].includes(inspectionData[field])) {
-        alert(`Invalid selection for: ${cfrItems.find(item => item.key === field)?.label}`);
+        const fieldItem = [...cfrItems, ...trailerItems].find(item => item.key === field);
+        alert(`Invalid selection for: ${fieldItem?.label}`);
         return false;
       }
     }
@@ -99,8 +112,8 @@ const PreTripInspection = ({ isOpen, onClose, tripId, onInspectionComplete }) =>
         alert('Pre-trip inspection completed successfully!');
         
         // Calculate if inspection actually passed based on CFR 396.11 fields
-        const cfrFields = cfrItems.map(item => item.key);
-        const inspectionPassed = cfrFields.every(field => inspectionData[field] === 'pass');
+        const allInspectionFields = [...cfrItems.map(item => item.key), ...trailerItems.map(item => item.key)];
+        const inspectionPassed = allInspectionFields.every(field => inspectionData[field] === 'pass');
         
         const inspectionResult = {
           type: 'pre_trip',
@@ -125,6 +138,9 @@ const PreTripInspection = ({ isOpen, onClose, tripId, onInspectionComplete }) =>
           coupling_devices: 'fail',
           wheels_and_rims: 'fail',
           emergency_equipment: 'fail',
+          trailer_attached_properly: 'fail',
+          trailer_lights_working: 'fail',
+          cargo_secured: 'fail',
         });
       }
     } catch (error) {
@@ -180,47 +196,104 @@ const PreTripInspection = ({ isOpen, onClose, tripId, onInspectionComplete }) =>
                 </DialogTitle>
                 
                 <form onSubmit={handleSubmit} className="mt-6">
-                  <div className="space-y-4">
+                  <div className="space-y-6">
                     <p className="text-sm text-gray-600 mb-6">
                       Complete the required pre-trip inspection items per CFR 396.11. Mark each item as Pass or Fail.
                     </p>
 
-                    {cfrItems.map((item) => (
-                      <div key={item.key} className="bg-gray-50 rounded-lg p-4">
-                        <div className="flex justify-between items-start mb-3">
-                          <div>
-                            <h4 className="text-sm font-medium text-gray-900">{item.label}</h4>
-                            <p className="text-xs text-gray-500 mt-1">{item.help}</p>
+                    {/* Truck/Tractor Inspection Section */}
+                    <div>
+                      <h3 className="text-base font-semibold text-gray-900 mb-4 flex items-center">
+                        <TruckIcon className="h-5 w-5 mr-2 text-blue-600" />
+                        Truck/Tractor Inspection (CFR 396.11)
+                      </h3>
+                      <div className="space-y-4">
+                        {cfrItems.map((item) => (
+                          <div key={item.key} className="bg-gray-50 rounded-lg p-4">
+                            <div className="flex justify-between items-start mb-3">
+                              <div>
+                                <h4 className="text-sm font-medium text-gray-900">{item.label}</h4>
+                                <p className="text-xs text-gray-500 mt-1">{item.help}</p>
+                              </div>
+                              <span className="text-xs bg-red-100 text-red-800 px-2 py-0.5 rounded-full">Required</span>
+                            </div>
+                            
+                            <div className="flex space-x-6">
+                              <label className="flex items-center">
+                                <input
+                                  type="radio"
+                                  name={item.key}
+                                  value="pass"
+                                  checked={inspectionData[item.key] === 'pass'}
+                                  onChange={(e) => handleInputChange(item.key, e.target.value)}
+                                  className="mr-2 text-green-600 focus:ring-green-500"
+                                />
+                                <span className="text-sm font-medium text-green-600">Pass</span>
+                              </label>
+                              <label className="flex items-center">
+                                <input
+                                  type="radio"
+                                  name={item.key}
+                                  value="fail"
+                                  checked={inspectionData[item.key] === 'fail'}
+                                  onChange={(e) => handleInputChange(item.key, e.target.value)}
+                                  className="mr-2 text-red-600 focus:ring-red-500"
+                                />
+                                <span className="text-sm font-medium text-red-600">Fail</span>
+                              </label>
+                            </div>
                           </div>
-                          <span className="text-xs bg-red-100 text-red-800 px-2 py-0.5 rounded-full">Required</span>
-                        </div>
-                        
-                        <div className="flex space-x-6">
-                          <label className="flex items-center">
-                            <input
-                              type="radio"
-                              name={item.key}
-                              value="pass"
-                              checked={inspectionData[item.key] === 'pass'}
-                              onChange={(e) => handleInputChange(item.key, e.target.value)}
-                              className="mr-2 text-green-600 focus:ring-green-500"
-                            />
-                            <span className="text-sm font-medium text-green-600">Pass</span>
-                          </label>
-                          <label className="flex items-center">
-                            <input
-                              type="radio"
-                              name={item.key}
-                              value="fail"
-                              checked={inspectionData[item.key] === 'fail'}
-                              onChange={(e) => handleInputChange(item.key, e.target.value)}
-                              className="mr-2 text-red-600 focus:ring-red-500"
-                            />
-                            <span className="text-sm font-medium text-red-600">Fail</span>
-                          </label>
-                        </div>
+                        ))}
                       </div>
-                    ))}
+                    </div>
+
+                    {/* Trailer Inspection Section */}
+                    <div>
+                      <h3 className="text-base font-semibold text-gray-900 mb-4 flex items-center">
+                        <svg className="h-5 w-5 mr-2 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                        </svg>
+                        Trailer Inspection (CFR 396.11)
+                      </h3>
+                      <div className="space-y-4">
+                        {trailerItems.map((item) => (
+                          <div key={item.key} className="bg-orange-50 rounded-lg p-4">
+                            <div className="flex justify-between items-start mb-3">
+                              <div>
+                                <h4 className="text-sm font-medium text-gray-900">{item.label}</h4>
+                                <p className="text-xs text-gray-500 mt-1">{item.help}</p>
+                              </div>
+                              <span className="text-xs bg-orange-100 text-orange-800 px-2 py-0.5 rounded-full">Trailer Required</span>
+                            </div>
+                            
+                            <div className="flex space-x-6">
+                              <label className="flex items-center">
+                                <input
+                                  type="radio"
+                                  name={item.key}
+                                  value="pass"
+                                  checked={inspectionData[item.key] === 'pass'}
+                                  onChange={(e) => handleInputChange(item.key, e.target.value)}
+                                  className="mr-2 text-green-600 focus:ring-green-500"
+                                />
+                                <span className="text-sm font-medium text-green-600">Pass</span>
+                              </label>
+                              <label className="flex items-center">
+                                <input
+                                  type="radio"
+                                  name={item.key}
+                                  value="fail"
+                                  checked={inspectionData[item.key] === 'fail'}
+                                  onChange={(e) => handleInputChange(item.key, e.target.value)}
+                                  className="mr-2 text-red-600 focus:ring-red-500"
+                                />
+                                <span className="text-sm font-medium text-red-600">Fail</span>
+                              </label>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   </div>
 
                   {/* Submit Button */}

@@ -2545,13 +2545,13 @@ def submit_inspection(request, trip_id, inspection_type):
             )
             
             # Update vehicle operation status now that we have completed_by user
-            # Temporarily disabled to prevent 500 errors during debugging
-            # try:
-            #     inspection._update_vehicle_operation_status()
-            # except Exception as status_error:
-            #     logger.error(f"Error updating vehicle operation status: {str(status_error)}")
-            #     # Don't fail the entire inspection if status update fails
-            #     pass
+            try:
+                inspection._update_vehicle_operation_status()
+                logger.info(f"Updated vehicle operation status for inspection {inspection.inspection_id}")
+            except Exception as status_error:
+                logger.error(f"Error updating vehicle operation status: {str(status_error)}")
+                # Don't fail the entire inspection if status update fails
+                pass
             
             # Reload trip to get any status updates from Inspection.save()
             try:
@@ -2566,9 +2566,11 @@ def submit_inspection(request, trip_id, inspection_type):
                     trip.pre_trip_inspection_completed = True
                     # Only update the completion flag, not the status (which may have been set to failed_inspection)
                     trip.save(update_fields=['pre_trip_inspection_completed'])
+                    logger.info(f"Trip {trip_id} pre_trip_inspection_completed set to True")
                 elif inspection_type == 'post_trip':
                     trip.post_trip_inspection_completed = True
                     trip.save(update_fields=['post_trip_inspection_completed'])
+                    logger.info(f"Trip {trip_id} post_trip_inspection_completed set to True")
             except Exception as trip_update_error:
                 logger.error(f"Error updating trip inspection flags: {str(trip_update_error)}")
                 # Don't fail if trip update fails
