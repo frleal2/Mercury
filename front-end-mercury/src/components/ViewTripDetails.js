@@ -376,43 +376,8 @@ const ViewTripDetails = ({ tripId, onClose }) => {
   };
 
   const renderInspectionPhotos = (inspectionType) => {
-    // Filter photos by inspection type
-    const inspectionPhotos = tripDocuments.filter(doc => 
-      doc.document_type === 'photo' && 
-      doc.description && 
-      doc.description.toLowerCase().includes(inspectionType.replace('_', '-'))
-    );
-
-    if (inspectionPhotos.length === 0) {
-      return null;
-    }
-
-    return (
-      <div className="mt-4">
-        <h6 className="text-sm font-semibold text-gray-800 mb-3 border-b pb-1">Inspection Photos</h6>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {inspectionPhotos.map((photo, index) => (
-            <div key={photo.id} className="border rounded-lg p-2 bg-gray-50">
-              <img
-                src={photo.file_url.startsWith('http') ? photo.file_url : `${BASE_URL.replace(/\/$/, '')}${photo.file_url}`}
-                alt={photo.description || `Inspection Photo ${index + 1}`}
-                className="w-full h-32 object-cover rounded cursor-pointer hover:opacity-90 transition-opacity"
-                onClick={() => {
-                  const photoUrl = photo.file_url.startsWith('http') ? photo.file_url : `${BASE_URL.replace(/\/$/, '')}${photo.file_url}`;
-                  window.open(photoUrl, '_blank');
-                }}
-              />
-              <div className="mt-2">
-                <p className="text-xs text-gray-600">{photo.description}</p>
-                <p className="text-xs text-gray-500 mt-1">
-                  Uploaded {new Date(photo.uploaded_at).toLocaleDateString()} by {photo.uploaded_by_name}
-                </p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
+    // Photos not used in simplified CFR-only inspection approach
+    return null;
   };
 
   if (loading) {
@@ -681,84 +646,6 @@ const ViewTripDetails = ({ tripId, onClose }) => {
                     <h5 className="font-medium text-gray-700 mb-3">Inspection Checklist (CFR 396.11 Compliant):</h5>
                     {renderInspectionChecklist(preTrip)}
                   </div>
-
-                  {/* Defects Assessment */}
-                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                    <h5 className="font-medium text-gray-800 mb-3 border-b border-yellow-300 pb-2">Defects Assessment</h5>
-                    <div className="space-y-3">
-                      <div className="flex items-start justify-between">
-                        <span className="text-sm font-medium text-gray-700">Were any defects found during inspection?</span>
-                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-                          preTrip.defects_found === true
-                            ? 'bg-red-100 text-red-800'
-                            : preTrip.defects_found === false 
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-gray-100 text-gray-600'
-                        }`}>
-                          {preTrip.defects_found === true ? '⚠️ Yes, defects found' : 
-                           preTrip.defects_found === false ? '✓ No defects found' : 
-                           'Not specified'}
-                        </span>
-                      </div>
-                      
-                      {/* Show defects description if available */}
-                      {(preTrip.defects_found === true && preTrip.defects_description) && (
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">Defects Description:</label>
-                          <div className="text-sm text-red-700 bg-red-50 p-3 rounded border border-red-200">
-                            <p className="whitespace-pre-wrap">{preTrip.defects_description}</p>
-                          </div>
-                        </div>
-                      )}
-                      
-                      {/* Debug info - remove in production */}
-                      {process.env.NODE_ENV === 'development' && (
-                        <div className="text-xs text-gray-500 mt-2 p-2 bg-gray-100 rounded">
-                          Debug: defects_found = {JSON.stringify(preTrip.defects_found)}, 
-                          defects_description = {JSON.stringify(preTrip.defects_description)}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Overall Vehicle Safety Assessment */}
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <h5 className="font-medium text-gray-800 mb-3 border-b border-blue-300 pb-2">Overall Vehicle Safety Assessment</h5>
-                    <div className="flex items-start justify-between">
-                      <span className="text-sm font-medium text-gray-700">Is this vehicle safe to operate?</span>
-                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-                        preTrip.vehicle_safe_to_operate === 'pass'
-                          ? 'bg-green-100 text-green-800'
-                          : preTrip.vehicle_safe_to_operate === 'fail'
-                          ? 'bg-red-100 text-red-800'
-                          : 'bg-gray-100 text-gray-600'
-                      }`}>
-                        {preTrip.vehicle_safe_to_operate === 'pass'
-                          ? '✓ Yes, safe to operate'
-                          : preTrip.vehicle_safe_to_operate === 'fail'
-                          ? '⚠️ No, unsafe to operate'
-                          : 'Not specified'
-                        }
-                      </span>
-                    </div>
-                  </div>
-
-                  {preTrip.inspection_notes && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Notes:</label>
-                      <p className="text-sm text-gray-900 bg-white p-3 rounded border">{preTrip.inspection_notes}</p>
-                    </div>
-                  )}
-
-                  {preTrip.issues_found && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Issues Found:</label>
-                      <p className="text-sm text-red-700 bg-red-50 p-3 rounded border border-red-200">{preTrip.issues_found}</p>
-                    </div>
-                  )}
-                  
-                  {/* Display inspection photos */}
-                  {renderInspectionPhotos('pre_trip')}
                 </div>
               ) : (
                 <p className="text-sm text-gray-500">Pre-trip inspection has not been completed yet.</p>
@@ -884,84 +771,6 @@ const ViewTripDetails = ({ tripId, onClose }) => {
                     <h5 className="font-medium text-gray-700 mb-3">Inspection Checklist (CFR 396.11 Compliant):</h5>
                     {renderInspectionChecklist(postTrip)}
                   </div>
-
-                  {/* Defects Assessment */}
-                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                    <h5 className="font-medium text-gray-800 mb-3 border-b border-yellow-300 pb-2">Defects Assessment</h5>
-                    <div className="space-y-3">
-                      <div className="flex items-start justify-between">
-                        <span className="text-sm font-medium text-gray-700">Were any defects found during inspection?</span>
-                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-                          postTrip.defects_found === true
-                            ? 'bg-red-100 text-red-800'
-                            : postTrip.defects_found === false 
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-gray-100 text-gray-600'
-                        }`}>
-                          {postTrip.defects_found === true ? '⚠️ Yes, defects found' : 
-                           postTrip.defects_found === false ? '✓ No defects found' : 
-                           'Not specified'}
-                        </span>
-                      </div>
-                      
-                      {/* Show defects description if available */}
-                      {(postTrip.defects_found === true && postTrip.defects_description) && (
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">Defects Description:</label>
-                          <div className="text-sm text-red-700 bg-red-50 p-3 rounded border border-red-200">
-                            <p className="whitespace-pre-wrap">{postTrip.defects_description}</p>
-                          </div>
-                        </div>
-                      )}
-                      
-                      {/* Debug info - remove in production */}
-                      {process.env.NODE_ENV === 'development' && (
-                        <div className="text-xs text-gray-500 mt-2 p-2 bg-gray-100 rounded">
-                          Debug: defects_found = {JSON.stringify(postTrip.defects_found)}, 
-                          defects_description = {JSON.stringify(postTrip.defects_description)}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Overall Vehicle Safety Assessment */}
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <h5 className="font-medium text-gray-800 mb-3 border-b border-blue-300 pb-2">Overall Vehicle Safety Assessment</h5>
-                    <div className="flex items-start justify-between">
-                      <span className="text-sm font-medium text-gray-700">Is this vehicle safe to operate?</span>
-                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-                        postTrip.vehicle_safe_to_operate === 'pass'
-                          ? 'bg-green-100 text-green-800'
-                          : postTrip.vehicle_safe_to_operate === 'fail'
-                          ? 'bg-red-100 text-red-800'
-                          : 'bg-gray-100 text-gray-600'
-                      }`}>
-                        {postTrip.vehicle_safe_to_operate === 'pass'
-                          ? '✓ Yes, safe to operate'
-                          : postTrip.vehicle_safe_to_operate === 'fail'
-                          ? '⚠️ No, unsafe to operate'
-                          : 'Not specified'
-                        }
-                      </span>
-                    </div>
-                  </div>
-
-                  {postTrip.inspection_notes && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Notes:</label>
-                      <p className="text-sm text-gray-900 bg-white p-3 rounded border">{postTrip.inspection_notes}</p>
-                    </div>
-                  )}
-
-                  {postTrip.issues_found && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Issues Found:</label>
-                      <p className="text-sm text-red-700 bg-red-50 p-3 rounded border border-red-200">{postTrip.issues_found}</p>
-                    </div>
-                  )}
-                  
-                  {/* Display inspection photos */}
-                  {renderInspectionPhotos('post_trip')}
                 </div>
               ) : (
                 <p className="text-sm text-gray-500">Post-trip inspection has not been completed yet.</p>

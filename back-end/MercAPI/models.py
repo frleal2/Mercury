@@ -437,9 +437,9 @@ class Inspection(models.Model):
     wheels_and_rims = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='fail', help_text="Wheels and rims - no cracks or damage")
     emergency_equipment = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='fail', help_text="Emergency equipment present and functional")
     
-    # Additional vehicle safety checks
-    vehicle_exterior_condition = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='fail', help_text="Overall vehicle exterior condition")
-    engine_fluids_ok = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='fail', help_text="Engine oil, coolant, brake fluid levels")
+    # Additional vehicle safety checks (optional for simplified CFR approach)
+    vehicle_exterior_condition = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, null=True, blank=True, help_text="Overall vehicle exterior condition")
+    engine_fluids_ok = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, null=True, blank=True, help_text="Engine oil, coolant, brake fluid levels")
     
     # Legacy field support for backward compatibility
     lights_working = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, null=True, blank=True, help_text="Legacy field for lights (use lighting_devices instead)")
@@ -452,10 +452,10 @@ class Inspection(models.Model):
     
     # Trip completion fields (for post-trip inspections)
     trip_completed_successfully = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, null=True, blank=True, help_text="Trip completed without issues")
-    vehicle_safe_to_operate = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='fail', help_text="Vehicle safe for continued operation")
+    vehicle_safe_to_operate = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, null=True, blank=True, help_text="Vehicle safe for continued operation")
     
     # Maintenance requirements
-    maintenance_required = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, default='fail', help_text="Maintenance needed before next use")
+    maintenance_required = models.CharField(max_length=10, choices=INSPECTION_RESULT_CHOICES, null=True, blank=True, help_text="Maintenance needed before next use")
     maintenance_description = models.TextField(blank=True, null=True, help_text="Description of required maintenance")
     
     # Defects and issues
