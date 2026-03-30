@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Inspection, InspectionItem, Trips, UserProfile, TripDocument, AnnualInspection, VehicleOperationStatus, Customer, Load
+from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Inspection, InspectionItem, Trips, UserProfile, TripDocument, AnnualInspection, VehicleOperationStatus, Customer, Load, Invoice, InvoicePayment
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -607,3 +607,47 @@ class LoadSerializer(serializers.ModelSerializer):
         model = Load
         fields = '__all__'
         read_only_fields = ['load_number', 'created_at', 'updated_at']
+
+
+class InvoicePaymentSerializer(serializers.ModelSerializer):
+    payment_method_display = serializers.CharField(source='get_payment_method_display', read_only=True)
+    created_by_name = serializers.CharField(source='created_by.get_full_name', read_only=True)
+
+    class Meta:
+        model = InvoicePayment
+        fields = '__all__'
+        read_only_fields = ['created_at']
+
+
+class InvoiceSerializer(serializers.ModelSerializer):
+    customer_name = serializers.CharField(source='customer.name', read_only=True)
+    company_name = serializers.CharField(source='company.name', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    created_by_name = serializers.CharField(source='created_by.get_full_name', read_only=True)
+    payments = InvoicePaymentSerializer(many=True, read_only=True)
+    load_count = serializers.SerializerMethodField()
+    load_summaries = serializers.SerializerMethodField()
+    customer_email = serializers.CharField(source='customer.billing_email', read_only=True)
+    customer_payment_terms = serializers.CharField(source='customer.get_payment_terms_display', read_only=True)
+
+    class Meta:
+        model = Invoice
+        fields = '__all__'
+        read_only_fields = ['invoice_number', 'created_at', 'updated_at']
+
+    def get_load_count(self, obj):
+        return obj.loads.count()
+
+    def get_load_summaries(self, obj):
+        return [
+            {
+                'id': load.id,
+                'load_number': load.load_number,
+                'customer_reference': load.customer_reference,
+                'pickup_location': load.pickup_location_display,
+                'delivery_location': load.delivery_location_display,
+                'pickup_date': load.pickup_date,
+                'total_revenue': str(load.total_revenue) if load.total_revenue else '0',
+            }
+            for load in obj.loads.all()
+        ]

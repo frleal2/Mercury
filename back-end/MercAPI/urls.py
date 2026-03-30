@@ -22,7 +22,7 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from django.conf import settings
 from django.conf.urls.static import static
 from MercAPI import views  # Corrected to match the actual directory name
-from MercAPI.views import RegisterUserView, CustomTokenObtainPairView, DriverViewSet, TruckViewSet, CompanyViewSet, TrailerViewSet, DriverTestViewSet, DriverHOSViewSet, DriverApplicationViewSet, MaintenanceCategoryViewSet, MaintenanceTypeViewSet, MaintenanceRecordViewSet, MaintenanceAttachmentViewSet, DriverDocumentViewSet, TripDocumentViewSet, MaintenanceAttachmentUploadView, DriverDocumentUploadView, InspectionViewSet, InspectionItemViewSet, TripsViewSet, TripsManagementViewSet, TripInspectionViewSet, AnnualInspectionViewSet, VehicleOperationStatusViewSet, driver_update_dvir_review, cancel_trip, cancel_and_reassign_trip, available_trucks, CustomerViewSet, LoadViewSet
+from MercAPI.views import RegisterUserView, CustomTokenObtainPairView, DriverViewSet, TruckViewSet, CompanyViewSet, TrailerViewSet, DriverTestViewSet, DriverHOSViewSet, DriverApplicationViewSet, MaintenanceCategoryViewSet, MaintenanceTypeViewSet, MaintenanceRecordViewSet, MaintenanceAttachmentViewSet, DriverDocumentViewSet, TripDocumentViewSet, MaintenanceAttachmentUploadView, DriverDocumentUploadView, InspectionViewSet, InspectionItemViewSet, TripsViewSet, TripsManagementViewSet, TripInspectionViewSet, AnnualInspectionViewSet, VehicleOperationStatusViewSet, driver_update_dvir_review, cancel_trip, cancel_and_reassign_trip, available_trucks, CustomerViewSet, LoadViewSet, InvoiceViewSet, InvoicePaymentViewSet
 
 router = DefaultRouter()
 router.register(r'drivers', DriverViewSet, basename='driver')  # Register DriverViewSet
@@ -48,6 +48,8 @@ router.register(r'vehicle-operation-status', VehicleOperationStatusViewSet, base
 # TMS endpoints
 router.register(r'customers', CustomerViewSet, basename='customer')
 router.register(r'loads', LoadViewSet, basename='load')
+router.register(r'invoices', InvoiceViewSet, basename='invoice')
+router.register(r'invoice-payments', InvoicePaymentViewSet, basename='invoice-payment')
 
 urlpatterns = [
     path('admin/', admin.site.urls),

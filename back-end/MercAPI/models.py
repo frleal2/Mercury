@@ -297,6 +297,7 @@ class Load(models.Model):
     
     # Status & workflow
     status = models.CharField(max_length=20, choices=LOAD_STATUS_CHOICES, default='quoted')
+    invoice = models.ForeignKey('Invoice', on_delete=models.SET_NULL, null=True, blank=True, related_name='loads')
     
     # Trip link - when dispatched, a Trip is created to execute this load
     trip = models.OneToOneField('Trips', on_delete=models.SET_NULL, null=True, blank=True, related_name='load')
@@ -348,6 +349,95 @@ class Load(models.Model):
         base = self.customer_rate or 0
         self.total_revenue = base + self.fuel_surcharge + self.accessorial_charges
         return self.total_revenue
+
+
+class Invoice(models.Model):
+    """
+    Invoice generated from one or more delivered loads.
+    Tracks billing lifecycle from draft to paid.
+    """
+    INVOICE_STATUS_CHOICES = [
+        ('draft', 'Draft'),
+        ('sent', 'Sent'),
+        ('overdue', 'Overdue'),
+        ('partial', 'Partially Paid'),
+        ('paid', 'Paid'),
+        ('void', 'Void'),
+    ]
+
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name='invoices')
+    customer = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name='invoices')
+    invoice_number = models.CharField(max_length=50, unique=True, help_text="Auto-generated invoice number")
+    status = models.CharField(max_length=20, choices=INVOICE_STATUS_CHOICES, default='draft')
+
+    # Dates
+    issue_date = models.DateField(help_text="Date invoice was issued")
+    due_date = models.DateField(help_text="Payment due date (calculated from payment terms)")
+
+    # Financial
+    subtotal = models.DecimalField(max_digits=12, decimal_places=2, default=0, help_text="Sum of all load charges")
+    tax_rate = models.DecimalField(max_digits=5, decimal_places=2, default=0, help_text="Tax percentage")
+    tax_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    total_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0, help_text="Subtotal + tax")
+    amount_paid = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    balance_due = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+
+    # Notes
+    notes = models.TextField(blank=True, help_text="Notes visible on the invoice")
+    internal_notes = models.TextField(blank=True, help_text="Internal notes (not visible to customer)")
+
+    # Audit
+    created_by = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='invoices_created')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = "Invoice"
+        verbose_name_plural = "Invoices"
+
+    def __str__(self):
+        return f"{self.invoice_number} - {self.customer.name}"
+
+    def calculate_totals(self):
+        """Recalculate subtotal, tax, total, and balance from linked loads."""
+        self.subtotal = sum(
+            load.total_revenue or 0 for load in self.loads.all()
+        )
+        self.tax_amount = round(self.subtotal * (self.tax_rate / 100), 2)
+        self.total_amount = self.subtotal + self.tax_amount
+        self.balance_due = self.total_amount - self.amount_paid
+        return self.total_amount
+
+
+class InvoicePayment(models.Model):
+    """
+    Individual payment recorded against an invoice.
+    Supports partial payments.
+    """
+    PAYMENT_METHOD_CHOICES = [
+        ('check', 'Check'),
+        ('ach', 'ACH / Wire Transfer'),
+        ('credit_card', 'Credit Card'),
+        ('cash', 'Cash'),
+        ('other', 'Other'),
+    ]
+
+    invoice = models.ForeignKey(Invoice, on_delete=models.CASCADE, related_name='payments')
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    payment_date = models.DateField()
+    payment_method = models.CharField(max_length=20, choices=PAYMENT_METHOD_CHOICES, default='check')
+    reference_number = models.CharField(max_length=100, blank=True, help_text="Check number, transaction ID, etc.")
+    notes = models.TextField(blank=True)
+
+    created_by = models.ForeignKey('auth.User', on_delete=models.SET_NULL, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-payment_date']
+
+    def __str__(self):
+        return f"${self.amount} on {self.payment_date} for {self.invoice.invoice_number}"
 
 
 class Driver(models.Model):

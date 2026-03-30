@@ -26,6 +26,7 @@ const getNavigationItems = (userRole) => {
     { name: 'Trips', href: '/Trips', current: false },
     { name: 'Loads', href: '/Loads', current: false },
     { name: 'Customers', href: '/Customers', current: false },
+    { name: 'Invoices', href: '/Invoices', current: false },
     { name: 'Maintenance', href: '/Maintenance', current: false },
     { name: 'Recruitment', href: '/Recruitment', current: false },
   ];

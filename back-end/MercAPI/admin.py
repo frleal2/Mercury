@@ -6,7 +6,7 @@ from .models import (Driver, Company, DriverTest, Truck, Trailer, Inspection, In
                      TripDocument, DriverDocument, MaintenanceCategory, 
                      MaintenanceType, MaintenanceRecord, MaintenanceAttachment, PasswordResetToken,
                      TripInspectionRepairCertification, AnnualInspection, VehicleOperationStatus,
-                     Customer, Load)
+                     Customer, Load, Invoice, InvoicePayment)
 
 @admin.register(Tenant)
 class TenantAdmin(admin.ModelAdmin):
@@ -403,6 +403,36 @@ class TripInspectionRepairCertificationAdmin(admin.ModelAdmin):
     list_display = ('inspection', 'defect_type', 'operation_impact', 'affects_safety', 'repair_completed')
     list_filter = ('defect_type', 'operation_impact', 'affects_safety', 'repair_completed')
     search_fields = ('inspection__trip__trip_number', 'defect_description')
+
+@admin.register(Invoice)
+class InvoiceAdmin(admin.ModelAdmin):
+    list_display = ('invoice_number', 'customer', 'status', 'issue_date', 'due_date', 'total_amount', 'amount_paid', 'balance_due')
+    list_filter = ('status', 'company', 'issue_date')
+    search_fields = ('invoice_number', 'customer__name', 'notes')
+    readonly_fields = ('created_at', 'updated_at')
+    fieldsets = (
+        ('Invoice Info', {
+            'fields': ('company', 'customer', 'invoice_number', 'status')
+        }),
+        ('Dates', {
+            'fields': ('issue_date', 'due_date')
+        }),
+        ('Financials', {
+            'fields': ('subtotal', 'tax_rate', 'tax_amount', 'total_amount', 'amount_paid', 'balance_due')
+        }),
+        ('Notes', {
+            'fields': ('notes', 'internal_notes')
+        }),
+        ('Audit', {
+            'fields': ('created_by', 'created_at', 'updated_at')
+        }),
+    )
+
+@admin.register(InvoicePayment)
+class InvoicePaymentAdmin(admin.ModelAdmin):
+    list_display = ('invoice', 'amount', 'payment_date', 'payment_method', 'reference_number')
+    list_filter = ('payment_method', 'payment_date')
+    search_fields = ('invoice__invoice_number', 'reference_number')
 
 @admin.register(AnnualInspection)
 class AnnualInspectionAdmin(admin.ModelAdmin):

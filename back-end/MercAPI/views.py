@@ -9,7 +9,7 @@ from django.utils.html import strip_tags
 from datetime import datetime, timedelta
 from django.utils import timezone
 from urllib.parse import urlencode
-from .serializers import UserSerializer, DriverSerializer, TruckSerializer, CompanySerializer, TrailerSerializer, DriverTestSerializer, DriverHOSSerializer, DriverApplicationSerializer, MaintenanceCategorySerializer, MaintenanceTypeSerializer, MaintenanceRecordSerializer, MaintenanceAttachmentSerializer, DriverDocumentSerializer, InspectionSerializer, InspectionItemSerializer, TripsSerializer, TripDocumentSerializer, AnnualInspectionSerializer, VehicleOperationStatusSerializer, CustomerSerializer, LoadSerializer
+from .serializers import UserSerializer, DriverSerializer, TruckSerializer, CompanySerializer, TrailerSerializer, DriverTestSerializer, DriverHOSSerializer, DriverApplicationSerializer, MaintenanceCategorySerializer, MaintenanceTypeSerializer, MaintenanceRecordSerializer, MaintenanceAttachmentSerializer, DriverDocumentSerializer, InspectionSerializer, InspectionItemSerializer, TripsSerializer, TripDocumentSerializer, AnnualInspectionSerializer, VehicleOperationStatusSerializer, CustomerSerializer, LoadSerializer, InvoiceSerializer, InvoicePaymentSerializer
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -20,7 +20,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework_simplejwt.views import TokenObtainPairView
-from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Tenant, UserProfile, Inspection, InspectionItem, Trips, InvitationToken, TripDocument, PasswordResetToken, AnnualInspection, VehicleOperationStatus, Customer, Load
+from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Tenant, UserProfile, Inspection, InspectionItem, Trips, InvitationToken, TripDocument, PasswordResetToken, AnnualInspection, VehicleOperationStatus, Customer, Load, Invoice, InvoicePayment
 from rest_framework.serializers import ValidationError
 from rest_framework import serializers
 from django.core.files.storage import default_storage
@@ -3511,3 +3511,100 @@ class LoadViewSet(UserOrAboveMixin, CompanyFilterMixin, ModelViewSet):
             serializer.validated_data['total_revenue'] = customer_rate + fuel_surcharge + accessorial_charges
 
         serializer.save(created_by=self.request.user)
+
+
+class InvoiceViewSet(UserOrAboveMixin, CompanyFilterMixin, ModelViewSet):
+    """
+    Manage invoices for delivered loads.
+    """
+    queryset = Invoice.objects.all()
+    serializer_class = InvoiceSerializer
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        status = self.request.query_params.get('status', None)
+        if status:
+            queryset = queryset.filter(status=status)
+        customer_id = self.request.query_params.get('customer_id', None)
+        if customer_id:
+            queryset = queryset.filter(customer_id=customer_id)
+        search = self.request.query_params.get('search', None)
+        if search:
+            queryset = queryset.filter(
+                Q(invoice_number__icontains=search) |
+                Q(customer__name__icontains=search) |
+                Q(notes__icontains=search)
+            )
+        start_date = self.request.query_params.get('start_date', None)
+        end_date = self.request.query_params.get('end_date', None)
+        if start_date:
+            queryset = queryset.filter(issue_date__gte=start_date)
+        if end_date:
+            queryset = queryset.filter(issue_date__lte=end_date)
+        overdue = self.request.query_params.get('overdue', None)
+        if overdue and overdue.lower() == 'true':
+            from django.utils import timezone as tz
+            queryset = queryset.filter(
+                due_date__lt=tz.now().date(),
+                status__in=['sent', 'partial']
+            )
+        return queryset
+
+    def perform_create(self, serializer):
+        inv_count = Invoice.objects.count() + 1
+        invoice_number = f"INV-{inv_count:06d}"
+        while Invoice.objects.filter(invoice_number=invoice_number).exists():
+            inv_count += 1
+            invoice_number = f"INV-{inv_count:06d}"
+        serializer.validated_data['invoice_number'] = invoice_number
+
+        if not serializer.validated_data.get('company'):
+            user_company = self.request.user.profile.companies.first()
+            if user_company:
+                serializer.validated_data['company'] = user_company
+
+        invoice = serializer.save(created_by=self.request.user)
+
+        load_ids = self.request.data.get('load_ids', [])
+        if load_ids:
+            loads = Load.objects.filter(id__in=load_ids, customer=invoice.customer)
+            loads.update(invoice=invoice, status='invoiced')
+            invoice.calculate_totals()
+            invoice.save()
+
+    def perform_update(self, serializer):
+        invoice = serializer.save()
+        invoice.calculate_totals()
+        invoice.save()
+
+
+class InvoicePaymentViewSet(UserOrAboveMixin, ModelViewSet):
+    """
+    Record payments against invoices.
+    """
+    queryset = InvoicePayment.objects.all()
+    serializer_class = InvoicePaymentSerializer
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        invoice_id = self.request.query_params.get('invoice_id', None)
+        if invoice_id:
+            queryset = queryset.filter(invoice_id=invoice_id)
+        if hasattr(self.request.user, 'profile'):
+            user_companies = self.request.user.profile.companies.all()
+            queryset = queryset.filter(invoice__company__in=user_companies)
+        else:
+            queryset = queryset.none()
+        return queryset
+
+    def perform_create(self, serializer):
+        payment = serializer.save(created_by=self.request.user)
+        invoice = payment.invoice
+        invoice.amount_paid = sum(p.amount for p in invoice.payments.all())
+        invoice.balance_due = invoice.total_amount - invoice.amount_paid
+        if invoice.balance_due <= 0:
+            invoice.status = 'paid'
+            invoice.loads.update(status='paid')
+        elif invoice.amount_paid > 0:
+            invoice.status = 'partial'
+        invoice.save()
