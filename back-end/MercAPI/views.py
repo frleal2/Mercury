@@ -3499,7 +3499,7 @@ class LoadViewSet(UserOrAboveMixin, CompanyFilterMixin, ModelViewSet):
     """
     Manage freight loads - the core TMS business object.
     """
-    queryset = Load.objects.all()
+    queryset = Load.objects.select_related('customer', 'company', 'carrier', 'trip', 'trip__driver', 'created_by').all()
     serializer_class = LoadSerializer
 
     def get_queryset(self):
@@ -3813,8 +3813,10 @@ def quote_lookup(request):
 def dispatch_load(request, load_id):
     """
     Dispatch a load by assigning a driver/truck/trailer and auto-creating a linked Trip.
-    Expects: { driver_id, truck_id (optional), trailer_id (optional) }
+    Expects: { driver_id, truck_id, trailer_id (optional) }
     """
+    from django.db import transaction
+
     try:
         load = Load.objects.get(id=load_id)
     except Load.DoesNotExist:
@@ -3844,24 +3846,24 @@ def dispatch_load(request, load_id):
 
     if not driver_id:
         return Response({'error': 'driver_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+    if not truck_id:
+        return Response({'error': 'truck_id is required'}, status=status.HTTP_400_BAD_REQUEST)
 
     try:
         driver = Driver.objects.get(id=driver_id)
-    except Driver.DoesNotExist:
+    except (Driver.DoesNotExist, ValueError, TypeError):
         return Response({'error': 'Driver not found'}, status=status.HTTP_404_NOT_FOUND)
 
-    truck = None
-    if truck_id:
-        try:
-            truck = Truck.objects.get(id=truck_id)
-        except Truck.DoesNotExist:
-            return Response({'error': 'Truck not found'}, status=status.HTTP_404_NOT_FOUND)
+    try:
+        truck = Truck.objects.get(id=truck_id)
+    except (Truck.DoesNotExist, ValueError, TypeError):
+        return Response({'error': 'Truck not found'}, status=status.HTTP_404_NOT_FOUND)
 
     trailer = None
     if trailer_id:
         try:
             trailer = Trailer.objects.get(id=trailer_id)
-        except Trailer.DoesNotExist:
+        except (Trailer.DoesNotExist, ValueError, TypeError):
             return Response({'error': 'Trailer not found'}, status=status.HTTP_404_NOT_FOUND)
 
     # Build origin/destination from load locations
@@ -3870,33 +3872,44 @@ def dispatch_load(request, load_id):
     dest_parts = [p for p in [load.delivery_city, load.delivery_state] if p]
     destination = ', '.join(dest_parts) if dest_parts else load.delivery_address or ''
 
-    # Auto-generate trip number
-    trip_count = Trips.objects.count() + 1
-    trip_number = f"TRIP-{trip_count:06d}"
-    while Trips.objects.filter(trip_number=trip_number).exists():
-        trip_count += 1
-        trip_number = f"TRIP-{trip_count:06d}"
+    try:
+        with transaction.atomic():
+            # Auto-generate trip number
+            trip_count = Trips.objects.count() + 1
+            trip_number = f"TRIP-{trip_count:06d}"
+            while Trips.objects.filter(trip_number=trip_number).exists():
+                trip_count += 1
+                trip_number = f"TRIP-{trip_count:06d}"
 
-    # Create the trip
-    trip = Trips.objects.create(
-        company=load.company,
-        driver=driver,
-        truck=truck,
-        trailer=trailer,
-        trip_number=trip_number,
-        start_location=origin,
-        end_location=destination,
-        scheduled_start_date=load.pickup_date,
-        scheduled_end_date=load.delivery_date,
-        status='scheduled',
-        notes=f"Auto-created from Load {load.load_number}",
-        created_by=request.user,
-    )
+            # Create the trip
+            trip = Trips.objects.create(
+                company=load.company,
+                driver=driver,
+                truck=truck,
+                trailer=trailer,
+                trip_number=trip_number,
+                start_location=origin,
+                end_location=destination,
+                scheduled_start_date=load.pickup_date,
+                scheduled_end_date=load.delivery_date,
+                status='scheduled',
+                notes=f"Auto-created from Load {load.load_number}",
+                created_by=request.user,
+            )
 
-    # Link trip to load and update status
-    load.trip = trip
-    load.status = 'dispatched'
-    load.save(update_fields=['trip', 'status'])
+            # Link trip to load and update status
+            load.trip = trip
+            load.status = 'dispatched'
+            load.save(update_fields=['trip', 'status'])
 
-    serializer = LoadSerializer(load)
-    return Response(serializer.data, status=status.HTTP_200_OK)
+        # Refresh from DB to ensure clean serialization
+        load.refresh_from_db()
+        serializer = LoadSerializer(load)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    except Exception as e:
+        logger.error(f"Error dispatching load {load_id}: {str(e)}")
+        return Response(
+            {'error': 'Failed to dispatch load. Please try again.'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )

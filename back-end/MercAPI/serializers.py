@@ -639,9 +639,9 @@ class LoadSerializer(serializers.ModelSerializer):
     delivery_location_display = serializers.CharField(read_only=True)
     profit = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
     margin_percent = serializers.DecimalField(max_digits=5, decimal_places=2, read_only=True)
-    trip_number = serializers.CharField(source='trip.trip_number', read_only=True)
-    trip_id = serializers.IntegerField(source='trip.id', read_only=True)
-    trip_status = serializers.CharField(source='trip.get_status_display', read_only=True)
+    trip_number = serializers.CharField(source='trip.trip_number', read_only=True, default=None)
+    trip_id = serializers.IntegerField(source='trip.id', read_only=True, default=None)
+    trip_status = serializers.CharField(source='trip.get_status_display', read_only=True, default=None)
     trip_driver_name = serializers.SerializerMethodField()
     created_by_name = serializers.CharField(source='created_by.get_full_name', read_only=True)
     

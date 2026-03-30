@@ -545,7 +545,10 @@ class Driver(models.Model):
     )
     
     def __str__(self):
-        return f"{self.first_name} {self.last_name}"  # Ensure this returns a clear identifier for the driver
+        return f"{self.first_name} {self.last_name}"
+    
+    def get_full_name(self):
+        return f"{self.first_name} {self.last_name}".strip()
     
     def has_user_account(self):
         """Check if this driver has a user account for portal access"""
