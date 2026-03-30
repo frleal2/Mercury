@@ -3,6 +3,7 @@ import axios from 'axios';
 import { useSession } from '../providers/SessionProvider';
 import BASE_URL from '../config';
 import ViewLoadDetails from '../components/ViewLoadDetails';
+import DispatchLoadModal from '../components/DispatchLoadModal';
 import {
   ArrowPathIcon,
   MagnifyingGlassIcon,
@@ -52,6 +53,7 @@ function DispatchBoard() {
   const [showQuoted, setShowQuoted] = useState(false);
   const [updatingLoadId, setUpdatingLoadId] = useState(null);
   const [lastRefresh, setLastRefresh] = useState(new Date());
+  const [dispatchLoad, setDispatchLoad] = useState(null);
 
   const fetchData = useCallback(async () => {
     try {
@@ -90,6 +92,14 @@ function DispatchBoard() {
   }, [fetchData]);
 
   const handleStatusChange = async (loadId, newStatus) => {
+    // Intercept dispatch action to open modal
+    if (newStatus === 'dispatched') {
+      const load = loads.find(l => l.id === loadId);
+      if (load) {
+        setDispatchLoad(load);
+        return;
+      }
+    }
     try {
       setUpdatingLoadId(loadId);
       await axios.patch(`${BASE_URL}/api/loads/${loadId}/`, { status: newStatus }, {
@@ -101,6 +111,11 @@ function DispatchBoard() {
     } finally {
       setUpdatingLoadId(null);
     }
+  };
+
+  const handleLoadDispatched = (updatedLoad) => {
+    setLoads(prev => prev.map(l => l.id === updatedLoad.id ? updatedLoad : l));
+    setDispatchLoad(null);
   };
 
   const handleCloseViewLoad = () => {
@@ -362,6 +377,14 @@ function DispatchBoard() {
           onClose={handleCloseViewLoad}
         />
       )}
+
+      {/* Dispatch Load Modal */}
+      <DispatchLoadModal
+        isOpen={!!dispatchLoad}
+        onClose={() => setDispatchLoad(null)}
+        load={dispatchLoad}
+        onDispatched={handleLoadDispatched}
+      />
     </div>
   );
 }
@@ -416,8 +439,16 @@ function LoadCard({ load, onSelect, onStatusChange, updatingLoadId, formatCurren
         <span>DEL: {formatDate(load.delivery_date)}</span>
       </div>
 
-      {/* Carrier / Equipment */}
-      <div className="flex items-center gap-2 mb-2">
+      {/* Carrier / Equipment / Trip */}
+      <div className="flex items-center gap-2 flex-wrap mb-2">
+        {load.trip_number && (
+          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-green-50 text-green-700">
+            {load.trip_number}
+          </span>
+        )}
+        {load.trip_driver_name && (
+          <span className="text-xs text-gray-600 truncate max-w-[100px]">{load.trip_driver_name}</span>
+        )}
         {load.carrier_name && (
           <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-indigo-50 text-indigo-700 truncate max-w-[120px]">
             <TruckIcon className="h-3 w-3 mr-0.5 flex-shrink-0" />

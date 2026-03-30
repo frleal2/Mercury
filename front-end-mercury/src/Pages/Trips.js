@@ -240,6 +240,9 @@ function Trips() {
                     Route
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Load
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Status
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -302,6 +305,18 @@ function Trips() {
                             {trip.destination_display}
                           </div>
                         </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {trip.load_number ? (
+                          <div>
+                            <span className="text-sm font-medium text-indigo-600">{trip.load_number}</span>
+                            {trip.load_customer_name && (
+                              <div className="text-xs text-gray-500">{trip.load_customer_name}</div>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-gray-400">No load</span>
+                        )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(trip.status)}`}>

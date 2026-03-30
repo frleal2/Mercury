@@ -262,6 +262,11 @@ class TripsSerializer(serializers.ModelSerializer):
     can_start = serializers.SerializerMethodField()
     can_complete = serializers.SerializerMethodField()
     compliance_issues = serializers.SerializerMethodField()
+    # Linked load info
+    load_number = serializers.SerializerMethodField()
+    load_id = serializers.SerializerMethodField()
+    load_status = serializers.SerializerMethodField()
+    load_customer_name = serializers.SerializerMethodField()
     
     # Frontend form fields (write-only for trip creation)
     planned_departure = serializers.CharField(write_only=True, required=False)  # Accept date string
@@ -286,6 +291,8 @@ class TripsSerializer(serializers.ModelSerializer):
             'driver_name', 'truck_unit_number', 'trailer_unit_number', 'company_name', 'status_display',
             'origin_display', 'destination_display', 'duration_hours', 'total_miles',
             'can_start', 'can_complete', 'compliance_issues',
+            # Linked load info
+            'load_number', 'load_id', 'load_status', 'load_customer_name',
             # Write-only fields for frontend forms
             'planned_departure', 'planned_arrival', 'load_description'
         ]
@@ -304,6 +311,21 @@ class TripsSerializer(serializers.ModelSerializer):
     
     def get_compliance_issues(self, obj):
         return obj.get_compliance_issues()
+    
+    def get_load_number(self, obj):
+        return getattr(getattr(obj, 'load', None), 'load_number', None)
+    
+    def get_load_id(self, obj):
+        load = getattr(obj, 'load', None)
+        return load.id if load else None
+    
+    def get_load_status(self, obj):
+        load = getattr(obj, 'load', None)
+        return load.get_status_display() if load else None
+    
+    def get_load_customer_name(self, obj):
+        load = getattr(obj, 'load', None)
+        return load.customer.name if load and load.customer else None
     
     def create(self, validated_data):
         """
@@ -618,12 +640,20 @@ class LoadSerializer(serializers.ModelSerializer):
     profit = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
     margin_percent = serializers.DecimalField(max_digits=5, decimal_places=2, read_only=True)
     trip_number = serializers.CharField(source='trip.trip_number', read_only=True)
+    trip_id = serializers.IntegerField(source='trip.id', read_only=True)
+    trip_status = serializers.CharField(source='trip.get_status_display', read_only=True)
+    trip_driver_name = serializers.SerializerMethodField()
     created_by_name = serializers.CharField(source='created_by.get_full_name', read_only=True)
     
     class Meta:
         model = Load
         fields = '__all__'
         read_only_fields = ['load_number', 'created_at', 'updated_at']
+    
+    def get_trip_driver_name(self, obj):
+        if obj.trip and obj.trip.driver:
+            return obj.trip.driver.get_full_name()
+        return None
 
 
 class InvoicePaymentSerializer(serializers.ModelSerializer):

@@ -2067,6 +2067,11 @@ def start_trip(request, trip_id):
         
         trip.save()
         
+        # Sync linked load status to in_transit
+        if hasattr(trip, 'load') and trip.load and trip.load.status == 'dispatched':
+            trip.load.status = 'in_transit'
+            trip.load.save(update_fields=['status'])
+        
         return Response({
             'message': 'Trip started successfully',
             'trip_id': trip.id,
@@ -2139,6 +2144,11 @@ def complete_trip(request, trip_id):
             trip.miles_driven = trip.mileage_end - trip.mileage_start
         
         trip.save()
+        
+        # Sync linked load status to delivered
+        if hasattr(trip, 'load') and trip.load and trip.load.status == 'in_transit':
+            trip.load.status = 'delivered'
+            trip.load.save(update_fields=['status'])
         
         return Response({
             'message': 'Trip completed successfully',
@@ -2282,6 +2292,13 @@ def cancel_trip(request, trip_id):
         
         # Cancel the trip
         trip.cancel_trip(request.user, cancellation_reason)
+        
+        # Unlink and revert linked load to booked
+        if hasattr(trip, 'load') and trip.load:
+            load = trip.load
+            load.trip = None
+            load.status = 'booked'
+            load.save(update_fields=['trip', 'status'])
         
         return Response({
             'message': 'Trip cancelled successfully',
@@ -3789,3 +3806,97 @@ def quote_lookup(request):
 
     serializer = RateLaneSerializer(queryset, many=True)
     return Response(serializer.data)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def dispatch_load(request, load_id):
+    """
+    Dispatch a load by assigning a driver/truck/trailer and auto-creating a linked Trip.
+    Expects: { driver_id, truck_id (optional), trailer_id (optional) }
+    """
+    try:
+        load = Load.objects.get(id=load_id)
+    except Load.DoesNotExist:
+        return Response({'error': 'Load not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    # Permission check
+    user_companies = request.user.profile.companies.all()
+    if load.company not in user_companies:
+        return Response({'error': 'Load not in your company'}, status=status.HTTP_403_FORBIDDEN)
+
+    # Validate load is in a dispatchable state
+    if load.status not in ('booked', 'quoted'):
+        return Response(
+            {'error': f'Cannot dispatch a load with status "{load.get_status_display()}". Must be Booked or Quoted.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    if load.trip:
+        return Response(
+            {'error': 'This load already has a linked trip.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    driver_id = request.data.get('driver_id')
+    truck_id = request.data.get('truck_id')
+    trailer_id = request.data.get('trailer_id')
+
+    if not driver_id:
+        return Response({'error': 'driver_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        driver = Driver.objects.get(id=driver_id)
+    except Driver.DoesNotExist:
+        return Response({'error': 'Driver not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    truck = None
+    if truck_id:
+        try:
+            truck = Truck.objects.get(id=truck_id)
+        except Truck.DoesNotExist:
+            return Response({'error': 'Truck not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    trailer = None
+    if trailer_id:
+        try:
+            trailer = Trailer.objects.get(id=trailer_id)
+        except Trailer.DoesNotExist:
+            return Response({'error': 'Trailer not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    # Build origin/destination from load locations
+    origin_parts = [p for p in [load.pickup_city, load.pickup_state] if p]
+    origin = ', '.join(origin_parts) if origin_parts else load.pickup_address or ''
+    dest_parts = [p for p in [load.delivery_city, load.delivery_state] if p]
+    destination = ', '.join(dest_parts) if dest_parts else load.delivery_address or ''
+
+    # Auto-generate trip number
+    trip_count = Trips.objects.count() + 1
+    trip_number = f"TRIP-{trip_count:06d}"
+    while Trips.objects.filter(trip_number=trip_number).exists():
+        trip_count += 1
+        trip_number = f"TRIP-{trip_count:06d}"
+
+    # Create the trip
+    trip = Trips.objects.create(
+        company=load.company,
+        driver=driver,
+        truck=truck,
+        trailer=trailer,
+        trip_number=trip_number,
+        start_location=origin,
+        end_location=destination,
+        scheduled_start_date=load.pickup_date,
+        scheduled_end_date=load.delivery_date,
+        status='scheduled',
+        notes=f"Auto-created from Load {load.load_number}",
+        created_by=request.user,
+    )
+
+    # Link trip to load and update status
+    load.trip = trip
+    load.status = 'dispatched'
+    load.save(update_fields=['trip', 'status'])
+
+    serializer = LoadSerializer(load)
+    return Response(serializer.data, status=status.HTTP_200_OK)

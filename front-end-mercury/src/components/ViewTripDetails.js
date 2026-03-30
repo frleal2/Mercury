@@ -515,6 +515,32 @@ const ViewTripDetails = ({ tripId, onClose }) => {
               </div>
             </div>
 
+            {/* Linked Load Information */}
+            {trip.load_number && (
+              <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-6">
+                <h4 className="text-lg font-medium text-indigo-900 mb-4">Linked Load</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Load Number</label>
+                    <p className="mt-1 text-sm font-semibold text-indigo-700">{trip.load_number}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Load Status</label>
+                    <p className="mt-1 text-sm text-gray-900">{trip.load_status || '—'}</p>
+                  </div>
+                  {trip.load_customer_name && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Customer</label>
+                      <p className="mt-1 text-sm text-gray-900">{trip.load_customer_name}</p>
+                    </div>
+                  )}
+                </div>
+                <p className="text-xs text-indigo-600 mt-3">
+                  Trip status syncs with this load automatically.
+                </p>
+              </div>
+            )}
+
             {/* Notes */}
             {trip.notes && (
               <div className="bg-gray-50 rounded-lg p-6">

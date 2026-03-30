@@ -441,11 +441,29 @@ const ViewLoadDetails = ({ loadId, isOpen, onClose }) => {
                           </div>
 
                           {/* Trip Link */}
-                          {load.trip && (
+                          {load.trip_number && (
                             <div>
-                              <h4 className={sectionHeader}>Assigned Trip</h4>
-                              <div className="bg-blue-50 rounded-lg p-3">
-                                <p className={detailValue}>Trip {load.trip_number}</p>
+                              <h4 className={sectionHeader}>Linked Trip</h4>
+                              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-1.5">
+                                <div className="flex justify-between">
+                                  <span className={detailLabel}>Trip Number</span>
+                                  <span className="text-sm font-semibold text-blue-700">{load.trip_number}</span>
+                                </div>
+                                {load.trip_status && (
+                                  <div className="flex justify-between">
+                                    <span className={detailLabel}>Trip Status</span>
+                                    <span className={detailValue}>{load.trip_status}</span>
+                                  </div>
+                                )}
+                                {load.trip_driver_name && (
+                                  <div className="flex justify-between">
+                                    <span className={detailLabel}>Driver</span>
+                                    <span className={detailValue}>{load.trip_driver_name}</span>
+                                  </div>
+                                )}
+                                <p className="text-xs text-blue-600 mt-1">
+                                  Trip status syncs automatically with load status.
+                                </p>
                               </div>
                             </div>
                           )}

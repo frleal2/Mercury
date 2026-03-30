@@ -96,6 +96,8 @@ urlpatterns = [
     path('api/dashboard/simple/', views.dashboard_simple, name='dashboard_simple'),
     # Rate management endpoints
     path('api/quote-lookup/', views.quote_lookup, name='quote_lookup'),
+    # Load-Trip integration endpoints
+    path('api/loads/<int:load_id>/dispatch/', views.dispatch_load, name='dispatch_load'),
 ]
 
 # Serve media and static files during development
