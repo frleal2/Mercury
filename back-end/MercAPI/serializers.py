@@ -633,7 +633,7 @@ class InvoiceSerializer(serializers.ModelSerializer):
     class Meta:
         model = Invoice
         fields = '__all__'
-        read_only_fields = ['invoice_number', 'created_at', 'updated_at']
+        read_only_fields = ['invoice_number', 'company', 'created_at', 'updated_at']
 
     def get_load_count(self, obj):
         return obj.loads.count()
