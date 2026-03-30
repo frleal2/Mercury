@@ -94,10 +94,6 @@ urlpatterns = [
     path('api/trips/<int:trip_id>/cancel-reassign/', views.cancel_and_reassign_trip, name='cancel_and_reassign_trip'),
     path('api/available-trucks/', views.available_trucks, name='available_trucks'),
     path('api/trips/<int:trip_id>/inspection/<str:inspection_type>/', views.submit_inspection, name='submit_inspection'),
-    # Dashboard endpoints
-    path('api/dashboard/overview/', views.dashboard_overview, name='dashboard_overview'),
-    path('api/dashboard/test/', views.dashboard_test, name='dashboard_test'),
-    path('api/dashboard/simple/', views.dashboard_simple, name='dashboard_simple'),
     # Rate management endpoints
     path('api/quote-lookup/', views.quote_lookup, name='quote_lookup'),
     # Load-Trip integration endpoints
