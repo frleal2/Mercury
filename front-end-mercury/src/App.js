@@ -26,6 +26,7 @@ import Loads from './Pages/Loads';
 import Customers from './Pages/Customers';
 import Invoices from './Pages/Invoices';
 import Carriers from './Pages/Carriers';
+import DispatchBoard from './Pages/DispatchBoard';
 
 function AppContent() {
     const { session } = useSession();
@@ -54,6 +55,7 @@ function AppContent() {
                             <Route path="/Customers" element={<Navigate to="/DriverDashboard" />} />
                             <Route path="/Invoices" element={<Navigate to="/DriverDashboard" />} />
                             <Route path="/Carriers" element={<Navigate to="/DriverDashboard" />} />
+                            <Route path="/Dispatch" element={<Navigate to="/DriverDashboard" />} />
                             <Route path="/Recruitment" element={<Navigate to="/DriverDashboard" />} />
                             <Route path="/UserManagement" element={<Navigate to="/DriverDashboard" />} />
                             <Route path="*" element={<Navigate to="/DriverDashboard" />} />
@@ -72,6 +74,7 @@ function AppContent() {
                             <Route path="/Customers" element={<><Header /><Customers /></>} />
                             <Route path="/Invoices" element={<><Header /><Invoices /></>} />
                             <Route path="/Carriers" element={<><Header /><Carriers /></>} />
+                            <Route path="/Dispatch" element={<><Header /><DispatchBoard /></>} />
                             <Route path="/DriverDashboard" element={<><Header /><DriverDashboard /></>} />
                             <Route path="/Maintenance" element={<><Header /><Maintenance /></>} />
                             <Route path="/Recruitment" element={<><Header /><Recruitment /></>} />
