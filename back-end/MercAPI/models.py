@@ -1742,10 +1742,14 @@ class TripInspectionRepairCertification(models.Model):
 
 class TripDocument(models.Model):
     """
-    Store documents related to trips (BOL, receipts, etc.)
+    Store documents related to trips (BOL, receipts, POD, etc.)
     """
     DOCUMENT_TYPE_CHOICES = [
         ('bol', 'Bill of Lading'),
+        ('pod', 'Proof of Delivery'),
+        ('rate_confirmation', 'Rate Confirmation'),
+        ('carrier_packet', 'Carrier Packet'),
+        ('lumper_receipt', 'Lumper Receipt'),
         ('receipt', 'Receipt'),
         ('photo', 'Photo'),
         ('other', 'Other'),
@@ -1753,10 +1757,16 @@ class TripDocument(models.Model):
     
     trip = models.ForeignKey(Trips, on_delete=models.CASCADE, related_name='documents')
     document_type = models.CharField(max_length=20, choices=DOCUMENT_TYPE_CHOICES)
-    file = models.FileField(upload_to='trip_documents/')
+    file = models.FileField(upload_to='trip_documents/%Y/%m/')
     description = models.CharField(max_length=255, blank=True)
     uploaded_by = models.ForeignKey(User, on_delete=models.CASCADE)
     uploaded_at = models.DateTimeField(auto_now_add=True)
+    
+    # E-signature support
+    is_signed = models.BooleanField(default=False, help_text="Whether document has been e-signed")
+    signed_by_name = models.CharField(max_length=255, blank=True, help_text="Name of the signer")
+    signed_at = models.DateTimeField(null=True, blank=True)
+    signature_data = models.TextField(blank=True, help_text="Base64-encoded signature image")
     
     class Meta:
         ordering = ['-uploaded_at']
@@ -1766,6 +1776,59 @@ class TripDocument(models.Model):
     def __str__(self):
         trip_id = self.trip.trip_number or f"#{self.trip.id}"
         return f"{self.get_document_type_display()} - Trip {trip_id}"
+
+
+class LoadDocument(models.Model):
+    """
+    Store documents related to loads (Rate Confirmations, BOL, POD, Carrier Packets, etc.)
+    Loads are the business side — documents here tie to the customer/carrier transaction.
+    """
+    DOCUMENT_TYPE_CHOICES = [
+        ('rate_confirmation', 'Rate Confirmation'),
+        ('bol', 'Bill of Lading'),
+        ('pod', 'Proof of Delivery'),
+        ('carrier_packet', 'Carrier Packet'),
+        ('lumper_receipt', 'Lumper Receipt'),
+        ('invoice', 'Invoice'),
+        ('weight_ticket', 'Weight Ticket'),
+        ('customs', 'Customs Document'),
+        ('receipt', 'Receipt'),
+        ('photo', 'Photo'),
+        ('other', 'Other'),
+    ]
+    
+    load = models.ForeignKey(Load, on_delete=models.CASCADE, related_name='documents')
+    document_type = models.CharField(max_length=20, choices=DOCUMENT_TYPE_CHOICES)
+    file = models.FileField(upload_to='load_documents/%Y/%m/')
+    file_name = models.CharField(max_length=255, blank=True, help_text="Original filename")
+    file_size = models.PositiveIntegerField(null=True, blank=True, help_text="File size in bytes")
+    description = models.CharField(max_length=255, blank=True)
+    uploaded_by = models.ForeignKey(User, on_delete=models.CASCADE)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    
+    # E-signature support
+    is_signed = models.BooleanField(default=False, help_text="Whether document has been e-signed")
+    signed_by_name = models.CharField(max_length=255, blank=True, help_text="Name of the signer")
+    signed_at = models.DateTimeField(null=True, blank=True)
+    signature_data = models.TextField(blank=True, help_text="Base64-encoded signature image")
+    
+    class Meta:
+        ordering = ['-uploaded_at']
+        verbose_name = "Load Document"
+        verbose_name_plural = "Load Documents"
+    
+    def __str__(self):
+        return f"{self.get_document_type_display()} - Load {self.load.load_number}"
+    
+    def save(self, *args, **kwargs):
+        if self.file and not self.file_name:
+            self.file_name = self.file.name
+        if self.file and not self.file_size:
+            try:
+                self.file_size = self.file.size
+            except Exception:
+                pass
+        super().save(*args, **kwargs)
 
 
 

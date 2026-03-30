@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Inspection, InspectionItem, Trips, UserProfile, TripDocument, AnnualInspection, VehicleOperationStatus, Customer, Carrier, Load, Invoice, InvoicePayment, RateLane, AccessorialCharge, FuelSurchargeSchedule
+from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Inspection, InspectionItem, Trips, UserProfile, TripDocument, LoadDocument, AnnualInspection, VehicleOperationStatus, Customer, Carrier, Load, Invoice, InvoicePayment, RateLane, AccessorialCharge, FuelSurchargeSchedule
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -507,6 +507,23 @@ class TripDocumentSerializer(serializers.ModelSerializer):
         model = TripDocument
         fields = '__all__'
         read_only_fields = ['uploaded_at', 'uploaded_by']
+    
+    def get_file_url(self, obj):
+        if obj.file:
+            return obj.file.url
+        return None
+
+
+class LoadDocumentSerializer(serializers.ModelSerializer):
+    load_number = serializers.CharField(source='load.load_number', read_only=True)
+    document_type_display = serializers.CharField(source='get_document_type_display', read_only=True)
+    uploaded_by_name = serializers.CharField(source='uploaded_by.get_full_name', read_only=True)
+    file_url = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = LoadDocument
+        fields = '__all__'
+        read_only_fields = ['uploaded_at', 'uploaded_by', 'file_name', 'file_size']
     
     def get_file_url(self, obj):
         if obj.file:

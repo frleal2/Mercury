@@ -15,7 +15,8 @@ import {
   CheckCircleIcon,
   ClipboardDocumentCheckIcon,
   DocumentTextIcon,
-  ArrowRightIcon
+  ArrowRightIcon,
+  CameraIcon
 } from '@heroicons/react/24/outline';
 
 function DriverDashboard() {
@@ -27,6 +28,10 @@ function DriverDashboard() {
   const [inspectionModalOpen, setInspectionModalOpen] = useState(false);
   const [inspectionType, setInspectionType] = useState(null); // 'pre_trip' or 'post_trip'
   const [dvirReviewModalOpen, setDvirReviewModalOpen] = useState(false);
+  const [podUploadTrip, setPodUploadTrip] = useState(null);
+  const [podFile, setPodFile] = useState(null);
+  const [podUploading, setPodUploading] = useState(false);
+  const [podDescription, setPodDescription] = useState('');
 
 
 
@@ -397,6 +402,17 @@ function DriverDashboard() {
                             Complete Trip
                           </button>
                         )}
+                        
+                        {/* Upload POD - available while trip is in progress */}
+                        {trip.status === 'in_progress' && (
+                          <button
+                            onClick={() => setPodUploadTrip(trip)}
+                            className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-3 sm:py-2 border border-green-300 rounded-lg text-sm font-medium text-green-700 bg-green-50 hover:bg-green-100 touch-manipulation"
+                          >
+                            <CameraIcon className="h-4 w-4 mr-2" />
+                            Upload POD
+                          </button>
+                        )}
                       </div>
                       
                       {/* Inspection Status Indicators - responsive layout */}
@@ -477,6 +493,84 @@ function DriverDashboard() {
       )}
 
       {/* Repair Certification Modal */}
+
+      {/* POD Upload Modal */}
+      {podUploadTrip && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Upload Proof of Delivery</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Trip: <span className="font-medium">{podUploadTrip.trip_number}</span> — Take a photo of the signed BOL or delivery receipt.
+            </p>
+            
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Photo or Document</label>
+              <input
+                type="file"
+                accept="image/*,application/pdf"
+                capture="environment"
+                onChange={(e) => setPodFile(e.target.files[0])}
+                className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+              />
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Description (optional)</label>
+              <input
+                type="text"
+                value={podDescription}
+                onChange={(e) => setPodDescription(e.target.value)}
+                placeholder="e.g. Signed BOL at delivery dock"
+                className="w-full text-sm border-gray-300 rounded-md"
+              />
+            </div>
+
+            {message && (
+              <p className={`text-sm mb-3 ${message.type === 'success' ? 'text-green-600' : 'text-red-600'}`}>
+                {message.text}
+              </p>
+            )}
+
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => { setPodUploadTrip(null); setPodFile(null); setPodDescription(''); }}
+                className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-md hover:bg-gray-100"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  if (!podFile) return;
+                  setPodUploading(true);
+                  try {
+                    const formData = new FormData();
+                    formData.append('file', podFile);
+                    formData.append('document_type', 'pod');
+                    formData.append('description', podDescription);
+                    await axios.post(
+                      `${BASE_URL}/api/trips/${podUploadTrip.id}/upload-document/`,
+                      formData,
+                      { headers: { 'Authorization': `Bearer ${session.accessToken}`, 'Content-Type': 'multipart/form-data' } }
+                    );
+                    setMessage({ type: 'success', text: 'POD uploaded successfully!' });
+                    setPodUploadTrip(null);
+                    setPodFile(null);
+                    setPodDescription('');
+                  } catch (err) {
+                    setMessage({ type: 'error', text: err.response?.data?.error || 'Upload failed' });
+                  } finally {
+                    setPodUploading(false);
+                  }
+                }}
+                disabled={!podFile || podUploading}
+                className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50"
+              >
+                {podUploading ? 'Uploading...' : 'Upload POD'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

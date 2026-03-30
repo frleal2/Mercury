@@ -22,7 +22,7 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from django.conf import settings
 from django.conf.urls.static import static
 from MercAPI import views  # Corrected to match the actual directory name
-from MercAPI.views import RegisterUserView, CustomTokenObtainPairView, DriverViewSet, TruckViewSet, CompanyViewSet, TrailerViewSet, DriverTestViewSet, DriverHOSViewSet, DriverApplicationViewSet, MaintenanceCategoryViewSet, MaintenanceTypeViewSet, MaintenanceRecordViewSet, MaintenanceAttachmentViewSet, DriverDocumentViewSet, TripDocumentViewSet, MaintenanceAttachmentUploadView, DriverDocumentUploadView, InspectionViewSet, InspectionItemViewSet, TripsViewSet, TripsManagementViewSet, TripInspectionViewSet, AnnualInspectionViewSet, VehicleOperationStatusViewSet, driver_update_dvir_review, cancel_trip, cancel_and_reassign_trip, available_trucks, CustomerViewSet, CarrierViewSet, LoadViewSet, InvoiceViewSet, InvoicePaymentViewSet, RateLaneViewSet, AccessorialChargeViewSet, FuelSurchargeScheduleViewSet
+from MercAPI.views import RegisterUserView, CustomTokenObtainPairView, DriverViewSet, TruckViewSet, CompanyViewSet, TrailerViewSet, DriverTestViewSet, DriverHOSViewSet, DriverApplicationViewSet, MaintenanceCategoryViewSet, MaintenanceTypeViewSet, MaintenanceRecordViewSet, MaintenanceAttachmentViewSet, DriverDocumentViewSet, TripDocumentViewSet, LoadDocumentViewSet, MaintenanceAttachmentUploadView, DriverDocumentUploadView, InspectionViewSet, InspectionItemViewSet, TripsViewSet, TripsManagementViewSet, TripInspectionViewSet, AnnualInspectionViewSet, VehicleOperationStatusViewSet, driver_update_dvir_review, cancel_trip, cancel_and_reassign_trip, available_trucks, CustomerViewSet, CarrierViewSet, LoadViewSet, InvoiceViewSet, InvoicePaymentViewSet, RateLaneViewSet, AccessorialChargeViewSet, FuelSurchargeScheduleViewSet
 
 router = DefaultRouter()
 router.register(r'drivers', DriverViewSet, basename='driver')  # Register DriverViewSet
@@ -38,6 +38,7 @@ router.register(r'maintenance-records', MaintenanceRecordViewSet, basename='main
 router.register(r'maintenance-attachments', MaintenanceAttachmentViewSet, basename='maintenance-attachment')
 router.register(r'driver-documents', DriverDocumentViewSet, basename='driver-document')
 router.register(r'trip-documents', TripDocumentViewSet, basename='trip-document')
+router.register(r'load-documents', LoadDocumentViewSet, basename='load-document')
 router.register(r'inspections', InspectionViewSet, basename='inspection')
 router.register(r'inspection-items', InspectionItemViewSet, basename='inspection-item')
 router.register(r'trips', TripsManagementViewSet, basename='trips')
@@ -99,6 +100,9 @@ urlpatterns = [
     # Load-Trip integration endpoints
     path('api/loads/<int:load_id>/dispatch/', views.dispatch_load, name='dispatch_load'),
     path('api/loads/<int:load_id>/reassign/', views.reassign_load, name='reassign_load'),
+    # Document management endpoints
+    path('api/trips/<int:trip_id>/upload-document/', views.driver_upload_pod, name='driver_upload_pod'),
+    path('api/documents/<str:document_source>/<int:document_id>/sign/', views.sign_document, name='sign_document'),
 ]
 
 # Serve media and static files during development

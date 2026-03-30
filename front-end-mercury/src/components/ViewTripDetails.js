@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { XMarkIcon, CheckCircleIcon, XCircleIcon, ClipboardDocumentCheckIcon, WrenchScrewdriverIcon } from '@heroicons/react/24/outline';
+import { XMarkIcon, CheckCircleIcon, XCircleIcon, ClipboardDocumentCheckIcon, WrenchScrewdriverIcon, DocumentTextIcon } from '@heroicons/react/24/outline';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useSession } from '../providers/SessionProvider';
 import BASE_URL from '../config';
 import AddMaintenanceRecord from './AddMaintenanceRecord';
+import DocumentManager from './DocumentManager';
 
 const ViewTripDetails = ({ tripId, onClose }) => {
   const { session, refreshAccessToken } = useSession();
@@ -443,6 +444,22 @@ const ViewTripDetails = ({ tripId, onClose }) => {
                 </span>
               )}
             </button>
+            <button
+              onClick={() => setActiveTab('documents')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center gap-1 ${
+                activeTab === 'documents'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <DocumentTextIcon className="h-4 w-4" />
+              Documents
+              {tripDocuments.length > 0 && (
+                <span className="ml-1 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                  {tripDocuments.length}
+                </span>
+              )}
+            </button>
           </nav>
         </div>
 
@@ -818,6 +835,16 @@ const ViewTripDetails = ({ tripId, onClose }) => {
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {activeTab === 'documents' && (
+          <div className="space-y-4">
+            <DocumentManager
+              entityType="trip"
+              entityId={tripId}
+              documentTypes={['bol', 'pod', 'rate_confirmation', 'carrier_packet', 'lumper_receipt', 'receipt', 'photo', 'other']}
+            />
           </div>
         )}
       </div>

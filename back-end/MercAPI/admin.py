@@ -3,7 +3,7 @@ from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib.auth.models import User
 from .models import (Driver, Company, DriverTest, Truck, Trailer, Inspection, InspectionItem, 
                      Trips, DriverHOS, DriverApplication, Tenant, UserProfile, InvitationToken, 
-                     TripDocument, DriverDocument, MaintenanceCategory, 
+                     TripDocument, LoadDocument, DriverDocument, MaintenanceCategory, 
                      MaintenanceType, MaintenanceRecord, MaintenanceAttachment, PasswordResetToken,
                      TripInspectionRepairCertification, AnnualInspection, VehicleOperationStatus,
                      Customer, Carrier, Load, Invoice, InvoicePayment)
@@ -222,19 +222,17 @@ class InvitationTokenAdmin(admin.ModelAdmin):
 
 @admin.register(TripDocument)
 class TripDocumentAdmin(admin.ModelAdmin):
-    list_display = ('id', 'trip', 'document_type', 'uploaded_by', 'uploaded_at')
-    list_filter = ('document_type', 'uploaded_at', 'trip__company')
-    search_fields = ('trip__trip_number', 'uploaded_by__username', 'document_name')
+    list_display = ('id', 'trip', 'document_type', 'is_signed', 'uploaded_by', 'uploaded_at')
+    list_filter = ('document_type', 'is_signed', 'uploaded_at', 'trip__company')
+    search_fields = ('trip__trip_number', 'uploaded_by__username', 'description')
     readonly_fields = ('uploaded_at',)
-    
-    fieldsets = (
-        ('Document Information', {
-            'fields': ('trip', 'document_type', 'document_name', 'file')
-        }),
-        ('Upload Details', {
-            'fields': ('uploaded_by', 'uploaded_at')
-        }),
-    )
+
+@admin.register(LoadDocument)
+class LoadDocumentAdmin(admin.ModelAdmin):
+    list_display = ('id', 'load', 'document_type', 'is_signed', 'uploaded_by', 'uploaded_at')
+    list_filter = ('document_type', 'is_signed', 'uploaded_at', 'load__company')
+    search_fields = ('load__load_number', 'uploaded_by__username', 'description')
+    readonly_fields = ('uploaded_at', 'file_name', 'file_size')
 
 @admin.register(DriverDocument)
 class DriverDocumentAdmin(admin.ModelAdmin):

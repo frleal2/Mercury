@@ -9,7 +9,7 @@ from django.utils.html import strip_tags
 from datetime import datetime, timedelta
 from django.utils import timezone
 from urllib.parse import urlencode
-from .serializers import UserSerializer, DriverSerializer, TruckSerializer, CompanySerializer, TrailerSerializer, DriverTestSerializer, DriverHOSSerializer, DriverApplicationSerializer, MaintenanceCategorySerializer, MaintenanceTypeSerializer, MaintenanceRecordSerializer, MaintenanceAttachmentSerializer, DriverDocumentSerializer, InspectionSerializer, InspectionItemSerializer, TripsSerializer, TripDocumentSerializer, AnnualInspectionSerializer, VehicleOperationStatusSerializer, CustomerSerializer, CarrierSerializer, LoadSerializer, InvoiceSerializer, InvoicePaymentSerializer, RateLaneSerializer, AccessorialChargeSerializer, FuelSurchargeScheduleSerializer
+from .serializers import UserSerializer, DriverSerializer, TruckSerializer, CompanySerializer, TrailerSerializer, DriverTestSerializer, DriverHOSSerializer, DriverApplicationSerializer, MaintenanceCategorySerializer, MaintenanceTypeSerializer, MaintenanceRecordSerializer, MaintenanceAttachmentSerializer, DriverDocumentSerializer, InspectionSerializer, InspectionItemSerializer, TripsSerializer, TripDocumentSerializer, LoadDocumentSerializer, AnnualInspectionSerializer, VehicleOperationStatusSerializer, CustomerSerializer, CarrierSerializer, LoadSerializer, InvoiceSerializer, InvoicePaymentSerializer, RateLaneSerializer, AccessorialChargeSerializer, FuelSurchargeScheduleSerializer
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -20,7 +20,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework_simplejwt.views import TokenObtainPairView
-from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Tenant, UserProfile, Inspection, InspectionItem, Trips, InvitationToken, TripDocument, PasswordResetToken, AnnualInspection, VehicleOperationStatus, Customer, Carrier, Load, Invoice, InvoicePayment, RateLane, AccessorialCharge, FuelSurchargeSchedule
+from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Tenant, UserProfile, Inspection, InspectionItem, Trips, InvitationToken, TripDocument, LoadDocument, PasswordResetToken, AnnualInspection, VehicleOperationStatus, Customer, Carrier, Load, Invoice, InvoicePayment, RateLane, AccessorialCharge, FuelSurchargeSchedule
 from rest_framework.serializers import ValidationError
 from rest_framework import serializers
 from django.core.files.storage import default_storage
@@ -1295,6 +1295,33 @@ class TripDocumentViewSet(UserOrAboveMixin, ModelViewSet):
         serializer.save(uploaded_by=self.request.user)
 
 
+class LoadDocumentViewSet(UserOrAboveMixin, ModelViewSet):
+    queryset = LoadDocument.objects.all()
+    serializer_class = LoadDocumentSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        if not hasattr(self.request.user, 'profile') or not self.request.user.profile:
+            return LoadDocument.objects.none()
+        
+        user_companies = self.request.user.profile.companies.all()
+        queryset = LoadDocument.objects.filter(load__company__in=user_companies)
+        
+        load_id = self.request.query_params.get('load', None)
+        document_type = self.request.query_params.get('document_type', None)
+        
+        if load_id:
+            queryset = queryset.filter(load_id=load_id)
+        
+        if document_type:
+            queryset = queryset.filter(document_type=document_type)
+            
+        return queryset.order_by('-uploaded_at')
+    
+    def perform_create(self, serializer):
+        serializer.save(uploaded_by=self.request.user)
+
+
 class InspectionViewSet(CompanyFilterMixin, ModelViewSet):
     # TODO: Will need DriverFilterMixin when trip system is implemented
     # Drivers need to create pre/post trip inspections
@@ -2203,6 +2230,124 @@ def driver_active_trips(request):
             {'error': 'Internal server error'}, 
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def driver_upload_pod(request, trip_id):
+    """
+    Allow drivers to upload Proof of Delivery (signed BOL photo) for their trips.
+    Also supports uploading other trip-related documents.
+    """
+    try:
+        if not hasattr(request.user, 'profile'):
+            return Response({'error': 'User profile not found'}, status=status.HTTP_403_FORBIDDEN)
+        
+        # Drivers can only upload for their own trips; admins/users for any company trip
+        if request.user.profile.role == 'driver':
+            try:
+                trip = Trips.objects.get(id=trip_id, driver__user_account=request.user)
+            except Trips.DoesNotExist:
+                return Response({'error': 'Trip not found or not assigned to you'}, status=status.HTTP_404_NOT_FOUND)
+        else:
+            user_companies = request.user.profile.companies.all()
+            try:
+                trip = Trips.objects.get(id=trip_id, company__in=user_companies)
+            except Trips.DoesNotExist:
+                return Response({'error': 'Trip not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        file = request.FILES.get('file')
+        if not file:
+            return Response({'error': 'No file provided'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Validate file size (10MB max)
+        if file.size > 10 * 1024 * 1024:
+            return Response({'error': 'File size exceeds 10MB limit'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        document_type = request.data.get('document_type', 'pod')
+        valid_types = [choice[0] for choice in TripDocument.DOCUMENT_TYPE_CHOICES]
+        if document_type not in valid_types:
+            return Response({'error': f'Invalid document type. Must be one of: {", ".join(valid_types)}'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        description = request.data.get('description', '')
+        
+        doc = TripDocument.objects.create(
+            trip=trip,
+            document_type=document_type,
+            file=file,
+            description=description,
+            uploaded_by=request.user,
+        )
+        
+        # If it's a POD, also create on the linked load if one exists
+        if document_type == 'pod' and hasattr(trip, 'load') and trip.load:
+            LoadDocument.objects.create(
+                load=trip.load,
+                document_type='pod',
+                file=file,
+                file_name=file.name,
+                file_size=file.size,
+                description=description or f"POD uploaded by driver - Trip {trip.trip_number}",
+                uploaded_by=request.user,
+            )
+        
+        serializer = TripDocumentSerializer(doc)
+        return Response({
+            'message': f'{doc.get_document_type_display()} uploaded successfully',
+            'document': serializer.data,
+        }, status=status.HTTP_201_CREATED)
+        
+    except Exception as e:
+        logger.error(f"Error uploading document for trip {trip_id}: {str(e)}")
+        return Response({'error': 'Internal server error'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def sign_document(request, document_id, document_source):
+    """
+    E-sign a document (rate confirmation, BOL, etc.)
+    document_source: 'trip' or 'load'
+    """
+    try:
+        if not hasattr(request.user, 'profile'):
+            return Response({'error': 'User profile not found'}, status=status.HTTP_403_FORBIDDEN)
+        
+        user_companies = request.user.profile.companies.all()
+        signer_name = request.data.get('signer_name', request.user.get_full_name())
+        signature_data = request.data.get('signature_data', '')
+        
+        if not signer_name:
+            return Response({'error': 'Signer name is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if document_source == 'trip':
+            try:
+                doc = TripDocument.objects.get(id=document_id, trip__company__in=user_companies)
+            except TripDocument.DoesNotExist:
+                return Response({'error': 'Document not found'}, status=status.HTTP_404_NOT_FOUND)
+        elif document_source == 'load':
+            try:
+                doc = LoadDocument.objects.get(id=document_id, load__company__in=user_companies)
+            except LoadDocument.DoesNotExist:
+                return Response({'error': 'Document not found'}, status=status.HTTP_404_NOT_FOUND)
+        else:
+            return Response({'error': 'Invalid document source'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        doc.is_signed = True
+        doc.signed_by_name = signer_name
+        doc.signed_at = timezone.now()
+        doc.signature_data = signature_data
+        doc.save()
+        
+        return Response({
+            'message': 'Document signed successfully',
+            'signed_by': signer_name,
+            'signed_at': doc.signed_at.isoformat(),
+        })
+        
+    except Exception as e:
+        logger.error(f"Error signing document {document_id}: {str(e)}")
+        return Response({'error': 'Internal server error'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(['PATCH'])
