@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Inspection, InspectionItem, Trips, UserProfile, TripDocument, AnnualInspection, VehicleOperationStatus, Customer, Carrier, Load, Invoice, InvoicePayment
+from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Inspection, InspectionItem, Trips, UserProfile, TripDocument, AnnualInspection, VehicleOperationStatus, Customer, Carrier, Load, Invoice, InvoicePayment, RateLane, AccessorialCharge, FuelSurchargeSchedule
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -668,3 +668,41 @@ class InvoiceSerializer(serializers.ModelSerializer):
             }
             for load in obj.loads.all()
         ]
+
+
+class RateLaneSerializer(serializers.ModelSerializer):
+    company_name = serializers.CharField(source='company.name', read_only=True)
+    customer_name = serializers.CharField(source='customer.name', read_only=True, default=None)
+    equipment_type_display = serializers.CharField(source='get_equipment_type_display', read_only=True)
+    rate_type_display = serializers.CharField(source='get_rate_type_display', read_only=True)
+    lane_display = serializers.CharField(read_only=True)
+    fuel_surcharge_amount = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+    total_customer_charge = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+    estimated_profit = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+    estimated_margin = serializers.DecimalField(max_digits=5, decimal_places=2, read_only=True)
+    is_expired = serializers.BooleanField(read_only=True)
+
+    class Meta:
+        model = RateLane
+        fields = '__all__'
+        read_only_fields = ['created_at', 'updated_at']
+
+
+class AccessorialChargeSerializer(serializers.ModelSerializer):
+    company_name = serializers.CharField(source='company.name', read_only=True)
+    rate_unit_display = serializers.CharField(source='get_rate_unit_display', read_only=True)
+
+    class Meta:
+        model = AccessorialCharge
+        fields = '__all__'
+        read_only_fields = ['created_at', 'updated_at']
+
+
+class FuelSurchargeScheduleSerializer(serializers.ModelSerializer):
+    company_name = serializers.CharField(source='company.name', read_only=True)
+    current_surcharge_per_mile = serializers.DecimalField(max_digits=6, decimal_places=3, read_only=True)
+
+    class Meta:
+        model = FuelSurchargeSchedule
+        fields = '__all__'
+        read_only_fields = ['created_at', 'updated_at']

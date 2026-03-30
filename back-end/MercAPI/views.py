@@ -9,7 +9,7 @@ from django.utils.html import strip_tags
 from datetime import datetime, timedelta
 from django.utils import timezone
 from urllib.parse import urlencode
-from .serializers import UserSerializer, DriverSerializer, TruckSerializer, CompanySerializer, TrailerSerializer, DriverTestSerializer, DriverHOSSerializer, DriverApplicationSerializer, MaintenanceCategorySerializer, MaintenanceTypeSerializer, MaintenanceRecordSerializer, MaintenanceAttachmentSerializer, DriverDocumentSerializer, InspectionSerializer, InspectionItemSerializer, TripsSerializer, TripDocumentSerializer, AnnualInspectionSerializer, VehicleOperationStatusSerializer, CustomerSerializer, CarrierSerializer, LoadSerializer, InvoiceSerializer, InvoicePaymentSerializer
+from .serializers import UserSerializer, DriverSerializer, TruckSerializer, CompanySerializer, TrailerSerializer, DriverTestSerializer, DriverHOSSerializer, DriverApplicationSerializer, MaintenanceCategorySerializer, MaintenanceTypeSerializer, MaintenanceRecordSerializer, MaintenanceAttachmentSerializer, DriverDocumentSerializer, InspectionSerializer, InspectionItemSerializer, TripsSerializer, TripDocumentSerializer, AnnualInspectionSerializer, VehicleOperationStatusSerializer, CustomerSerializer, CarrierSerializer, LoadSerializer, InvoiceSerializer, InvoicePaymentSerializer, RateLaneSerializer, AccessorialChargeSerializer, FuelSurchargeScheduleSerializer
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -20,7 +20,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework_simplejwt.views import TokenObtainPairView
-from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Tenant, UserProfile, Inspection, InspectionItem, Trips, InvitationToken, TripDocument, PasswordResetToken, AnnualInspection, VehicleOperationStatus, Customer, Carrier, Load, Invoice, InvoicePayment
+from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Tenant, UserProfile, Inspection, InspectionItem, Trips, InvitationToken, TripDocument, PasswordResetToken, AnnualInspection, VehicleOperationStatus, Customer, Carrier, Load, Invoice, InvoicePayment, RateLane, AccessorialCharge, FuelSurchargeSchedule
 from rest_framework.serializers import ValidationError
 from rest_framework import serializers
 from django.core.files.storage import default_storage
@@ -3647,3 +3647,145 @@ class InvoicePaymentViewSet(UserOrAboveMixin, ModelViewSet):
         elif invoice.amount_paid > 0:
             invoice.status = 'partial'
         invoice.save()
+
+
+class RateLaneViewSet(UserOrAboveMixin, CompanyFilterMixin, ModelViewSet):
+    queryset = RateLane.objects.all()
+    serializer_class = RateLaneSerializer
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        search = self.request.query_params.get('search', None)
+        equipment_type = self.request.query_params.get('equipment_type', None)
+        customer_id = self.request.query_params.get('customer_id', None)
+        active_only = self.request.query_params.get('active', None)
+
+        if search:
+            queryset = queryset.filter(
+                Q(origin_city__icontains=search) |
+                Q(origin_state__icontains=search) |
+                Q(destination_city__icontains=search) |
+                Q(destination_state__icontains=search) |
+                Q(customer__name__icontains=search) |
+                Q(notes__icontains=search)
+            )
+        if equipment_type:
+            queryset = queryset.filter(equipment_type=equipment_type)
+        if customer_id:
+            queryset = queryset.filter(customer_id=customer_id)
+        if active_only == 'true':
+            queryset = queryset.filter(active=True)
+
+        return queryset.order_by('-created_at')
+
+    def perform_create(self, serializer):
+        if not serializer.validated_data.get('company'):
+            user_company = self.request.user.profile.companies.first()
+            if user_company:
+                serializer.validated_data['company'] = user_company
+        serializer.save()
+
+
+class AccessorialChargeViewSet(UserOrAboveMixin, CompanyFilterMixin, ModelViewSet):
+    queryset = AccessorialCharge.objects.all()
+    serializer_class = AccessorialChargeSerializer
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        search = self.request.query_params.get('search', None)
+        active_only = self.request.query_params.get('active', None)
+
+        if search:
+            queryset = queryset.filter(
+                Q(name__icontains=search) |
+                Q(code__icontains=search) |
+                Q(description__icontains=search)
+            )
+        if active_only == 'true':
+            queryset = queryset.filter(active=True)
+        return queryset
+
+    def perform_create(self, serializer):
+        if not serializer.validated_data.get('company'):
+            user_company = self.request.user.profile.companies.first()
+            if user_company:
+                serializer.validated_data['company'] = user_company
+        serializer.save()
+
+
+class FuelSurchargeScheduleViewSet(UserOrAboveMixin, CompanyFilterMixin, ModelViewSet):
+    queryset = FuelSurchargeSchedule.objects.all()
+    serializer_class = FuelSurchargeScheduleSerializer
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        active_only = self.request.query_params.get('active', None)
+        if active_only == 'true':
+            queryset = queryset.filter(active=True)
+        return queryset
+
+    def perform_create(self, serializer):
+        if not serializer.validated_data.get('company'):
+            user_company = self.request.user.profile.companies.first()
+            if user_company:
+                serializer.validated_data['company'] = user_company
+        serializer.save()
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def quote_lookup(request):
+    """
+    Look up matching rate lanes for quoting a load.
+    Query params: origin_city, origin_state, destination_city, destination_state, equipment_type, customer_id
+    Returns matching active, non-expired rate lanes ordered by specificity (customer-specific first).
+    """
+    from django.db import models as db_models
+
+    if not hasattr(request.user, 'profile'):
+        return Response([], status=status.HTTP_200_OK)
+
+    user_companies = request.user.profile.companies.all()
+    origin_city = request.query_params.get('origin_city', '').strip()
+    origin_state = request.query_params.get('origin_state', '').strip()
+    dest_city = request.query_params.get('destination_city', '').strip()
+    dest_state = request.query_params.get('destination_state', '').strip()
+    equipment_type = request.query_params.get('equipment_type', '')
+    customer_id = request.query_params.get('customer_id', None)
+
+    queryset = RateLane.objects.filter(
+        company__in=user_companies,
+        active=True,
+    ).filter(
+        Q(expiration_date__isnull=True) | Q(expiration_date__gte=timezone.now().date())
+    )
+
+    if origin_city:
+        queryset = queryset.filter(origin_city__iexact=origin_city)
+    if origin_state:
+        queryset = queryset.filter(origin_state__iexact=origin_state)
+    if dest_city:
+        queryset = queryset.filter(destination_city__iexact=dest_city)
+    if dest_state:
+        queryset = queryset.filter(destination_state__iexact=dest_state)
+    if equipment_type:
+        queryset = queryset.filter(equipment_type=equipment_type)
+
+    # Prioritize customer-specific rates, then default rates
+    if customer_id:
+        queryset = queryset.filter(Q(customer_id=customer_id) | Q(customer__isnull=True))
+    else:
+        queryset = queryset.filter(customer__isnull=True)
+
+    # Customer-specific first, then by most recent
+    queryset = queryset.order_by(
+        db_models.Case(
+            db_models.When(customer__isnull=False, then=0),
+            default=1,
+            output_field=db_models.IntegerField(),
+        ),
+        '-effective_date'
+    )[:10]
+
+    serializer = RateLaneSerializer(queryset, many=True)
+    return Response(serializer.data)

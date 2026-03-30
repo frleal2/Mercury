@@ -1971,4 +1971,164 @@ class PasswordResetToken(models.Model):
         return f"Password Reset Token for {self.user.email} - {'Valid' if self.is_valid() else 'Invalid'}"
 
 
+class RateLane(models.Model):
+    """
+    Lane-based rate card for quoting and pricing loads.
+    A lane defines pricing for a specific origin→destination + equipment type combination.
+    """
+    RATE_TYPE_CHOICES = [
+        ('flat', 'Flat Rate'),
+        ('per_mile', 'Per Mile'),
+    ]
+
+    EQUIPMENT_TYPE_CHOICES = Load.EQUIPMENT_TYPE_CHOICES
+
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name='rate_lanes')
+    customer = models.ForeignKey(Customer, on_delete=models.CASCADE, null=True, blank=True, related_name='rate_lanes',
+                                 help_text='Customer-specific rate. Leave blank for default rate.')
+
+    # Lane definition
+    origin_city = models.CharField(max_length=100)
+    origin_state = models.CharField(max_length=50)
+    destination_city = models.CharField(max_length=100)
+    destination_state = models.CharField(max_length=50)
+
+    # Rate details
+    equipment_type = models.CharField(max_length=20, choices=EQUIPMENT_TYPE_CHOICES, default='dry_van')
+    rate_type = models.CharField(max_length=10, choices=RATE_TYPE_CHOICES, default='flat')
+    customer_rate = models.DecimalField(max_digits=12, decimal_places=2, help_text='Rate charged to customer')
+    carrier_cost = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True,
+                                       help_text='Expected carrier cost for margin calculation')
+    estimated_miles = models.PositiveIntegerField(null=True, blank=True)
+    fuel_surcharge_pct = models.DecimalField(max_digits=5, decimal_places=2, default=0,
+                                             help_text='Fuel surcharge as percentage of customer rate')
+
+    # Validity
+    effective_date = models.DateField()
+    expiration_date = models.DateField(null=True, blank=True)
+    active = models.BooleanField(default=True)
+
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    @property
+    def lane_display(self):
+        return f"{self.origin_city}, {self.origin_state} → {self.destination_city}, {self.destination_state}"
+
+    @property
+    def fuel_surcharge_amount(self):
+        if self.customer_rate and self.fuel_surcharge_pct:
+            return round(self.customer_rate * self.fuel_surcharge_pct / 100, 2)
+        return 0
+
+    @property
+    def total_customer_charge(self):
+        base = self.customer_rate or 0
+        return base + self.fuel_surcharge_amount
+
+    @property
+    def estimated_profit(self):
+        if self.customer_rate and self.carrier_cost:
+            return self.total_customer_charge - self.carrier_cost
+        return None
+
+    @property
+    def estimated_margin(self):
+        total = self.total_customer_charge
+        if total and self.carrier_cost and total > 0:
+            return round(((total - self.carrier_cost) / total) * 100, 2)
+        return None
+
+    @property
+    def is_expired(self):
+        if self.expiration_date:
+            return self.expiration_date < timezone.now().date()
+        return False
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = "Rate Lane"
+        verbose_name_plural = "Rate Lanes"
+
+    def __str__(self):
+        cust = f" ({self.customer.name})" if self.customer else " (Default)"
+        return f"{self.lane_display} - {self.get_equipment_type_display()}{cust}"
+
+
+class AccessorialCharge(models.Model):
+    """
+    Predefined accessorial charge types with default rates.
+    """
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name='accessorial_charges')
+
+    name = models.CharField(max_length=100, help_text='e.g., Lumper Fee, Detention, TONU')
+    code = models.CharField(max_length=20, blank=True, help_text='Short code, e.g., DET, TONU, LUM')
+    default_rate = models.DecimalField(max_digits=10, decimal_places=2)
+    rate_unit = models.CharField(max_length=20, choices=[
+        ('flat', 'Flat Fee'),
+        ('per_hour', 'Per Hour'),
+        ('per_mile', 'Per Mile'),
+        ('per_unit', 'Per Unit'),
+        ('percentage', 'Percentage of Line Haul'),
+    ], default='flat')
+    description = models.TextField(blank=True)
+    active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['name']
+        verbose_name = "Accessorial Charge"
+        verbose_name_plural = "Accessorial Charges"
+
+    def __str__(self):
+        return f"{self.name} - ${self.default_rate} ({self.get_rate_unit_display()})"
+
+
+class FuelSurchargeSchedule(models.Model):
+    """
+    Fuel surcharge schedule based on DOE fuel price index.
+    """
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name='fuel_surcharge_schedules')
+
+    name = models.CharField(max_length=100, help_text='e.g., Standard Fuel Schedule 2025')
+    base_fuel_price = models.DecimalField(max_digits=6, decimal_places=3,
+                                          help_text='Base DOE fuel price (no surcharge below this)')
+    surcharge_per_gallon_increment = models.DecimalField(max_digits=6, decimal_places=3, default=0.01,
+                                                          help_text='Fuel price increment per step')
+    surcharge_rate_per_mile = models.DecimalField(max_digits=6, decimal_places=3, default=0.01,
+                                                   help_text='Surcharge per mile per increment')
+    current_fuel_price = models.DecimalField(max_digits=6, decimal_places=3, null=True, blank=True,
+                                              help_text='Current DOE national average diesel price')
+
+    effective_date = models.DateField()
+    expiration_date = models.DateField(null=True, blank=True)
+    active = models.BooleanField(default=True)
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    @property
+    def current_surcharge_per_mile(self):
+        """Calculate current fuel surcharge per mile based on DOE price."""
+        if not self.current_fuel_price or not self.base_fuel_price:
+            return 0
+        if self.current_fuel_price <= self.base_fuel_price:
+            return 0
+        diff = self.current_fuel_price - self.base_fuel_price
+        if self.surcharge_per_gallon_increment > 0:
+            steps = diff / self.surcharge_per_gallon_increment
+            return round(float(steps) * float(self.surcharge_rate_per_mile), 3)
+        return 0
+
+    class Meta:
+        ordering = ['-effective_date']
+        verbose_name = "Fuel Surcharge Schedule"
+        verbose_name_plural = "Fuel Surcharge Schedules"
+
+    def __str__(self):
+        return f"{self.name} (Base: ${self.base_fuel_price})"
+
+
 

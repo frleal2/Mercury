@@ -491,3 +491,9 @@ class VehicleOperationStatusAdmin(admin.ModelAdmin):
 # Register admin classes that were converted from simple registrations
 admin.site.register(DriverTest, DriverTestAdmin)
 admin.site.register(Trailer, TrailerAdmin)
+
+# Rate Management
+from .models import RateLane, AccessorialCharge, FuelSurchargeSchedule
+admin.site.register(RateLane)
+admin.site.register(AccessorialCharge)
+admin.site.register(FuelSurchargeSchedule)

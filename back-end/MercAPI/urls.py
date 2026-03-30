@@ -22,7 +22,7 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from django.conf import settings
 from django.conf.urls.static import static
 from MercAPI import views  # Corrected to match the actual directory name
-from MercAPI.views import RegisterUserView, CustomTokenObtainPairView, DriverViewSet, TruckViewSet, CompanyViewSet, TrailerViewSet, DriverTestViewSet, DriverHOSViewSet, DriverApplicationViewSet, MaintenanceCategoryViewSet, MaintenanceTypeViewSet, MaintenanceRecordViewSet, MaintenanceAttachmentViewSet, DriverDocumentViewSet, TripDocumentViewSet, MaintenanceAttachmentUploadView, DriverDocumentUploadView, InspectionViewSet, InspectionItemViewSet, TripsViewSet, TripsManagementViewSet, TripInspectionViewSet, AnnualInspectionViewSet, VehicleOperationStatusViewSet, driver_update_dvir_review, cancel_trip, cancel_and_reassign_trip, available_trucks, CustomerViewSet, CarrierViewSet, LoadViewSet, InvoiceViewSet, InvoicePaymentViewSet
+from MercAPI.views import RegisterUserView, CustomTokenObtainPairView, DriverViewSet, TruckViewSet, CompanyViewSet, TrailerViewSet, DriverTestViewSet, DriverHOSViewSet, DriverApplicationViewSet, MaintenanceCategoryViewSet, MaintenanceTypeViewSet, MaintenanceRecordViewSet, MaintenanceAttachmentViewSet, DriverDocumentViewSet, TripDocumentViewSet, MaintenanceAttachmentUploadView, DriverDocumentUploadView, InspectionViewSet, InspectionItemViewSet, TripsViewSet, TripsManagementViewSet, TripInspectionViewSet, AnnualInspectionViewSet, VehicleOperationStatusViewSet, driver_update_dvir_review, cancel_trip, cancel_and_reassign_trip, available_trucks, CustomerViewSet, CarrierViewSet, LoadViewSet, InvoiceViewSet, InvoicePaymentViewSet, RateLaneViewSet, AccessorialChargeViewSet, FuelSurchargeScheduleViewSet
 
 router = DefaultRouter()
 router.register(r'drivers', DriverViewSet, basename='driver')  # Register DriverViewSet
@@ -51,6 +51,9 @@ router.register(r'carriers', CarrierViewSet, basename='carrier')
 router.register(r'loads', LoadViewSet, basename='load')
 router.register(r'invoices', InvoiceViewSet, basename='invoice')
 router.register(r'invoice-payments', InvoicePaymentViewSet, basename='invoice-payment')
+router.register(r'rate-lanes', RateLaneViewSet, basename='rate-lane')
+router.register(r'accessorial-charges', AccessorialChargeViewSet, basename='accessorial-charge')
+router.register(r'fuel-surcharge-schedules', FuelSurchargeScheduleViewSet, basename='fuel-surcharge-schedule')
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -91,6 +94,8 @@ urlpatterns = [
     path('api/dashboard/overview/', views.dashboard_overview, name='dashboard_overview'),
     path('api/dashboard/test/', views.dashboard_test, name='dashboard_test'),
     path('api/dashboard/simple/', views.dashboard_simple, name='dashboard_simple'),
+    # Rate management endpoints
+    path('api/quote-lookup/', views.quote_lookup, name='quote_lookup'),
 ]
 
 # Serve media and static files during development

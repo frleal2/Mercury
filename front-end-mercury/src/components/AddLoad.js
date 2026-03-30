@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
-import { XMarkIcon, CubeIcon, PlusIcon } from '@heroicons/react/24/outline';
+import { XMarkIcon, CubeIcon, PlusIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import axios from 'axios';
 import { useSession } from '../providers/SessionProvider';
 import BASE_URL from '../config';
@@ -14,6 +14,8 @@ const AddLoad = ({ isOpen, onClose }) => {
   const [isAddCustomerOpen, setIsAddCustomerOpen] = useState(false);
   const [errors, setErrors] = useState({});
   const [step, setStep] = useState(1); // Multi-step form: 1=basics, 2=locations, 3=details & rate
+  const [quoteResults, setQuoteResults] = useState([]);
+  const [quoteLooking, setQuoteLooking] = useState(false);
 
   const [formData, setFormData] = useState({
     company: '',
@@ -189,6 +191,37 @@ const AddLoad = ({ isOpen, onClose }) => {
   const filteredCustomers = formData.company
     ? customers.filter(c => c.company === parseInt(formData.company))
     : customers;
+
+  const handleQuoteLookup = async () => {
+    setQuoteLooking(true);
+    setQuoteResults([]);
+    try {
+      const params = new URLSearchParams();
+      if (formData.pickup_city) params.append('origin_city', formData.pickup_city);
+      if (formData.pickup_state) params.append('origin_state', formData.pickup_state);
+      if (formData.delivery_city) params.append('destination_city', formData.delivery_city);
+      if (formData.delivery_state) params.append('destination_state', formData.delivery_state);
+      if (formData.equipment_type) params.append('equipment_type', formData.equipment_type);
+      if (formData.customer) params.append('customer_id', formData.customer);
+      const res = await axios.get(`${BASE_URL}/api/quote-lookup/?${params.toString()}`, {
+        headers: { 'Authorization': `Bearer ${session.accessToken}` },
+      });
+      setQuoteResults(res.data);
+    } catch (e) { console.error('Quote lookup failed:', e); }
+    finally { setQuoteLooking(false); }
+  };
+
+  const applyQuote = (lane) => {
+    const fuelAmount = lane.fuel_surcharge_amount || 0;
+    setFormData(prev => ({
+      ...prev,
+      customer_rate: lane.customer_rate || '',
+      carrier_cost: lane.carrier_cost || '',
+      fuel_surcharge: fuelAmount || '',
+      estimated_miles: lane.estimated_miles || prev.estimated_miles,
+    }));
+    setQuoteResults([]);
+  };
 
   const inputClass = "mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm";
   const labelClass = "block text-sm font-medium text-gray-700";
@@ -453,7 +486,49 @@ const AddLoad = ({ isOpen, onClose }) => {
 
                           {/* Rate */}
                           <div>
-                            <h3 className="text-md font-medium text-gray-900 mb-3">Rate & Billing</h3>
+                            <div className="flex items-center justify-between mb-3">
+                              <h3 className="text-md font-medium text-gray-900">Rate & Billing</h3>
+                              <button
+                                type="button"
+                                onClick={handleQuoteLookup}
+                                disabled={quoteLooking}
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50"
+                              >
+                                <MagnifyingGlassIcon className="h-3.5 w-3.5" />
+                                {quoteLooking ? 'Searching...' : 'Get Quote'}
+                              </button>
+                            </div>
+
+                            {/* Quote Results */}
+                            {quoteResults.length > 0 && (
+                              <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                                <p className="text-xs font-medium text-blue-800 mb-2">
+                                  {quoteResults.length} matching rate{quoteResults.length > 1 ? 's' : ''} found — click to apply
+                                </p>
+                                <div className="space-y-1.5">
+                                  {quoteResults.map(lane => (
+                                    <button
+                                      key={lane.id}
+                                      type="button"
+                                      onClick={() => applyQuote(lane)}
+                                      className="w-full text-left p-2 bg-white rounded border border-blue-100 hover:border-blue-300 hover:bg-blue-50 transition-colors"
+                                    >
+                                      <div className="flex items-center justify-between text-xs">
+                                        <span className="font-medium text-gray-900">{lane.lane_display}</span>
+                                        <span className="font-bold text-green-700">${parseFloat(lane.customer_rate).toLocaleString('en-US', {minimumFractionDigits: 2})}</span>
+                                      </div>
+                                      <div className="flex items-center justify-between text-xs text-gray-500 mt-0.5">
+                                        <span>{lane.equipment_type_display} · {lane.rate_type_display}{lane.customer_name ? ` · ${lane.customer_name}` : ' · Default'}</span>
+                                        {lane.estimated_margin && <span className="text-green-600">{lane.estimated_margin}% margin</span>}
+                                      </div>
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                            {quoteResults.length === 0 && quoteLooking === false && formData.customer_rate === '' && (
+                              <p className="text-xs text-gray-400 mb-2">Tip: Click "Get Quote" to auto-fill from your rate lanes.</p>
+                            )}
                             <div className="grid grid-cols-2 gap-3">
                               <div>
                                 <label className={labelClass}>Customer Rate ($)</label>
