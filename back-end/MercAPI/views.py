@@ -2475,8 +2475,8 @@ class TripInspectionViewSet(DriverReadOnlyMixin, CompanyFilterMixin, ModelViewSe
                 # Allow drivers to see last DVIR for vehicle within their assigned companies
                 user_companies = self.request.user.profile.companies.all()
                 queryset = queryset.filter(
-                    trip__truck=truck_param,
-                    trip__company__in=user_companies  # Tenant-aware filtering
+                    truck=truck_param,
+                    company__in=user_companies
                 )
             else:
                 # For all other cases, drivers only see inspections for their trips
@@ -2489,6 +2489,34 @@ class TripInspectionViewSet(DriverReadOnlyMixin, CompanyFilterMixin, ModelViewSe
         trip_id = self.request.query_params.get('trip', None)
         if trip_id:
             queryset = queryset.filter(trip_id=trip_id)
+        
+        # Filter by truck (direct FK on Inspection)
+        truck_param = self.request.query_params.get('truck', None)
+        if truck_param and user_role != 'driver':  # Driver case handled above
+            queryset = queryset.filter(truck=truck_param)
+        
+        # Filter by trailer (direct FK on Inspection)
+        trailer_param = self.request.query_params.get('trailer', None)
+        if trailer_param:
+            queryset = queryset.filter(trailer=trailer_param)
+        
+        # Filter by inspection type
+        inspection_type_param = self.request.query_params.get('inspection_type', None)
+        if inspection_type_param:
+            queryset = queryset.filter(inspection_type=inspection_type_param)
+        
+        # Ordering support (default: -completed_at)
+        ordering = self.request.query_params.get('ordering', '-completed_at')
+        if ordering in ('completed_at', '-completed_at'):
+            queryset = queryset.order_by(ordering)
+        
+        # Limit support
+        limit = self.request.query_params.get('limit', None)
+        if limit:
+            try:
+                queryset = queryset[:int(limit)]
+            except (ValueError, TypeError):
+                pass
         
         return queryset
     

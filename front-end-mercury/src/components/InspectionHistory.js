@@ -1,81 +1,65 @@
 import React, { useState, useEffect } from 'react';
+import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from '@headlessui/react';
 import { useSession } from '../providers/SessionProvider';
 import axios from 'axios';
 import BASE_URL from '../config';
+import InspectionDetailModal from './InspectionDetailModal';
 import { 
+  XMarkIcon,
   TruckIcon,
   UserIcon,
   CalendarIcon,
-  ClockIcon,
   CheckCircleIcon,
   XCircleIcon,
-  DocumentTextIcon,
+  ClipboardDocumentCheckIcon,
   ExclamationTriangleIcon,
-  ClipboardDocumentCheckIcon
+  EyeIcon
 } from '@heroicons/react/24/outline';
 
-function InspectionHistory({ truck, onClose }) {
+function InspectionHistory({ truck, trailer, onClose }) {
   const { session, refreshAccessToken } = useSession();
   const [inspections, setInspections] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [selectedInspection, setSelectedInspection] = useState(null);
+  const [detailModalOpen, setDetailModalOpen] = useState(false);
+
+  const vehicle = truck || trailer;
+  const vehicleType = truck ? 'Truck' : 'Trailer';
+  const vehicleLabel = truck
+    ? `${truck.unit_number} — ${truck.year} ${truck.make} ${truck.model}`
+    : `${trailer.unit_number || trailer.license_plate} — ${trailer.trailer_type || trailer.model || 'Trailer'}`;
 
   useEffect(() => {
-    if (truck) {
-      fetchTruckInspections();
+    if (vehicle) {
+      fetchInspections();
     }
-  }, [truck]);
+  }, [vehicle]);
 
-  const fetchTruckInspections = async () => {
+  const fetchInspections = async () => {
     try {
       setLoading(true);
       
-      // First, get all trips for this truck
-      const tripsResponse = await axios.get(`${BASE_URL}/api/trips/`, {
-        headers: {
-          'Authorization': `Bearer ${session.accessToken}`,
-        },
-        params: {
-          truck_id: truck.id
-        }
+      const params = {};
+      if (truck) {
+        params.truck = truck.id;
+      } else if (trailer) {
+        params.trailer = trailer.id;
+      }
+
+      const response = await axios.get(`${BASE_URL}/api/trip-inspections/`, {
+        headers: { 'Authorization': `Bearer ${session.accessToken}` },
+        params,
       });
 
-      // Then, get all inspections for those trips
-      if (tripsResponse.data.length > 0) {
-        const tripIds = tripsResponse.data.map(trip => trip.id);
-        const inspectionsPromises = tripIds.map(tripId =>
-          axios.get(`${BASE_URL}/api/trip-inspections/?trip=${tripId}`, {
-            headers: {
-              'Authorization': `Bearer ${session.accessToken}`,
-            }
-          })
-        );
-
-        const inspectionsResponses = await Promise.all(inspectionsPromises);
-        const allInspections = inspectionsResponses.flatMap(response => response.data);
-        
-        // Add trip information to each inspection
-        const inspectionsWithTripInfo = allInspections.map(inspection => {
-          const trip = tripsResponse.data.find(t => t.id.toString() === inspection.trip_id);
-          return {
-            ...inspection,
-            trip_info: trip
-          };
-        });
-
-        setInspections(inspectionsWithTripInfo.sort((a, b) => 
-          new Date(b.completed_at) - new Date(a.completed_at)
-        ));
-      } else {
-        setInspections([]);
-      }
-      
+      const data = response.data.results || response.data;
+      setInspections(Array.isArray(data) ? data : []);
       setError(null);
     } catch (error) {
-      console.error('Error fetching truck inspections:', error);
+      console.error('Error fetching inspections:', error);
       if (error.response?.status === 401) {
         await refreshAccessToken();
-        return fetchTruckInspections();
+        return fetchInspections();
       }
       setError('Failed to load inspection history');
     } finally {
@@ -88,202 +72,153 @@ function InspectionHistory({ truck, onClose }) {
     return new Date(dateString).toLocaleString();
   };
 
-  const formatDate = (dateString) => {
-    if (!dateString) return 'N/A';
-    return new Date(dateString).toLocaleDateString();
+  const handleViewDetails = (inspection) => {
+    setSelectedInspection(inspection);
+    setDetailModalOpen(true);
   };
 
-  const getInspectionTypeDisplay = (type) => {
-    return type === 'pre_trip' ? 'Pre-Trip' : type === 'post_trip' ? 'Post-Trip' : type;
-  };
-
-  const getInspectionStatus = (inspection) => {
-    const passed = inspection.is_inspection_passed;
-    return {
-      status: passed ? 'Pass' : 'Fail',
-      color: passed ? 'text-green-600 bg-green-100' : 'text-red-600 bg-red-100',
-      icon: passed ? CheckCircleIcon : XCircleIcon
-    };
-  };
-
-  const renderInspectionDetails = (inspection) => {
-    const details = [];
-    const fields = [
-      { key: 'vehicle_exterior_condition', label: 'Vehicle Exterior' },
-      { key: 'lights_working', label: 'Lights' },
-      { key: 'tires_condition', label: 'Tires' },
-      { key: 'brakes_working', label: 'Brakes' },
-      { key: 'engine_fluids_ok', label: 'Engine Fluids' },
-      { key: 'trailer_attached_properly', label: 'Trailer Attachment' },
-      { key: 'trailer_lights_working', label: 'Trailer Lights' },
-      { key: 'cargo_secured', label: 'Cargo Secured' },
-    ];
-
-    fields.forEach(field => {
-      const value = inspection[field.key];
-      if (value !== null && value !== undefined && value !== 'na') {
-        details.push({
-          label: field.label,
-          value: value === 'pass' ? 'Pass' : 'Fail',
-          passed: value === 'pass'
-        });
-      }
-    });
-
-    return details;
-  };
+  const passedCount = inspections.filter(i => i.is_inspection_passed).length;
+  const failedCount = inspections.filter(i => !i.is_inspection_passed).length;
 
   return (
-    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-      <div className="relative top-10 mx-auto p-5 border w-11/12 md:w-4/5 lg:w-3/4 xl:w-2/3 shadow-lg rounded-md bg-white max-h-[90vh] overflow-y-auto">
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h3 className="text-lg font-medium text-gray-900">
-              Inspection History - {truck.unit_number}
-            </h3>
-            <p className="text-sm text-gray-600 mt-1">
-              All trip inspections for {truck.year} {truck.make} {truck.model}
-            </p>
-          </div>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600"
-          >
-            <span className="sr-only">Close</span>
-            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
-        {loading ? (
-          <div className="flex justify-center items-center h-64">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-            <p className="ml-3 text-gray-600">Loading inspection history...</p>
-          </div>
-        ) : error ? (
-          <div className="text-center py-8">
-            <div className="text-red-600 mb-2">
-              <ExclamationTriangleIcon className="mx-auto h-12 w-12" />
+    <Dialog open={true} onClose={onClose} className="relative z-50">
+      <DialogBackdrop className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" />
+      <div className="fixed inset-0 z-10 overflow-y-auto">
+        <div className="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
+          <DialogPanel className="relative transform overflow-hidden rounded-lg bg-white px-4 pt-5 pb-4 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-3xl sm:p-6 max-h-[90vh] overflow-y-auto">
+            <div className="absolute top-0 right-0 hidden pt-4 pr-4 sm:block">
+              <button type="button" onClick={onClose} className="rounded-md bg-white text-gray-400 hover:text-gray-500">
+                <XMarkIcon className="h-6 w-6" />
+              </button>
             </div>
-            <p className="text-gray-600">{error}</p>
-            <button 
-              onClick={fetchTruckInspections}
-              className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-            >
-              Retry
-            </button>
-          </div>
-        ) : inspections.length === 0 ? (
-          <div className="text-center py-8">
-            <ClipboardDocumentCheckIcon className="mx-auto h-12 w-12 text-gray-400" />
-            <h3 className="mt-2 text-sm font-medium text-gray-900">No inspections found</h3>
-            <p className="mt-1 text-sm text-gray-500">
-              This truck hasn't been used for any trips with inspections yet.
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-6">
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <h4 className="text-sm font-medium text-blue-900 mb-2">
-                Inspection Summary
-              </h4>
-              <div className="text-sm text-blue-800">
-                <p>Total Inspections: {inspections.length}</p>
-                <p>Passed: {inspections.filter(i => i.is_inspection_passed).length}</p>
-                <p>Failed: {inspections.filter(i => !i.is_inspection_passed).length}</p>
+
+            <div className="sm:flex sm:items-start">
+              <div className="mt-3 text-center sm:mt-0 sm:text-left w-full">
+                <DialogTitle className="text-lg font-medium leading-6 text-gray-900 mb-1">
+                  Inspection History — {vehicleType}
+                </DialogTitle>
+                <p className="text-sm text-gray-500 mb-6">{vehicleLabel}</p>
+
+                {loading ? (
+                  <div className="flex justify-center items-center h-48">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                    <p className="ml-3 text-gray-600">Loading inspections...</p>
+                  </div>
+                ) : error ? (
+                  <div className="text-center py-8">
+                    <ExclamationTriangleIcon className="mx-auto h-12 w-12 text-red-400" />
+                    <p className="mt-2 text-gray-600">{error}</p>
+                    <button onClick={fetchInspections} className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm">
+                      Retry
+                    </button>
+                  </div>
+                ) : inspections.length === 0 ? (
+                  <div className="text-center py-8">
+                    <ClipboardDocumentCheckIcon className="mx-auto h-12 w-12 text-gray-400" />
+                    <h3 className="mt-2 text-sm font-medium text-gray-900">No inspections found</h3>
+                    <p className="mt-1 text-sm text-gray-500">
+                      This {vehicleType.toLowerCase()} hasn't had any trip inspections yet.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {/* Summary */}
+                    <div className="flex gap-4 mb-4">
+                      <div className="flex-1 bg-blue-50 border border-blue-200 rounded-lg p-3 text-center">
+                        <p className="text-2xl font-bold text-blue-700">{inspections.length}</p>
+                        <p className="text-xs text-blue-600">Total</p>
+                      </div>
+                      <div className="flex-1 bg-green-50 border border-green-200 rounded-lg p-3 text-center">
+                        <p className="text-2xl font-bold text-green-700">{passedCount}</p>
+                        <p className="text-xs text-green-600">Passed</p>
+                      </div>
+                      <div className="flex-1 bg-red-50 border border-red-200 rounded-lg p-3 text-center">
+                        <p className="text-2xl font-bold text-red-700">{failedCount}</p>
+                        <p className="text-xs text-red-600">Failed</p>
+                      </div>
+                    </div>
+
+                    {/* Inspection List */}
+                    <div className="bg-white border border-gray-200 rounded-lg divide-y divide-gray-200">
+                      {inspections.map((inspection) => {
+                        const passed = inspection.is_inspection_passed;
+                        const type = inspection.inspection_type === 'pre_trip' ? 'Pre-Trip' : 'Post-Trip';
+
+                        return (
+                          <div 
+                            key={inspection.inspection_id} 
+                            className="px-4 py-3 hover:bg-gray-50 cursor-pointer transition-colors"
+                            onClick={() => handleViewDetails(inspection)}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center min-w-0">
+                                <div className={`flex-shrink-0 h-9 w-9 rounded-full flex items-center justify-center ${
+                                  passed ? 'bg-green-100' : 'bg-red-100'
+                                }`}>
+                                  {passed ? (
+                                    <CheckCircleIcon className="h-5 w-5 text-green-600" />
+                                  ) : (
+                                    <XCircleIcon className="h-5 w-5 text-red-600" />
+                                  )}
+                                </div>
+                                <div className="ml-3 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-sm font-medium text-gray-900">{type}</span>
+                                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                                      passed ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                                    }`}>
+                                      {passed ? 'Pass' : 'Fail'}
+                                    </span>
+                                    {inspection.trip_number && (
+                                      <span className="text-xs text-gray-400">Trip #{inspection.trip_number}</span>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-3 mt-0.5 text-xs text-gray-500">
+                                    <span className="flex items-center">
+                                      <CalendarIcon className="h-3 w-3 mr-1" />
+                                      {formatDateTime(inspection.completed_at)}
+                                    </span>
+                                    {inspection.completed_by_name && (
+                                      <span className="flex items-center">
+                                        <UserIcon className="h-3 w-3 mr-1" />
+                                        {inspection.completed_by_name}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                              <EyeIcon className="h-5 w-5 text-gray-400 flex-shrink-0" />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Close Button */}
+                <div className="mt-6 sm:flex sm:flex-row-reverse">
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 sm:w-auto"
+                  >
+                    Close
+                  </button>
+                </div>
               </div>
             </div>
-
-            <div className="bg-white shadow overflow-hidden sm:rounded-md">
-              <ul className="divide-y divide-gray-200">
-                {inspections.map((inspection, index) => {
-                  const status = getInspectionStatus(inspection);
-                  const details = renderInspectionDetails(inspection);
-                  
-                  return (
-                    <li key={inspection.id} className="px-6 py-4 hover:bg-gray-50">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center">
-                          <div className="flex-shrink-0 h-10 w-10">
-                            <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
-                              <ClipboardDocumentCheckIcon className="h-5 w-5 text-blue-600" />
-                            </div>
-                          </div>
-                          <div className="ml-4">
-                            <div className="flex items-center">
-                              <h4 className="text-sm font-medium text-gray-900">
-                                {getInspectionTypeDisplay(inspection.inspection_type)}
-                              </h4>
-                              <span className={`ml-3 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${status.color}`}>
-                                <status.icon className="h-3 w-3 mr-1" />
-                                {status.status}
-                              </span>
-                            </div>
-                            <div className="mt-2 flex items-center text-sm text-gray-500">
-                              <CalendarIcon className="flex-shrink-0 mr-1.5 h-4 w-4 text-gray-400" />
-                              <p>
-                                {formatDateTime(inspection.completed_at)}
-                              </p>
-                              <span className="mx-2">•</span>
-                              <UserIcon className="flex-shrink-0 mr-1.5 h-4 w-4 text-gray-400" />
-                              <p>{inspection.completed_by_name}</p>
-                              {inspection.trip_info && (
-                                <>
-                                  <span className="mx-2">•</span>
-                                  <DocumentTextIcon className="flex-shrink-0 mr-1.5 h-4 w-4 text-gray-400" />
-                                  <p>Trip: {inspection.trip_info.trip_number || `#${inspection.trip_info.id}`}</p>
-                                </>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                      
-                      {details.length > 0 && (
-                        <div className="mt-4 ml-14">
-                          <h5 className="text-sm font-medium text-gray-700 mb-2">Inspection Details:</h5>
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                            {details.map((detail, idx) => (
-                              <div key={idx} className="flex items-center text-sm">
-                                <span className="text-gray-600">{detail.label}:</span>
-                                <span className={`ml-2 font-medium ${
-                                  detail.passed ? 'text-green-600' : 'text-red-600'
-                                }`}>
-                                  {detail.value}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {inspection.inspection_notes && (
-                        <div className="mt-4 ml-14">
-                          <h5 className="text-sm font-medium text-gray-700 mb-1">Notes:</h5>
-                          <p className="text-sm text-gray-600 bg-gray-50 p-2 rounded">
-                            {inspection.inspection_notes}
-                          </p>
-                        </div>
-                      )}
-
-                      {inspection.issues_found && (
-                        <div className="mt-4 ml-14">
-                          <h5 className="text-sm font-medium text-red-700 mb-1">Issues Found:</h5>
-                          <p className="text-sm text-red-600 bg-red-50 p-2 rounded border border-red-200">
-                            {inspection.issues_found}
-                          </p>
-                        </div>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          </div>
-        )}
+          </DialogPanel>
+        </div>
       </div>
-    </div>
+
+      {/* Inspection Detail Modal */}
+      <InspectionDetailModal
+        isOpen={detailModalOpen}
+        onClose={() => { setDetailModalOpen(false); setSelectedInspection(null); }}
+        inspection={selectedInspection}
+      />
+    </Dialog>
   );
 }
 

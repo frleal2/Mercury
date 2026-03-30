@@ -51,8 +51,10 @@ function PreTripDVIRReview({ isOpen, onClose, trip, onReviewCompleted }) {
       
       console.log('DVIR API response:', response.data);
 
-      if (response.data.results && response.data.results.length > 0) {
-        setLastDVIR(response.data.results[0]);
+      // Handle both paginated ({results: [...]}) and flat array responses
+      const inspections = response.data.results || response.data;
+      if (Array.isArray(inspections) && inspections.length > 0) {
+        setLastDVIR(inspections[0]);
       } else {
         setLastDVIR(null); // No previous DVIR found
       }
@@ -199,10 +201,49 @@ function PreTripDVIRReview({ isOpen, onClose, trip, onReviewCompleted }) {
                           <div>
                             <span className="font-medium text-gray-600">Overall Status:</span>
                             <p className={`font-medium ${
-                              lastDVIR.overall_status === 'satisfactory' ? 'text-green-600' : 'text-red-600'
+                              lastDVIR.is_inspection_passed ? 'text-green-600' : 'text-red-600'
                             }`}>
-                              {lastDVIR.overall_status === 'satisfactory' ? '✓ No Defects' : '⚠ Defects Found'}
+                              {lastDVIR.is_inspection_passed ? '✓ Passed' : '⚠ Failed'}
                             </p>
+                          </div>
+                          <div>
+                            <span className="font-medium text-gray-600">Trip:</span>
+                            <p>#{lastDVIR.trip_number || lastDVIR.trip_id}</p>
+                          </div>
+                        </div>
+
+                        {/* CFR 396.11 Inspection Items */}
+                        <div className="mt-4">
+                          <h5 className="text-sm font-medium text-gray-700 mb-2">CFR 396.11 Inspection Items:</h5>
+                          <div className="grid grid-cols-2 gap-2">
+                            {[
+                              { key: 'service_brakes', label: 'Service Brakes' },
+                              { key: 'parking_brake', label: 'Parking Brake' },
+                              { key: 'steering_mechanism', label: 'Steering' },
+                              { key: 'lighting_devices', label: 'Lights & Reflectors' },
+                              { key: 'tires_condition', label: 'Tires' },
+                              { key: 'horn', label: 'Horn' },
+                              { key: 'windshield_wipers', label: 'Wipers' },
+                              { key: 'rear_vision_mirrors', label: 'Mirrors' },
+                              { key: 'coupling_devices', label: 'Coupling Devices' },
+                              { key: 'wheels_and_rims', label: 'Wheels & Rims' },
+                              { key: 'emergency_equipment', label: 'Emergency Equip.' },
+                              { key: 'trailer_attached_properly', label: 'Trailer Attachment' },
+                              { key: 'trailer_lights_working', label: 'Trailer Lights' },
+                              { key: 'cargo_secured', label: 'Cargo Secured' },
+                            ].map(item => {
+                              const val = lastDVIR[item.key];
+                              if (!val || val === 'na') return null;
+                              return (
+                                <div key={item.key} className="flex items-center text-sm">
+                                  <span className={`inline-block w-2 h-2 rounded-full mr-2 ${val === 'pass' ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                                  <span className="text-gray-600">{item.label}:</span>
+                                  <span className={`ml-1 font-medium ${val === 'pass' ? 'text-green-600' : 'text-red-600'}`}>
+                                    {val === 'pass' ? 'Pass' : 'Fail'}
+                                  </span>
+                                </div>
+                              );
+                            }).filter(Boolean)}
                           </div>
                         </div>
 
@@ -210,6 +251,13 @@ function PreTripDVIRReview({ isOpen, onClose, trip, onReviewCompleted }) {
                           <div className="mt-4">
                             <span className="font-medium text-gray-600">Defects Noted:</span>
                             <p className="text-sm text-gray-800 mt-1">{lastDVIR.defects_noted}</p>
+                          </div>
+                        )}
+
+                        {lastDVIR.inspection_notes && (
+                          <div className="mt-4">
+                            <span className="font-medium text-gray-600">Notes:</span>
+                            <p className="text-sm text-gray-800 mt-1">{lastDVIR.inspection_notes}</p>
                           </div>
                         )}
 

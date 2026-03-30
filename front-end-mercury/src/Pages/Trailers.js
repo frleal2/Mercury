@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import AddTrailer from '../components/AddTrailer';
 import EditTrailer from '../components/EditTrailer';
+import InspectionHistory from '../components/InspectionHistory';
 import { useSession } from '../providers/SessionProvider';
 import axios from 'axios';
 import BASE_URL from '../config';
@@ -8,6 +9,7 @@ import {
   TruckIcon,
   IdentificationIcon,
   PencilIcon,
+  DocumentTextIcon,
   MapPinIcon,
   CheckCircleIcon,
   XCircleIcon
@@ -22,6 +24,8 @@ function Trailers() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('active');
   const [searchTerm, setSearchTerm] = useState('');
+  const [isInspectionHistoryOpen, setIsInspectionHistoryOpen] = useState(false);
+  const [inspectionTrailer, setInspectionTrailer] = useState(null);
 
   const handleAddTrailerClick = () => {
     setIsAddTrailerOpen(true);
@@ -41,6 +45,16 @@ function Trailers() {
     setIsEditTrailerOpen(false);
     setSelectedTrailer(null);
     fetchTrailers();
+  };
+
+  const handleOpenInspectionHistory = (trailer) => {
+    setInspectionTrailer(trailer);
+    setIsInspectionHistoryOpen(true);
+  };
+
+  const handleCloseInspectionHistory = () => {
+    setIsInspectionHistoryOpen(false);
+    setInspectionTrailer(null);
   };
 
   const fetchTrailers = async () => {
@@ -234,13 +248,22 @@ function Trailers() {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <button
-                        onClick={() => handleEditTrailerClick(trailer)}
-                        className="text-blue-600 hover:text-blue-800 p-1"
-                        title="Edit Trailer"
-                      >
-                        <PencilIcon className="h-5 w-5" />
-                      </button>
+                      <div className="flex justify-end space-x-2">
+                        <button
+                          onClick={() => handleEditTrailerClick(trailer)}
+                          className="text-blue-600 hover:text-blue-800 p-1"
+                          title="Edit Trailer"
+                        >
+                          <PencilIcon className="h-5 w-5" />
+                        </button>
+                        <button
+                          onClick={() => handleOpenInspectionHistory(trailer)}
+                          className="text-green-600 hover:text-green-800 p-1"
+                          title="Inspection History"
+                        >
+                          <DocumentTextIcon className="h-5 w-5" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -273,6 +296,12 @@ function Trailers() {
 
       {isEditTrailerOpen && (
         <EditTrailer trailer={selectedTrailer} onClose={handleCloseEditTrailer} />
+      )}
+      {isInspectionHistoryOpen && inspectionTrailer && (
+        <InspectionHistory
+          trailer={inspectionTrailer}
+          onClose={handleCloseInspectionHistory}
+        />
       )}
     </div>
   );
