@@ -9,7 +9,7 @@ from django.utils.html import strip_tags
 from datetime import datetime, timedelta
 from django.utils import timezone
 from urllib.parse import urlencode
-from .serializers import UserSerializer, DriverSerializer, TruckSerializer, CompanySerializer, TrailerSerializer, DriverTestSerializer, DriverHOSSerializer, DriverApplicationSerializer, MaintenanceCategorySerializer, MaintenanceTypeSerializer, MaintenanceRecordSerializer, MaintenanceAttachmentSerializer, DriverDocumentSerializer, InspectionSerializer, InspectionItemSerializer, TripsSerializer, TripDocumentSerializer, LoadDocumentSerializer, AnnualInspectionSerializer, VehicleOperationStatusSerializer, CustomerSerializer, CarrierSerializer, LoadSerializer, InvoiceSerializer, InvoicePaymentSerializer, RateLaneSerializer, AccessorialChargeSerializer, FuelSurchargeScheduleSerializer
+from .serializers import UserSerializer, DriverSerializer, TruckSerializer, CompanySerializer, TrailerSerializer, DriverTestSerializer, DriverHOSSerializer, DriverApplicationSerializer, MaintenanceCategorySerializer, MaintenanceTypeSerializer, MaintenanceRecordSerializer, MaintenanceAttachmentSerializer, DriverDocumentSerializer, InspectionSerializer, InspectionItemSerializer, TripsSerializer, TripDocumentSerializer, LoadDocumentSerializer, AnnualInspectionSerializer, VehicleOperationStatusSerializer, CustomerSerializer, CarrierSerializer, LoadSerializer, InvoiceSerializer, InvoicePaymentSerializer, RateLaneSerializer, AccessorialChargeSerializer, FuelSurchargeScheduleSerializer, CheckCallSerializer, LoadTrackingEventSerializer, CustomerTrackingSerializer, LoadNotificationSerializer
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -20,7 +20,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework_simplejwt.views import TokenObtainPairView
-from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Tenant, UserProfile, Inspection, InspectionItem, Trips, InvitationToken, TripDocument, LoadDocument, PasswordResetToken, AnnualInspection, VehicleOperationStatus, Customer, Carrier, Load, Invoice, InvoicePayment, RateLane, AccessorialCharge, FuelSurchargeSchedule
+from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Tenant, UserProfile, Inspection, InspectionItem, Trips, InvitationToken, TripDocument, LoadDocument, PasswordResetToken, AnnualInspection, VehicleOperationStatus, Customer, Carrier, Load, Invoice, InvoicePayment, RateLane, AccessorialCharge, FuelSurchargeSchedule, CheckCall, LoadTrackingEvent, LoadNotification
 from rest_framework.serializers import ValidationError
 from rest_framework import serializers
 from django.core.files.storage import default_storage
@@ -3789,7 +3789,17 @@ class LoadViewSet(UserOrAboveMixin, CompanyFilterMixin, ModelViewSet):
 
         serializer.save(created_by=self.request.user)
 
+        # Create tracking event for load creation
+        load = serializer.instance
+        create_tracking_event(
+            load=load,
+            event_type='created',
+            description=f'Load {load.load_number} created',
+            user=self.request.user,
+        )
+
     def perform_update(self, serializer):
+        old_status = serializer.instance.status
         instance = serializer.save()
         # Recalculate total revenue
         customer_rate = instance.customer_rate or 0
@@ -3798,6 +3808,25 @@ class LoadViewSet(UserOrAboveMixin, CompanyFilterMixin, ModelViewSet):
         if customer_rate:
             instance.total_revenue = customer_rate + fuel_surcharge + accessorial_charges
             instance.save(update_fields=['total_revenue'])
+
+        # Create tracking event if status changed
+        if old_status != instance.status:
+            status_event_map = {
+                'booked': 'booked',
+                'in_transit': 'in_transit',
+                'delivered': 'delivered',
+                'invoiced': 'invoiced',
+                'paid': 'paid',
+                'cancelled': 'cancelled',
+            }
+            event_type = status_event_map.get(instance.status)
+            if event_type:
+                create_tracking_event(
+                    load=instance,
+                    event_type=event_type,
+                    description=f'Status changed to {instance.get_status_display()}',
+                    user=self.request.user,
+                )
 
 
 class InvoiceViewSet(UserOrAboveMixin, CompanyFilterMixin, ModelViewSet):
@@ -4133,6 +4162,15 @@ def dispatch_load(request, load_id):
             load.status = 'dispatched'
             load.save(update_fields=['trip', 'status'])
 
+        # Create tracking event for dispatch
+        create_tracking_event(
+            load=load,
+            event_type='dispatched',
+            description=f'Dispatched to {driver.get_full_name()} — Truck {truck.unit_number}',
+            user=request.user,
+            metadata={'driver': driver.get_full_name(), 'truck': truck.unit_number, 'trip_number': trip_number},
+        )
+
         # Refresh from DB to ensure clean serialization
         load.refresh_from_db()
         serializer = LoadSerializer(load)
@@ -4221,3 +4259,268 @@ def reassign_load(request, load_id):
             {'error': 'Failed to reassign load. Please try again.'},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+
+
+# ========================
+# Tracking & Visibility
+# ========================
+
+def create_tracking_event(load, event_type, description='', location='', metadata=None, user=None, is_customer_visible=True):
+    """
+    Helper to create a tracking event and optionally send customer notification.
+    """
+    event = LoadTrackingEvent.objects.create(
+        load=load,
+        event_type=event_type,
+        description=description,
+        location=location,
+        metadata=metadata or {},
+        created_by=user,
+        is_customer_visible=is_customer_visible,
+    )
+
+    # Send customer email notification for key milestones
+    if load.customer_notifications_enabled and load.customer and load.customer.email:
+        milestone_events = ['picked_up', 'in_transit', 'delivered', 'delay']
+        if event_type in milestone_events:
+            _send_milestone_notification(load, event)
+
+    return event
+
+
+def _send_milestone_notification(load, event):
+    """Send email notification to customer for a load milestone."""
+    try:
+        subject = f"Load {load.load_number} — {event.get_event_type_display()}"
+        tracking_info = f"Track your shipment: use tracking token {load.tracking_token}"
+
+        message = (
+            f"Load Update: {load.load_number}\n\n"
+            f"Status: {event.get_event_type_display()}\n"
+            f"{'Location: ' + event.location if event.location else ''}\n"
+            f"{'ETA: ' + load.current_eta.strftime('%m/%d/%Y %I:%M %p') if load.current_eta else ''}\n\n"
+            f"Route: {load.pickup_location_display} → {load.delivery_location_display}\n"
+            f"Reference: {load.customer_reference or load.bol_number or 'N/A'}\n\n"
+            f"{tracking_info}\n"
+        )
+
+        notification = LoadNotification.objects.create(
+            load=load,
+            tracking_event=event,
+            notification_type='email',
+            recipient_email=load.customer.email,
+            subject=subject,
+            message=message,
+        )
+
+        send_mail(
+            subject=subject,
+            message=message,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[load.customer.email],
+            fail_silently=True,
+        )
+        notification.status = 'sent'
+        notification.sent_at = timezone.now()
+        notification.save(update_fields=['status', 'sent_at'])
+
+    except Exception as e:
+        logger.error(f"Failed to send milestone notification for load {load.load_number}: {str(e)}")
+        if 'notification' in locals():
+            notification.status = 'failed'
+            notification.error_message = str(e)
+            notification.save(update_fields=['status', 'error_message'])
+
+
+class CheckCallViewSet(UserOrAboveMixin, ModelViewSet):
+    """Manage check calls (status updates) on loads."""
+    queryset = CheckCall.objects.select_related('load', 'created_by').all()
+    serializer_class = CheckCallSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        if not hasattr(self.request.user, 'profile') or not self.request.user.profile:
+            return CheckCall.objects.none()
+        user_companies = self.request.user.profile.companies.all()
+        queryset = CheckCall.objects.filter(load__company__in=user_companies)
+
+        load_id = self.request.query_params.get('load', None)
+        if load_id:
+            queryset = queryset.filter(load_id=load_id)
+
+        call_type = self.request.query_params.get('call_type', None)
+        if call_type:
+            queryset = queryset.filter(call_type=call_type)
+
+        return queryset.order_by('-created_at')
+
+    def perform_create(self, serializer):
+        check_call = serializer.save(created_by=self.request.user)
+        load = check_call.load
+
+        # Update load's last known location/ETA
+        update_fields = []
+        if check_call.location:
+            load.last_known_location = check_call.location
+            update_fields.append('last_known_location')
+        if check_call.latitude is not None:
+            load.last_known_latitude = check_call.latitude
+            update_fields.append('last_known_latitude')
+        if check_call.longitude is not None:
+            load.last_known_longitude = check_call.longitude
+            update_fields.append('last_known_longitude')
+        if check_call.eta:
+            load.current_eta = check_call.eta
+            update_fields.append('current_eta')
+        if update_fields:
+            load.save(update_fields=update_fields)
+
+        # Create tracking event
+        event_type_map = {
+            'pickup_arrived': 'picked_up',
+            'pickup_completed': 'picked_up',
+            'delivery_arrived': 'arrived_delivery',
+            'delivery_completed': 'delivered',
+            'delay': 'delay',
+            'issue': 'issue',
+            'eta_update': 'eta_updated',
+        }
+        event_type = event_type_map.get(check_call.call_type, 'check_call')
+        create_tracking_event(
+            load=load,
+            event_type=event_type,
+            description=check_call.notes or check_call.get_call_type_display(),
+            location=check_call.location,
+            metadata={
+                'eta': check_call.eta.isoformat() if check_call.eta else None,
+                'latitude': float(check_call.latitude) if check_call.latitude else None,
+                'longitude': float(check_call.longitude) if check_call.longitude else None,
+            },
+            user=self.request.user,
+        )
+
+
+class LoadTrackingEventViewSet(UserOrAboveMixin, ModelViewSet):
+    """View tracking events (timeline) for loads. Read-only for timeline display."""
+    queryset = LoadTrackingEvent.objects.select_related('load', 'created_by').all()
+    serializer_class = LoadTrackingEventSerializer
+    permission_classes = [IsAuthenticated]
+    http_method_names = ['get', 'head', 'options']
+
+    def get_queryset(self):
+        if not hasattr(self.request.user, 'profile') or not self.request.user.profile:
+            return LoadTrackingEvent.objects.none()
+        user_companies = self.request.user.profile.companies.all()
+        queryset = LoadTrackingEvent.objects.filter(load__company__in=user_companies)
+
+        load_id = self.request.query_params.get('load', None)
+        if load_id:
+            queryset = queryset.filter(load_id=load_id)
+
+        return queryset.order_by('-created_at')
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def customer_tracking_portal(request, tracking_token):
+    """
+    Public endpoint for customers to track their loads.
+    No authentication required — secured by UUID tracking token.
+    """
+    try:
+        load = Load.objects.get(tracking_token=tracking_token)
+    except (Load.DoesNotExist, ValueError):
+        return Response({'error': 'Load not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    serializer = CustomerTrackingSerializer(load)
+    return Response(serializer.data)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def send_tracking_link(request, load_id):
+    """
+    Send tracking link email to the customer for a specific load.
+    """
+    try:
+        if not hasattr(request.user, 'profile'):
+            return Response({'error': 'User profile not found'}, status=status.HTTP_403_FORBIDDEN)
+
+        user_companies = request.user.profile.companies.all()
+        try:
+            load = Load.objects.get(id=load_id, company__in=user_companies)
+        except Load.DoesNotExist:
+            return Response({'error': 'Load not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if not load.customer or not load.customer.email:
+            return Response({'error': 'Customer has no email address'}, status=status.HTTP_400_BAD_REQUEST)
+
+        subject = f"Track Your Shipment — Load {load.load_number}"
+        message = (
+            f"Hello {load.customer.contact_name or load.customer.name},\n\n"
+            f"You can track your shipment using the link below:\n\n"
+            f"Load: {load.load_number}\n"
+            f"Reference: {load.customer_reference or 'N/A'}\n"
+            f"Route: {load.pickup_location_display} → {load.delivery_location_display}\n\n"
+            f"Tracking Token: {load.tracking_token}\n\n"
+            f"Use this token on our tracking portal to view real-time updates.\n\n"
+            f"Thank you for your business.\n"
+        )
+
+        send_mail(
+            subject=subject,
+            message=message,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[load.customer.email],
+            fail_silently=False,
+        )
+
+        create_tracking_event(
+            load=load,
+            event_type='created',
+            description=f'Tracking link sent to {load.customer.email}',
+            user=request.user,
+            is_customer_visible=False,
+        )
+
+        return Response({'message': f'Tracking link sent to {load.customer.email}'})
+
+    except Exception as e:
+        logger.error(f"Error sending tracking link for load {load_id}: {str(e)}")
+        return Response({'error': 'Failed to send tracking link'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def load_tracking_timeline(request, load_id):
+    """
+    Get full tracking timeline for a load (events + check calls combined).
+    """
+    try:
+        if not hasattr(request.user, 'profile'):
+            return Response({'error': 'User profile not found'}, status=status.HTTP_403_FORBIDDEN)
+
+        user_companies = request.user.profile.companies.all()
+        try:
+            load = Load.objects.get(id=load_id, company__in=user_companies)
+        except Load.DoesNotExist:
+            return Response({'error': 'Load not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        events = LoadTrackingEvent.objects.filter(load=load).order_by('-created_at')
+        check_calls = CheckCall.objects.filter(load=load).order_by('-created_at')
+
+        return Response({
+            'load_number': load.load_number,
+            'status': load.status,
+            'status_display': load.get_status_display(),
+            'last_known_location': load.last_known_location,
+            'current_eta': load.current_eta.isoformat() if load.current_eta else None,
+            'tracking_token': str(load.tracking_token),
+            'customer_notifications_enabled': load.customer_notifications_enabled,
+            'events': LoadTrackingEventSerializer(events, many=True).data,
+            'check_calls': CheckCallSerializer(check_calls, many=True).data,
+        })
+
+    except Exception as e:
+        logger.error(f"Error fetching tracking timeline for load {load_id}: {str(e)}")
+        return Response({'error': 'Internal server error'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

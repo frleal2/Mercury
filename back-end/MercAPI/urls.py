@@ -22,7 +22,7 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from django.conf import settings
 from django.conf.urls.static import static
 from MercAPI import views  # Corrected to match the actual directory name
-from MercAPI.views import RegisterUserView, CustomTokenObtainPairView, DriverViewSet, TruckViewSet, CompanyViewSet, TrailerViewSet, DriverTestViewSet, DriverHOSViewSet, DriverApplicationViewSet, MaintenanceCategoryViewSet, MaintenanceTypeViewSet, MaintenanceRecordViewSet, MaintenanceAttachmentViewSet, DriverDocumentViewSet, TripDocumentViewSet, LoadDocumentViewSet, MaintenanceAttachmentUploadView, DriverDocumentUploadView, InspectionViewSet, InspectionItemViewSet, TripsViewSet, TripsManagementViewSet, TripInspectionViewSet, AnnualInspectionViewSet, VehicleOperationStatusViewSet, driver_update_dvir_review, cancel_trip, cancel_and_reassign_trip, available_trucks, CustomerViewSet, CarrierViewSet, LoadViewSet, InvoiceViewSet, InvoicePaymentViewSet, RateLaneViewSet, AccessorialChargeViewSet, FuelSurchargeScheduleViewSet
+from MercAPI.views import RegisterUserView, CustomTokenObtainPairView, DriverViewSet, TruckViewSet, CompanyViewSet, TrailerViewSet, DriverTestViewSet, DriverHOSViewSet, DriverApplicationViewSet, MaintenanceCategoryViewSet, MaintenanceTypeViewSet, MaintenanceRecordViewSet, MaintenanceAttachmentViewSet, DriverDocumentViewSet, TripDocumentViewSet, LoadDocumentViewSet, MaintenanceAttachmentUploadView, DriverDocumentUploadView, InspectionViewSet, InspectionItemViewSet, TripsViewSet, TripsManagementViewSet, TripInspectionViewSet, AnnualInspectionViewSet, VehicleOperationStatusViewSet, driver_update_dvir_review, cancel_trip, cancel_and_reassign_trip, available_trucks, CustomerViewSet, CarrierViewSet, LoadViewSet, InvoiceViewSet, InvoicePaymentViewSet, RateLaneViewSet, AccessorialChargeViewSet, FuelSurchargeScheduleViewSet, CheckCallViewSet, LoadTrackingEventViewSet
 
 router = DefaultRouter()
 router.register(r'drivers', DriverViewSet, basename='driver')  # Register DriverViewSet
@@ -55,6 +55,9 @@ router.register(r'invoice-payments', InvoicePaymentViewSet, basename='invoice-pa
 router.register(r'rate-lanes', RateLaneViewSet, basename='rate-lane')
 router.register(r'accessorial-charges', AccessorialChargeViewSet, basename='accessorial-charge')
 router.register(r'fuel-surcharge-schedules', FuelSurchargeScheduleViewSet, basename='fuel-surcharge-schedule')
+# Tracking & Visibility
+router.register(r'check-calls', CheckCallViewSet, basename='check-call')
+router.register(r'tracking-events', LoadTrackingEventViewSet, basename='tracking-event')
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -104,6 +107,10 @@ urlpatterns = [
     path('api/trips/<int:trip_id>/upload-document/', views.driver_upload_pod, name='driver_upload_pod'),
     path('api/documents/<str:document_source>/<int:document_id>/sign/', views.sign_document, name='sign_document'),
     path('api/documents/<str:document_source>/<int:document_id>/download/', views.download_document, name='download_document'),
+    # Tracking & Visibility endpoints
+    path('api/loads/<int:load_id>/tracking/', views.load_tracking_timeline, name='load_tracking_timeline'),
+    path('api/loads/<int:load_id>/send-tracking-link/', views.send_tracking_link, name='send_tracking_link'),
+    path('api/tracking/<uuid:tracking_token>/', views.customer_tracking_portal, name='customer_tracking_portal'),
 ]
 
 # Serve media and static files during development

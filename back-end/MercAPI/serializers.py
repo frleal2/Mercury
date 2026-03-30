@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Inspection, InspectionItem, Trips, UserProfile, TripDocument, LoadDocument, AnnualInspection, VehicleOperationStatus, Customer, Carrier, Load, Invoice, InvoicePayment, RateLane, AccessorialCharge, FuelSurchargeSchedule
+from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Inspection, InspectionItem, Trips, UserProfile, TripDocument, LoadDocument, AnnualInspection, VehicleOperationStatus, Customer, Carrier, Load, Invoice, InvoicePayment, RateLane, AccessorialCharge, FuelSurchargeSchedule, CheckCall, LoadTrackingEvent, LoadNotification
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -662,15 +662,36 @@ class LoadSerializer(serializers.ModelSerializer):
     trip_driver_name = serializers.SerializerMethodField()
     trip_truck_unit_number = serializers.CharField(source='trip.truck.unit_number', read_only=True, default=None)
     created_by_name = serializers.CharField(source='created_by.get_full_name', read_only=True)
+    tracking_url = serializers.SerializerMethodField()
+    check_call_count = serializers.SerializerMethodField()
+    last_check_call = serializers.SerializerMethodField()
     
     class Meta:
         model = Load
         fields = '__all__'
-        read_only_fields = ['load_number', 'created_at', 'updated_at']
+        read_only_fields = ['load_number', 'created_at', 'updated_at', 'tracking_token']
     
     def get_trip_driver_name(self, obj):
         if obj.trip and obj.trip.driver:
             return obj.trip.driver.get_full_name()
+        return None
+
+    def get_tracking_url(self, obj):
+        return str(obj.tracking_token) if obj.tracking_token else None
+
+    def get_check_call_count(self, obj):
+        return obj.check_calls.count() if hasattr(obj, 'check_calls') else 0
+
+    def get_last_check_call(self, obj):
+        last = obj.check_calls.first() if hasattr(obj, 'check_calls') else None
+        if last:
+            return {
+                'call_type': last.get_call_type_display(),
+                'location': last.location,
+                'eta': last.eta.isoformat() if last.eta else None,
+                'created_at': last.created_at.isoformat(),
+                'created_by': last.created_by.get_full_name() if last.created_by else None,
+            }
         return None
 
 
@@ -754,3 +775,70 @@ class FuelSurchargeScheduleSerializer(serializers.ModelSerializer):
         model = FuelSurchargeSchedule
         fields = '__all__'
         read_only_fields = ['created_at', 'updated_at']
+
+
+class CheckCallSerializer(serializers.ModelSerializer):
+    load_number = serializers.CharField(source='load.load_number', read_only=True)
+    call_type_display = serializers.CharField(source='get_call_type_display', read_only=True)
+    created_by_name = serializers.CharField(source='created_by.get_full_name', read_only=True)
+
+    class Meta:
+        model = CheckCall
+        fields = '__all__'
+        read_only_fields = ['created_at', 'created_by']
+
+
+class LoadTrackingEventSerializer(serializers.ModelSerializer):
+    load_number = serializers.CharField(source='load.load_number', read_only=True)
+    event_type_display = serializers.CharField(source='get_event_type_display', read_only=True)
+    created_by_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = LoadTrackingEvent
+        fields = '__all__'
+        read_only_fields = ['created_at', 'created_by']
+
+    def get_created_by_name(self, obj):
+        if obj.created_by:
+            return obj.created_by.get_full_name()
+        return 'System'
+
+
+class CustomerTrackingSerializer(serializers.ModelSerializer):
+    """
+    Limited serializer for customer-facing tracking portal.
+    Exposes only safe, non-sensitive load info.
+    """
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    equipment_type_display = serializers.CharField(source='get_equipment_type_display', read_only=True)
+    pickup_location_display = serializers.CharField(read_only=True)
+    delivery_location_display = serializers.CharField(read_only=True)
+    tracking_events = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Load
+        fields = [
+            'load_number', 'customer_reference', 'bol_number',
+            'status', 'status_display',
+            'pickup_city', 'pickup_state', 'pickup_date',
+            'delivery_city', 'delivery_state', 'delivery_date',
+            'pickup_location_display', 'delivery_location_display',
+            'commodity', 'weight', 'pieces',
+            'equipment_type', 'equipment_type_display',
+            'last_known_location', 'current_eta',
+            'tracking_events',
+        ]
+
+    def get_tracking_events(self, obj):
+        events = obj.tracking_events.filter(is_customer_visible=True).order_by('-created_at')[:20]
+        return LoadTrackingEventSerializer(events, many=True).data
+
+
+class LoadNotificationSerializer(serializers.ModelSerializer):
+    load_number = serializers.CharField(source='load.load_number', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+
+    class Meta:
+        model = LoadNotification
+        fields = '__all__'
+        read_only_fields = ['created_at', 'sent_at']

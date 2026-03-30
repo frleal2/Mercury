@@ -28,6 +28,7 @@ import Invoices from './Pages/Invoices';
 import Carriers from './Pages/Carriers';
 import DispatchBoard from './Pages/DispatchBoard';
 import RateManagement from './Pages/RateManagement';
+import TrackShipment from './Pages/TrackShipment';
 
 function AppContent() {
     const { session } = useSession();
@@ -89,6 +90,8 @@ function AppContent() {
                         </>
                     )}
                     <Route path="/QuickApply" element={<ApplicationForm />} /> {/* Allow access to Recruitment without login */}
+                    <Route path="/tracking/:token" element={<TrackShipment />} />
+                    <Route path="/tracking" element={<TrackShipment />} />
                 </>
             ) : (
                 <>
@@ -99,6 +102,8 @@ function AppContent() {
                     <Route path="/reset-password/:token" element={<ResetPassword />} />
                     <Route path="/accept-invitation/:token" element={<AcceptInvitation />} />
                     <Route path="/QuickApply" element={<ApplicationForm />} /> {/* Allow access to Recruitment without login */}
+                    <Route path="/tracking/:token" element={<TrackShipment />} />
+                    <Route path="/tracking" element={<TrackShipment />} />
                     <Route path="*" element={<Navigate to="/" />} />
                 </>
             )}

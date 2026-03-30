@@ -495,3 +495,9 @@ from .models import RateLane, AccessorialCharge, FuelSurchargeSchedule
 admin.site.register(RateLane)
 admin.site.register(AccessorialCharge)
 admin.site.register(FuelSurchargeSchedule)
+
+# Tracking & Visibility
+from .models import CheckCall, LoadTrackingEvent, LoadNotification
+admin.site.register(CheckCall)
+admin.site.register(LoadTrackingEvent)
+admin.site.register(LoadNotification)

@@ -313,6 +313,16 @@ class Load(models.Model):
     # Notes
     notes = models.TextField(blank=True)
     
+    # Tracking & Visibility
+    tracking_token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False,
+                                       help_text='Public token for customer tracking portal')
+    customer_notifications_enabled = models.BooleanField(default=True,
+                                                          help_text='Send email notifications to customer at milestones')
+    last_known_location = models.CharField(max_length=255, blank=True, help_text='Last reported location')
+    last_known_latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    last_known_longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    current_eta = models.DateTimeField(null=True, blank=True, help_text='Current ETA to delivery')
+    
     class Meta:
         ordering = ['-created_at']
         verbose_name = "Load"
@@ -2143,6 +2153,118 @@ class AccessorialCharge(models.Model):
 
     def __str__(self):
         return f"{self.name} - ${self.default_rate} ({self.get_rate_unit_display()})"
+
+
+class CheckCall(models.Model):
+    """
+    Status check-in on a load — location update, ETA, notes from driver/carrier/dispatcher.
+    """
+    CHECK_CALL_TYPE_CHOICES = [
+        ('location_update', 'Location Update'),
+        ('eta_update', 'ETA Update'),
+        ('pickup_arrived', 'Arrived at Pickup'),
+        ('pickup_completed', 'Pickup Completed'),
+        ('delivery_arrived', 'Arrived at Delivery'),
+        ('delivery_completed', 'Delivery Completed'),
+        ('delay', 'Delay Report'),
+        ('issue', 'Issue Report'),
+        ('other', 'Other'),
+    ]
+
+    load = models.ForeignKey(Load, on_delete=models.CASCADE, related_name='check_calls')
+    call_type = models.CharField(max_length=30, choices=CHECK_CALL_TYPE_CHOICES, default='location_update')
+    location = models.CharField(max_length=255, blank=True, help_text='Current location (city, state)')
+    latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    eta = models.DateTimeField(null=True, blank=True, help_text='Updated ETA to next stop')
+    notes = models.TextField(blank=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='check_calls')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Check Call'
+        verbose_name_plural = 'Check Calls'
+
+    def __str__(self):
+        return f"{self.load.load_number} — {self.get_call_type_display()} at {self.created_at:%m/%d %H:%M}"
+
+
+class LoadTrackingEvent(models.Model):
+    """
+    Automated milestone events on a load for timeline display and customer visibility.
+    """
+    EVENT_TYPE_CHOICES = [
+        ('created', 'Load Created'),
+        ('booked', 'Load Booked'),
+        ('dispatched', 'Dispatched'),
+        ('driver_assigned', 'Driver Assigned'),
+        ('carrier_assigned', 'Carrier Assigned'),
+        ('picked_up', 'Picked Up'),
+        ('in_transit', 'In Transit'),
+        ('check_call', 'Check Call Received'),
+        ('eta_updated', 'ETA Updated'),
+        ('arrived_delivery', 'Arrived at Delivery'),
+        ('delivered', 'Delivered'),
+        ('pod_received', 'POD Received'),
+        ('invoiced', 'Invoiced'),
+        ('paid', 'Paid'),
+        ('cancelled', 'Cancelled'),
+        ('delay', 'Delay Reported'),
+        ('issue', 'Issue Reported'),
+    ]
+
+    load = models.ForeignKey(Load, on_delete=models.CASCADE, related_name='tracking_events')
+    event_type = models.CharField(max_length=30, choices=EVENT_TYPE_CHOICES)
+    description = models.TextField(blank=True)
+    location = models.CharField(max_length=255, blank=True)
+    metadata = models.JSONField(default=dict, blank=True, help_text='Extra event data (driver name, ETA, etc.)')
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='tracking_events')
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_customer_visible = models.BooleanField(default=True, help_text='Show this event in the customer tracking portal')
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Load Tracking Event'
+        verbose_name_plural = 'Load Tracking Events'
+
+    def __str__(self):
+        return f"{self.load.load_number} — {self.get_event_type_display()}"
+
+
+class LoadNotification(models.Model):
+    """
+    Track notifications sent for load milestones (email/SMS to customers).
+    """
+    NOTIFICATION_TYPE_CHOICES = [
+        ('email', 'Email'),
+        ('sms', 'SMS'),
+    ]
+    NOTIFICATION_STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('sent', 'Sent'),
+        ('failed', 'Failed'),
+    ]
+
+    load = models.ForeignKey(Load, on_delete=models.CASCADE, related_name='notifications')
+    tracking_event = models.ForeignKey(LoadTrackingEvent, on_delete=models.SET_NULL, null=True, blank=True)
+    notification_type = models.CharField(max_length=10, choices=NOTIFICATION_TYPE_CHOICES, default='email')
+    recipient_email = models.EmailField(blank=True)
+    recipient_phone = models.CharField(max_length=20, blank=True)
+    subject = models.CharField(max_length=255, blank=True)
+    message = models.TextField(blank=True)
+    status = models.CharField(max_length=10, choices=NOTIFICATION_STATUS_CHOICES, default='pending')
+    sent_at = models.DateTimeField(null=True, blank=True)
+    error_message = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Load Notification'
+        verbose_name_plural = 'Load Notifications'
+
+    def __str__(self):
+        return f"{self.load.load_number} — {self.get_notification_type_display()} to {self.recipient_email or self.recipient_phone}"
 
 
 class FuelSurchargeSchedule(models.Model):
