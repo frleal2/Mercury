@@ -9,7 +9,7 @@ from django.utils.html import strip_tags
 from datetime import datetime, timedelta
 from django.utils import timezone
 from urllib.parse import urlencode
-from .serializers import UserSerializer, DriverSerializer, TruckSerializer, CompanySerializer, TrailerSerializer, DriverTestSerializer, DriverHOSSerializer, DriverApplicationSerializer, MaintenanceCategorySerializer, MaintenanceTypeSerializer, MaintenanceRecordSerializer, MaintenanceAttachmentSerializer, DriverDocumentSerializer, InspectionSerializer, InspectionItemSerializer, TripsSerializer, TripDocumentSerializer, AnnualInspectionSerializer, VehicleOperationStatusSerializer
+from .serializers import UserSerializer, DriverSerializer, TruckSerializer, CompanySerializer, TrailerSerializer, DriverTestSerializer, DriverHOSSerializer, DriverApplicationSerializer, MaintenanceCategorySerializer, MaintenanceTypeSerializer, MaintenanceRecordSerializer, MaintenanceAttachmentSerializer, DriverDocumentSerializer, InspectionSerializer, InspectionItemSerializer, TripsSerializer, TripDocumentSerializer, AnnualInspectionSerializer, VehicleOperationStatusSerializer, CustomerSerializer, LoadSerializer
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -20,7 +20,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework_simplejwt.views import TokenObtainPairView
-from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Tenant, UserProfile, Inspection, InspectionItem, Trips, InvitationToken, TripDocument, PasswordResetToken, AnnualInspection, VehicleOperationStatus
+from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Tenant, UserProfile, Inspection, InspectionItem, Trips, InvitationToken, TripDocument, PasswordResetToken, AnnualInspection, VehicleOperationStatus, Customer, Load
 from rest_framework.serializers import ValidationError
 from rest_framework import serializers
 from django.core.files.storage import default_storage
@@ -2027,9 +2027,18 @@ def start_trip(request, trip_id):
             logger.error(f"  - last_dvir_reviewed: {trip.last_dvir_reviewed}")
             logger.error(f"  - pre_trip_inspection_completed: {trip.pre_trip_inspection_completed}")
             if trip.truck and hasattr(trip.truck, 'operation_status'):
-                logger.error(f"  - truck operation status: {trip.truck.operation_status.current_status}")
+                truck_status = trip.truck.operation_status
+                logger.error(f"  - truck operation status: {truck_status.current_status}")
+                logger.error(f"  - truck can_operate(): {truck_status.can_operate()}")
+            else:
+                logger.error(f"  - truck operation status: NOT FOUND or no operation_status attribute")
             if trip.trailer and hasattr(trip.trailer, 'operation_status'):
-                logger.error(f"  - trailer operation status: {trip.trailer.operation_status.current_status}")
+                trailer_status = trip.trailer.operation_status
+                logger.error(f"  - trailer operation status: {trailer_status.current_status}")
+                logger.error(f"  - trailer can_operate(): {trailer_status.can_operate()}")
+                logger.error(f"  - trailer clear_status_date: {trailer_status.clear_status_date}")
+            else:
+                logger.error(f"  - trailer operation status: NOT FOUND or no operation_status attribute")
             
             error_message = 'Trip cannot be started. '
             if trip.status != 'scheduled':
@@ -3414,3 +3423,91 @@ class VehicleOperationStatusViewSet(UserOrAboveMixin, CompanyFilterMixin, ModelV
             Q(truck__company__in=user_companies) | Q(trailer__company__in=user_companies)
         ).order_by('-status_set_at')
 
+
+# ==================== TMS - CUSTOMER & LOAD MANAGEMENT ====================
+
+class CustomerViewSet(UserOrAboveMixin, CompanyFilterMixin, ModelViewSet):
+    """
+    Manage external customers/shippers.
+    """
+    queryset = Customer.objects.all()
+    serializer_class = CustomerSerializer
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        # Search filter
+        search = self.request.query_params.get('search', None)
+        if search:
+            queryset = queryset.filter(
+                Q(name__icontains=search) |
+                Q(contact_name__icontains=search) |
+                Q(email__icontains=search)
+            )
+        active = self.request.query_params.get('active', None)
+        if active is not None:
+            queryset = queryset.filter(active=active.lower() == 'true')
+        return queryset
+
+
+class LoadViewSet(UserOrAboveMixin, CompanyFilterMixin, ModelViewSet):
+    """
+    Manage freight loads - the core TMS business object.
+    """
+    queryset = Load.objects.all()
+    serializer_class = LoadSerializer
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        # Filters
+        status_filter = self.request.query_params.get('status', None)
+        customer_id = self.request.query_params.get('customer_id', None)
+        search = self.request.query_params.get('search', None)
+        start_date = self.request.query_params.get('start_date', None)
+        end_date = self.request.query_params.get('end_date', None)
+
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+        if customer_id:
+            queryset = queryset.filter(customer_id=customer_id)
+        if search:
+            queryset = queryset.filter(
+                Q(load_number__icontains=search) |
+                Q(customer__name__icontains=search) |
+                Q(customer_reference__icontains=search) |
+                Q(bol_number__icontains=search) |
+                Q(commodity__icontains=search) |
+                Q(pickup_city__icontains=search) |
+                Q(delivery_city__icontains=search)
+            )
+        if start_date:
+            queryset = queryset.filter(pickup_date__date__gte=start_date)
+        if end_date:
+            queryset = queryset.filter(pickup_date__date__lte=end_date)
+
+        return queryset.order_by('-created_at')
+
+    def perform_create(self, serializer):
+        # Auto-generate load number
+        if not serializer.validated_data.get('load_number'):
+            load_count = Load.objects.count() + 1
+            load_number = f"LD-{load_count:06d}"
+            # Ensure uniqueness
+            while Load.objects.filter(load_number=load_number).exists():
+                load_count += 1
+                load_number = f"LD-{load_count:06d}"
+            serializer.validated_data['load_number'] = load_number
+
+        # Set company from user if not specified
+        if not serializer.validated_data.get('company'):
+            user_company = self.request.user.profile.companies.first()
+            if user_company:
+                serializer.validated_data['company'] = user_company
+
+        # Calculate total revenue if customer_rate is set
+        customer_rate = serializer.validated_data.get('customer_rate')
+        fuel_surcharge = serializer.validated_data.get('fuel_surcharge', 0) or 0
+        accessorial_charges = serializer.validated_data.get('accessorial_charges', 0) or 0
+        if customer_rate:
+            serializer.validated_data['total_revenue'] = customer_rate + fuel_surcharge + accessorial_charges
+
+        serializer.save(created_by=self.request.user)

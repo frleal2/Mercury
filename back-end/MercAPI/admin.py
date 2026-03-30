@@ -5,7 +5,8 @@ from .models import (Driver, Company, DriverTest, Truck, Trailer, Inspection, In
                      Trips, DriverHOS, DriverApplication, Tenant, UserProfile, InvitationToken, 
                      TripDocument, DriverDocument, MaintenanceCategory, 
                      MaintenanceType, MaintenanceRecord, MaintenanceAttachment, PasswordResetToken,
-                     TripInspectionRepairCertification, AnnualInspection, VehicleOperationStatus)
+                     TripInspectionRepairCertification, AnnualInspection, VehicleOperationStatus,
+                     Customer, Load)
 
 @admin.register(Tenant)
 class TenantAdmin(admin.ModelAdmin):
@@ -334,6 +335,68 @@ class TrailerAdmin(admin.ModelAdmin):
     list_display = ('unit_number', 'license_plate', 'trailer_type', 'company', 'active')
     list_filter = ('trailer_type', 'company', 'active')
     search_fields = ('unit_number', 'license_plate', 'model')
+
+
+@admin.register(Customer)
+class CustomerAdmin(admin.ModelAdmin):
+    list_display = ('name', 'contact_name', 'email', 'phone', 'company', 'payment_terms', 'active', 'created_at')
+    list_filter = ('company', 'payment_terms', 'active')
+    search_fields = ('name', 'contact_name', 'email', 'city', 'state')
+    readonly_fields = ('created_at', 'updated_at')
+
+    fieldsets = (
+        ('Customer Information', {
+            'fields': ('company', 'name', 'contact_name', 'email', 'phone')
+        }),
+        ('Address', {
+            'fields': ('address_line_1', 'address_line_2', 'city', 'state', 'zip_code')
+        }),
+        ('Billing', {
+            'fields': ('billing_email', 'payment_terms', 'credit_limit')
+        }),
+        ('Status', {
+            'fields': ('active', 'notes')
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+
+
+@admin.register(Load)
+class LoadAdmin(admin.ModelAdmin):
+    list_display = ('load_number', 'customer', 'status', 'pickup_city', 'delivery_city', 'pickup_date', 'customer_rate', 'total_revenue', 'created_at')
+    list_filter = ('status', 'equipment_type', 'company', 'created_at')
+    search_fields = ('load_number', 'customer__name', 'customer_reference', 'bol_number', 'commodity', 'pickup_city', 'delivery_city')
+    readonly_fields = ('created_at', 'updated_at')
+
+    fieldsets = (
+        ('Load Information', {
+            'fields': ('company', 'customer', 'load_number', 'status')
+        }),
+        ('References', {
+            'fields': ('customer_reference', 'bol_number')
+        }),
+        ('Pickup', {
+            'fields': ('pickup_name', 'pickup_address', 'pickup_city', 'pickup_state', 'pickup_zip', 'pickup_date', 'pickup_notes')
+        }),
+        ('Delivery', {
+            'fields': ('delivery_name', 'delivery_address', 'delivery_city', 'delivery_state', 'delivery_zip', 'delivery_date', 'delivery_notes')
+        }),
+        ('Commodity', {
+            'fields': ('commodity', 'weight', 'pieces', 'equipment_type', 'temperature_requirement', 'temperature_value', 'hazmat')
+        }),
+        ('Financials', {
+            'fields': ('customer_rate', 'carrier_cost', 'fuel_surcharge', 'accessorial_charges', 'total_revenue')
+        }),
+        ('Execution', {
+            'fields': ('trip', 'estimated_miles')
+        }),
+        ('Notes & Audit', {
+            'fields': ('notes', 'created_by', 'created_at', 'updated_at')
+        }),
+    )
 
 @admin.register(TripInspectionRepairCertification)
 class TripInspectionRepairCertificationAdmin(admin.ModelAdmin):

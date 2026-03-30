@@ -161,6 +161,195 @@ class UserProfile(models.Model):
             return getattr(self.user, 'driver_profile', None)
         return None
 
+class Customer(models.Model):
+    """
+    External customer/shipper that sends freight.
+    Distinct from Company (which represents the tenant's own companies/divisions).
+    """
+    PAYMENT_TERM_CHOICES = [
+        ('net_15', 'Net 15'),
+        ('net_30', 'Net 30'),
+        ('net_45', 'Net 45'),
+        ('net_60', 'Net 60'),
+        ('net_90', 'Net 90'),
+        ('due_on_receipt', 'Due on Receipt'),
+        ('prepaid', 'Prepaid'),
+    ]
+
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name='customers')
+    name = models.CharField(max_length=255, help_text="Customer/shipper business name")
+    contact_name = models.CharField(max_length=255, blank=True, help_text="Primary contact person")
+    email = models.EmailField(blank=True)
+    phone = models.CharField(max_length=20, blank=True)
+    
+    # Address
+    address_line_1 = models.CharField(max_length=255, blank=True)
+    address_line_2 = models.CharField(max_length=255, blank=True)
+    city = models.CharField(max_length=100, blank=True)
+    state = models.CharField(max_length=50, blank=True)
+    zip_code = models.CharField(max_length=20, blank=True)
+    
+    # Billing
+    billing_email = models.EmailField(blank=True, help_text="Email for sending invoices")
+    payment_terms = models.CharField(max_length=20, choices=PAYMENT_TERM_CHOICES, default='net_30')
+    credit_limit = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    
+    # Notes
+    notes = models.TextField(blank=True)
+    active = models.BooleanField(default=True)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['name']
+        verbose_name = "Customer"
+        verbose_name_plural = "Customers"
+
+    def __str__(self):
+        return self.name
+
+
+class Load(models.Model):
+    """
+    A freight load/order - the core business transaction in a TMS.
+    A Load represents the business side (customer, rate, revenue).
+    A Trip represents the physical execution (driver, truck, route, inspections).
+    """
+    LOAD_STATUS_CHOICES = [
+        ('quoted', 'Quoted'),
+        ('booked', 'Booked'),
+        ('dispatched', 'Dispatched'),
+        ('in_transit', 'In Transit'),
+        ('delivered', 'Delivered'),
+        ('invoiced', 'Invoiced'),
+        ('paid', 'Paid'),
+        ('cancelled', 'Cancelled'),
+    ]
+
+    EQUIPMENT_TYPE_CHOICES = [
+        ('dry_van', 'Dry Van'),
+        ('reefer', 'Reefer'),
+        ('flatbed', 'Flatbed'),
+        ('step_deck', 'Step Deck'),
+        ('lowboy', 'Lowboy'),
+        ('tanker', 'Tanker'),
+        ('power_only', 'Power Only'),
+        ('box_truck', 'Box Truck'),
+        ('hotshot', 'Hotshot'),
+        ('other', 'Other'),
+    ]
+
+    TEMPERATURE_CHOICES = [
+        ('none', 'None (Dry)'),
+        ('frozen', 'Frozen (-10°F to 0°F)'),
+        ('cold', 'Cold (32°F to 40°F)'),
+        ('cool', 'Cool (40°F to 55°F)'),
+        ('custom', 'Custom Temperature'),
+    ]
+
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name='loads')
+    customer = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name='loads')
+    
+    # Load identification
+    load_number = models.CharField(max_length=50, unique=True, help_text="Auto-generated load reference number")
+    
+    # Reference numbers
+    customer_reference = models.CharField(max_length=100, blank=True, help_text="Customer PO# or reference")
+    bol_number = models.CharField(max_length=100, blank=True, help_text="Bill of Lading number")
+    
+    # Pickup details
+    pickup_name = models.CharField(max_length=255, blank=True, help_text="Shipper/pickup facility name")
+    pickup_address = models.CharField(max_length=255, blank=True)
+    pickup_city = models.CharField(max_length=100, blank=True)
+    pickup_state = models.CharField(max_length=50, blank=True)
+    pickup_zip = models.CharField(max_length=20, blank=True)
+    pickup_date = models.DateTimeField(null=True, blank=True)
+    pickup_notes = models.TextField(blank=True, help_text="Pickup instructions, appointment times, etc.")
+    
+    # Delivery details
+    delivery_name = models.CharField(max_length=255, blank=True, help_text="Consignee/delivery facility name")
+    delivery_address = models.CharField(max_length=255, blank=True)
+    delivery_city = models.CharField(max_length=100, blank=True)
+    delivery_state = models.CharField(max_length=50, blank=True)
+    delivery_zip = models.CharField(max_length=20, blank=True)
+    delivery_date = models.DateTimeField(null=True, blank=True)
+    delivery_notes = models.TextField(blank=True, help_text="Delivery instructions, appointment times, etc.")
+    
+    # Commodity details
+    commodity = models.CharField(max_length=255, blank=True, help_text="Description of freight")
+    weight = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, help_text="Weight in lbs")
+    pieces = models.PositiveIntegerField(null=True, blank=True, help_text="Number of pieces/pallets")
+    equipment_type = models.CharField(max_length=20, choices=EQUIPMENT_TYPE_CHOICES, default='dry_van')
+    temperature_requirement = models.CharField(max_length=10, choices=TEMPERATURE_CHOICES, default='none')
+    temperature_value = models.CharField(max_length=50, blank=True, help_text="Specific temp if custom")
+    hazmat = models.BooleanField(default=False)
+    
+    # Rate & billing
+    customer_rate = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True, help_text="Rate charged to customer")
+    carrier_cost = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True, help_text="Cost paid to carrier (broker mode)")
+    fuel_surcharge = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text="Fuel surcharge amount")
+    accessorial_charges = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text="Detention, lumper, etc.")
+    total_revenue = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True, help_text="Total billed to customer")
+    
+    # Mileage
+    estimated_miles = models.PositiveIntegerField(null=True, blank=True)
+    
+    # Status & workflow
+    status = models.CharField(max_length=20, choices=LOAD_STATUS_CHOICES, default='quoted')
+    
+    # Trip link - when dispatched, a Trip is created to execute this load
+    trip = models.OneToOneField('Trips', on_delete=models.SET_NULL, null=True, blank=True, related_name='load')
+    
+    # Audit
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_loads')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    # Notes
+    notes = models.TextField(blank=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = "Load"
+        verbose_name_plural = "Loads"
+    
+    def __str__(self):
+        return f"Load {self.load_number} - {self.customer.name}"
+    
+    @property
+    def profit(self):
+        """Calculate profit (revenue - carrier cost)"""
+        if self.total_revenue and self.carrier_cost:
+            return self.total_revenue - self.carrier_cost
+        return None
+    
+    @property
+    def margin_percent(self):
+        """Calculate margin percentage"""
+        if self.total_revenue and self.carrier_cost and self.total_revenue > 0:
+            return round(((self.total_revenue - self.carrier_cost) / self.total_revenue) * 100, 2)
+        return None
+    
+    @property
+    def pickup_location_display(self):
+        """Format pickup location for display"""
+        parts = [p for p in [self.pickup_city, self.pickup_state] if p]
+        return ", ".join(parts) if parts else self.pickup_address or "TBD"
+    
+    @property
+    def delivery_location_display(self):
+        """Format delivery location for display"""
+        parts = [p for p in [self.delivery_city, self.delivery_state] if p]
+        return ", ".join(parts) if parts else self.delivery_address or "TBD"
+    
+    def calculate_total_revenue(self):
+        """Calculate total revenue from line items"""
+        base = self.customer_rate or 0
+        self.total_revenue = base + self.fuel_surcharge + self.accessorial_charges
+        return self.total_revenue
+
+
 class Driver(models.Model):
     id = models.AutoField(primary_key=True)
     company = models.ForeignKey(Company, on_delete=models.CASCADE, default=1)  # Added default value
@@ -1565,11 +1754,22 @@ class VehicleOperationStatus(models.Model):
     
     def can_operate(self):
         """Check if vehicle can currently operate"""
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        logger.info(f"Checking can_operate for {self.vehicle_identifier}: status={self.current_status}, clear_date={self.clear_status_date}")
+        
         if self.current_status in ['prohibited', 'out_of_service']:
+            logger.info(f"  -> Cannot operate: status is {self.current_status}")
             return False
         if self.current_status == 'conditional' and self.clear_status_date:
-            return date.today() <= self.clear_status_date
-        return self.current_status == 'safe'
+            from datetime import date
+            can_op = date.today() <= self.clear_status_date
+            logger.info(f"  -> Conditional: today={date.today()}, clear_date={self.clear_status_date}, can_operate={can_op}")
+            return can_op
+        result = self.current_status == 'safe'
+        logger.info(f"  -> Final check: status={self.current_status}, result={result}")
+        return result
 
 
 class PasswordResetToken(models.Model):

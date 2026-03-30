@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Inspection, InspectionItem, Trips, UserProfile, TripDocument, AnnualInspection, VehicleOperationStatus
+from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Inspection, InspectionItem, Trips, UserProfile, TripDocument, AnnualInspection, VehicleOperationStatus, Customer, Load
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -579,3 +579,31 @@ class VehicleOperationStatusSerializer(serializers.ModelSerializer):
                 'trip_number': obj.related_inspection.trip.trip_number
             }
         return None
+
+
+class CustomerSerializer(serializers.ModelSerializer):
+    company_name = serializers.CharField(source='company.name', read_only=True)
+    payment_terms_display = serializers.CharField(source='get_payment_terms_display', read_only=True)
+    
+    class Meta:
+        model = Customer
+        fields = '__all__'
+        read_only_fields = ['created_at', 'updated_at']
+
+
+class LoadSerializer(serializers.ModelSerializer):
+    customer_name = serializers.CharField(source='customer.name', read_only=True)
+    company_name = serializers.CharField(source='company.name', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    equipment_type_display = serializers.CharField(source='get_equipment_type_display', read_only=True)
+    pickup_location_display = serializers.CharField(read_only=True)
+    delivery_location_display = serializers.CharField(read_only=True)
+    profit = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+    margin_percent = serializers.DecimalField(max_digits=5, decimal_places=2, read_only=True)
+    trip_number = serializers.CharField(source='trip.trip_number', read_only=True)
+    created_by_name = serializers.CharField(source='created_by.get_full_name', read_only=True)
+    
+    class Meta:
+        model = Load
+        fields = '__all__'
+        read_only_fields = ['load_number', 'created_at', 'updated_at']
