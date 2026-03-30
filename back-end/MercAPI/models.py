@@ -1179,16 +1179,9 @@ class Trips(models.Model):
             if not self.trailer.operation_status.can_operate():
                 return False
         
-        # CFR 396.17 - Annual inspection must be current
-        if self.truck:
-            latest_annual = self.truck.annual_inspections.filter(compliant_until__gte=date.today()).first()
-            if not latest_annual:
-                return False
-        
-        if self.trailer:
-            latest_annual = self.trailer.annual_inspections.filter(compliant_until__gte=date.today()).first()
-            if not latest_annual:
-                return False
+        # Note: CFR 396.17 annual inspection is checked as advisory
+        # in get_compliance_issues() but does not block trip start.
+        # New fleet vehicles may not have annual inspection records yet.
         
         return True
     
@@ -1218,16 +1211,16 @@ class Trips(models.Model):
         if self.trailer and hasattr(self.trailer, 'operation_status') and not self.trailer.operation_status.can_operate():
             issues.append(f"Trailer {self.trailer.license_plate} is not safe to operate (CFR 396.7)")
         
-        # Check annual inspections
+        # Check annual inspections (advisory - does not block trip start)
         if self.truck:
             latest_annual = self.truck.annual_inspections.filter(compliant_until__gte=date.today()).first()
             if not latest_annual:
-                issues.append(f"Truck {self.truck.unit_number} annual inspection expired (CFR 396.17)")
+                issues.append(f"⚠ Truck {self.truck.unit_number} annual inspection expired or missing (CFR 396.17)")
         
         if self.trailer:
             latest_annual = self.trailer.annual_inspections.filter(compliant_until__gte=date.today()).first()
             if not latest_annual:
-                issues.append(f"Trailer {self.trailer.license_plate} annual inspection expired (CFR 396.17)")
+                issues.append(f"⚠ Trailer {self.trailer.license_plate} annual inspection expired or missing (CFR 396.17)")
         
         return issues
     

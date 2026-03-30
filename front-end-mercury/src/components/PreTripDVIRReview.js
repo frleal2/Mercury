@@ -19,7 +19,7 @@ function PreTripDVIRReview({ isOpen, onClose, trip, onReviewCompleted }) {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const [acknowledgment, setAcknowledgment] = useState('');
+  const [acknowledged, setAcknowledged] = useState(false);
 
   useEffect(() => {
     if (trip && isOpen) {
@@ -80,8 +80,8 @@ function PreTripDVIRReview({ isOpen, onClose, trip, onReviewCompleted }) {
   };
 
   const handleReviewSubmit = async () => {
-    if (!acknowledgment.trim()) {
-      setError('Please provide acknowledgment text');
+    if (!acknowledged) {
+      setError('Please check the acknowledgment box to continue');
       return;
     }
 
@@ -90,8 +90,8 @@ function PreTripDVIRReview({ isOpen, onClose, trip, onReviewCompleted }) {
       setError('');
 
       const acknowledgmentText = lastDVIR 
-        ? `DVIR Reviewed - Trip #${lastDVIR.trip.trip_number} (${formatDate(lastDVIR.completed_at)}): ${acknowledgment}`
-        : `No Previous DVIR - New/First Trip: ${acknowledgment}`;
+        ? `DVIR Reviewed - Trip #${lastDVIR.trip.trip_number} (${formatDate(lastDVIR.completed_at)}): Driver reviewed and acknowledged vehicle is safe to operate.`
+        : `No Previous DVIR - New/First Trip: Driver acknowledges no previous DVIR exists and certifies vehicle is safe to operate per CFR 396.13.`;
 
       const response = await axios.patch(`${BASE_URL}/api/driver/trips/${trip.id}/dvir-review/`, {
         last_dvir_reviewed: true,
@@ -248,28 +248,21 @@ function PreTripDVIRReview({ isOpen, onClose, trip, onReviewCompleted }) {
                     )}
 
                     {/* Driver Acknowledgment */}
-                    <div>
-                      <label htmlFor="acknowledgment" className="block text-sm font-medium text-gray-700 mb-2">
-                        Driver Acknowledgment *
+                    <div className="bg-white border border-gray-200 rounded-lg p-4">
+                      <label className="flex items-start gap-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={acknowledged}
+                          onChange={(e) => { setAcknowledged(e.target.checked); setError(''); }}
+                          className="mt-0.5 h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                        <span className="text-sm text-gray-700">
+                          {lastDVIR 
+                            ? "I have reviewed the above DVIR and certify that all reported defects have been addressed. The vehicle is safe to operate."
+                            : "I acknowledge that no previous DVIR exists for this vehicle. I certify that the vehicle is safe to operate and will conduct my pre-trip inspection per CFR 396.13."
+                          }
+                        </span>
                       </label>
-                      <textarea
-                        id="acknowledgment"
-                        rows={3}
-                        className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        placeholder={lastDVIR 
-                          ? "I have reviewed the above DVIR and certify that all defects have been addressed and the vehicle is safe to operate..."
-                          : "I acknowledge that no previous DVIR exists for this vehicle. I certify that the vehicle is safe to operate and will conduct my pre-trip inspection..."
-                        }
-                        value={acknowledgment}
-                        onChange={(e) => setAcknowledgment(e.target.value)}
-                        required
-                      />
-                      <p className="text-xs text-gray-500 mt-1">
-                        {lastDVIR 
-                          ? "Required: Acknowledge that you have reviewed the last DVIR and the vehicle is safe to operate."
-                          : "Required: Acknowledge that no previous DVIR exists and the vehicle is safe to operate per CFR 396.13."
-                        }
-                      </p>
                     </div>
                   </div>
                 )}
@@ -289,7 +282,7 @@ function PreTripDVIRReview({ isOpen, onClose, trip, onReviewCompleted }) {
                     type="button"
                     className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
                     onClick={handleReviewSubmit}
-                    disabled={submitting || loading || !acknowledgment.trim()}
+                    disabled={submitting || loading || !acknowledged}
                   >
                     {submitting ? (
                       <div className="flex items-center">
