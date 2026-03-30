@@ -371,11 +371,19 @@ const ViewLoadDetails = ({ loadId, isOpen, onClose }) => {
                               </div>
                               <div className="flex justify-between">
                                 <span className={detailLabel}>Fuel Surcharge</span>
-                                <span className={detailValue}>{load.fuel_surcharge ? `$${parseFloat(load.fuel_surcharge).toFixed(2)}` : '$0.00'}</span>
+                                {isEditing ? (
+                                  <input type="number" name="fuel_surcharge" value={editData.fuel_surcharge || ''} onChange={handleEditChange} className="w-24 text-sm text-right border-gray-300 rounded-md" step="0.01" />
+                                ) : (
+                                  <span className={detailValue}>{load.fuel_surcharge ? `$${parseFloat(load.fuel_surcharge).toFixed(2)}` : '$0.00'}</span>
+                                )}
                               </div>
                               <div className="flex justify-between">
                                 <span className={detailLabel}>Accessorials</span>
-                                <span className={detailValue}>{load.accessorial_charges ? `$${parseFloat(load.accessorial_charges).toFixed(2)}` : '$0.00'}</span>
+                                {isEditing ? (
+                                  <input type="number" name="accessorial_charges" value={editData.accessorial_charges || ''} onChange={handleEditChange} className="w-24 text-sm text-right border-gray-300 rounded-md" step="0.01" />
+                                ) : (
+                                  <span className={detailValue}>{load.accessorial_charges ? `$${parseFloat(load.accessorial_charges).toFixed(2)}` : '$0.00'}</span>
+                                )}
                               </div>
                               <div className="border-t border-gray-200 pt-2 flex justify-between">
                                 <span className="text-sm font-medium text-gray-700">Total Revenue</span>

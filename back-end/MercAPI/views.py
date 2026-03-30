@@ -3512,6 +3512,16 @@ class LoadViewSet(UserOrAboveMixin, CompanyFilterMixin, ModelViewSet):
 
         serializer.save(created_by=self.request.user)
 
+    def perform_update(self, serializer):
+        instance = serializer.save()
+        # Recalculate total revenue
+        customer_rate = instance.customer_rate or 0
+        fuel_surcharge = instance.fuel_surcharge or 0
+        accessorial_charges = instance.accessorial_charges or 0
+        if customer_rate:
+            instance.total_revenue = customer_rate + fuel_surcharge + accessorial_charges
+            instance.save(update_fields=['total_revenue'])
+
 
 class InvoiceViewSet(UserOrAboveMixin, CompanyFilterMixin, ModelViewSet):
     """
