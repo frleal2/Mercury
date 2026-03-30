@@ -12,10 +12,23 @@ const ViewLoadDetails = ({ loadId, isOpen, onClose }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState({});
   const [saving, setSaving] = useState(false);
+  const [carriers, setCarriers] = useState([]);
 
   useEffect(() => {
     if (loadId) fetchLoad();
+    fetchCarriers();
   }, [loadId]);
+
+  const fetchCarriers = async () => {
+    try {
+      const response = await axios.get(`${BASE_URL}/api/carriers/?status=active`, {
+        headers: { 'Authorization': `Bearer ${session.accessToken}` }
+      });
+      setCarriers(response.data);
+    } catch (error) {
+      console.error('Error fetching carriers:', error);
+    }
+  };
 
   const fetchLoad = async () => {
     try {
@@ -69,6 +82,7 @@ const ViewLoadDetails = ({ loadId, isOpen, onClose }) => {
         fuel_surcharge: editData.fuel_surcharge || 0,
         accessorial_charges: editData.accessorial_charges || 0,
         estimated_miles: editData.estimated_miles || null,
+        carrier: editData.carrier || null,
         notes: editData.notes,
       };
       await axios.patch(`${BASE_URL}/api/loads/${loadId}/`, payload, {
@@ -350,6 +364,29 @@ const ViewLoadDetails = ({ loadId, isOpen, onClose }) => {
                           </div>
 
                           {/* Financials */}
+                          <div>
+                            <h4 className={sectionHeader}>Carrier Assignment</h4>
+                            <div className="bg-indigo-50 rounded-lg p-3">
+                              {isEditing ? (
+                                <select
+                                  name="carrier"
+                                  value={editData.carrier || ''}
+                                  onChange={handleEditChange}
+                                  className="w-full text-sm border-gray-300 rounded-md"
+                                >
+                                  <option value="">No carrier assigned</option>
+                                  {carriers.map(c => (
+                                    <option key={c.id} value={c.id}>{c.name}{c.mc_number ? ` (${c.mc_number})` : ''}</option>
+                                  ))}
+                                </select>
+                              ) : (
+                                <p className="text-sm text-gray-900">
+                                  {load.carrier_name || <span className="text-gray-400">No carrier assigned</span>}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+
                           <div>
                             <h4 className={sectionHeader}>Financials</h4>
                             <div className="bg-gray-50 rounded-lg p-3 space-y-2">

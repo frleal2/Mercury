@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Inspection, InspectionItem, Trips, UserProfile, TripDocument, AnnualInspection, VehicleOperationStatus, Customer, Load, Invoice, InvoicePayment
+from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Inspection, InspectionItem, Trips, UserProfile, TripDocument, AnnualInspection, VehicleOperationStatus, Customer, Carrier, Load, Invoice, InvoicePayment
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -591,9 +591,26 @@ class CustomerSerializer(serializers.ModelSerializer):
         read_only_fields = ['created_at', 'updated_at']
 
 
+class CarrierSerializer(serializers.ModelSerializer):
+    company_name = serializers.CharField(source='company.name', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    payment_terms_display = serializers.CharField(source='get_payment_terms_display', read_only=True)
+    safety_rating_display = serializers.CharField(source='get_safety_rating_display', read_only=True)
+    load_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Carrier
+        fields = '__all__'
+        read_only_fields = ['created_at', 'updated_at']
+
+    def get_load_count(self, obj):
+        return obj.loads.count()
+
+
 class LoadSerializer(serializers.ModelSerializer):
     customer_name = serializers.CharField(source='customer.name', read_only=True)
     company_name = serializers.CharField(source='company.name', read_only=True)
+    carrier_name = serializers.CharField(source='carrier.name', read_only=True, default=None)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     equipment_type_display = serializers.CharField(source='get_equipment_type_display', read_only=True)
     pickup_location_display = serializers.CharField(read_only=True)

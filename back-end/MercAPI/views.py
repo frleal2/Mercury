@@ -9,7 +9,7 @@ from django.utils.html import strip_tags
 from datetime import datetime, timedelta
 from django.utils import timezone
 from urllib.parse import urlencode
-from .serializers import UserSerializer, DriverSerializer, TruckSerializer, CompanySerializer, TrailerSerializer, DriverTestSerializer, DriverHOSSerializer, DriverApplicationSerializer, MaintenanceCategorySerializer, MaintenanceTypeSerializer, MaintenanceRecordSerializer, MaintenanceAttachmentSerializer, DriverDocumentSerializer, InspectionSerializer, InspectionItemSerializer, TripsSerializer, TripDocumentSerializer, AnnualInspectionSerializer, VehicleOperationStatusSerializer, CustomerSerializer, LoadSerializer, InvoiceSerializer, InvoicePaymentSerializer
+from .serializers import UserSerializer, DriverSerializer, TruckSerializer, CompanySerializer, TrailerSerializer, DriverTestSerializer, DriverHOSSerializer, DriverApplicationSerializer, MaintenanceCategorySerializer, MaintenanceTypeSerializer, MaintenanceRecordSerializer, MaintenanceAttachmentSerializer, DriverDocumentSerializer, InspectionSerializer, InspectionItemSerializer, TripsSerializer, TripDocumentSerializer, AnnualInspectionSerializer, VehicleOperationStatusSerializer, CustomerSerializer, CarrierSerializer, LoadSerializer, InvoiceSerializer, InvoicePaymentSerializer
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -20,7 +20,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework_simplejwt.views import TokenObtainPairView
-from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Tenant, UserProfile, Inspection, InspectionItem, Trips, InvitationToken, TripDocument, PasswordResetToken, AnnualInspection, VehicleOperationStatus, Customer, Load, Invoice, InvoicePayment
+from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Tenant, UserProfile, Inspection, InspectionItem, Trips, InvitationToken, TripDocument, PasswordResetToken, AnnualInspection, VehicleOperationStatus, Customer, Carrier, Load, Invoice, InvoicePayment
 from rest_framework.serializers import ValidationError
 from rest_framework import serializers
 from django.core.files.storage import default_storage
@@ -3446,6 +3446,35 @@ class CustomerViewSet(UserOrAboveMixin, CompanyFilterMixin, ModelViewSet):
         active = self.request.query_params.get('active', None)
         if active is not None:
             queryset = queryset.filter(active=active.lower() == 'true')
+        return queryset
+
+
+class CarrierViewSet(UserOrAboveMixin, CompanyFilterMixin, ModelViewSet):
+    """
+    Manage external carriers for broker mode operations.
+    """
+    queryset = Carrier.objects.all()
+    serializer_class = CarrierSerializer
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        search = self.request.query_params.get('search', None)
+        if search:
+            queryset = queryset.filter(
+                Q(name__icontains=search) |
+                Q(mc_number__icontains=search) |
+                Q(dot_number__icontains=search) |
+                Q(contact_name__icontains=search) |
+                Q(email__icontains=search) |
+                Q(city__icontains=search) |
+                Q(state__icontains=search)
+            )
+        status_filter = self.request.query_params.get('status', None)
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+        hazmat = self.request.query_params.get('hazmat', None)
+        if hazmat is not None:
+            queryset = queryset.filter(hazmat_certified=hazmat.lower() == 'true')
         return queryset
 
 

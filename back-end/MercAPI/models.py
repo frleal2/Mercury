@@ -285,6 +285,9 @@ class Load(models.Model):
     temperature_value = models.CharField(max_length=50, blank=True, help_text="Specific temp if custom")
     hazmat = models.BooleanField(default=False)
     
+    # Carrier assignment (broker mode)
+    carrier = models.ForeignKey('Carrier', on_delete=models.SET_NULL, null=True, blank=True, related_name='loads', help_text="Assigned carrier (broker mode)")
+    
     # Rate & billing
     customer_rate = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True, help_text="Rate charged to customer")
     carrier_cost = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True, help_text="Cost paid to carrier (broker mode)")
@@ -349,6 +352,79 @@ class Load(models.Model):
         base = self.customer_rate or 0
         self.total_revenue = base + self.fuel_surcharge + self.accessorial_charges
         return self.total_revenue
+
+
+class Carrier(models.Model):
+    """
+    External carrier company used in broker mode.
+    When acting as a broker, loads are assigned to carriers who execute the freight.
+    """
+    CARRIER_STATUS_CHOICES = [
+        ('active', 'Active'),
+        ('inactive', 'Inactive'),
+        ('pending', 'Pending Approval'),
+        ('blacklisted', 'Blacklisted'),
+    ]
+
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name='carriers')
+    name = models.CharField(max_length=255, help_text="Carrier company name")
+    mc_number = models.CharField(max_length=20, blank=True, help_text="Motor Carrier number (MC-XXXXXX)")
+    dot_number = models.CharField(max_length=20, blank=True, help_text="USDOT number")
+    contact_name = models.CharField(max_length=255, blank=True, help_text="Primary contact person")
+    email = models.EmailField(blank=True)
+    phone = models.CharField(max_length=20, blank=True)
+
+    # Address
+    address_line_1 = models.CharField(max_length=255, blank=True)
+    address_line_2 = models.CharField(max_length=255, blank=True)
+    city = models.CharField(max_length=100, blank=True)
+    state = models.CharField(max_length=50, blank=True)
+    zip_code = models.CharField(max_length=20, blank=True)
+
+    # Insurance
+    insurance_provider = models.CharField(max_length=255, blank=True)
+    insurance_policy_number = models.CharField(max_length=100, blank=True)
+    insurance_expiration = models.DateField(null=True, blank=True)
+    cargo_insurance_limit = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True, help_text="Cargo insurance coverage limit")
+    liability_insurance_limit = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True, help_text="Liability insurance coverage limit")
+
+    # Equipment & capabilities
+    equipment_types = models.CharField(max_length=255, blank=True, help_text="Comma-separated equipment types (dry_van, reefer, flatbed, etc.)")
+    service_area = models.CharField(max_length=255, blank=True, help_text="Geographic service area (e.g., Southeast US, Nationwide)")
+    hazmat_certified = models.BooleanField(default=False)
+
+    # Payment
+    payment_terms = models.CharField(max_length=20, choices=[
+        ('net_15', 'Net 15'),
+        ('net_30', 'Net 30'),
+        ('net_45', 'Net 45'),
+        ('net_60', 'Net 60'),
+        ('quick_pay', 'Quick Pay'),
+    ], default='net_30')
+    factoring_company = models.CharField(max_length=255, blank=True, help_text="Factoring company name if applicable")
+
+    # Rating
+    safety_rating = models.CharField(max_length=20, choices=[
+        ('satisfactory', 'Satisfactory'),
+        ('conditional', 'Conditional'),
+        ('unsatisfactory', 'Unsatisfactory'),
+        ('not_rated', 'Not Rated'),
+    ], default='not_rated')
+
+    # Status & Notes
+    status = models.CharField(max_length=20, choices=CARRIER_STATUS_CHOICES, default='active')
+    notes = models.TextField(blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['name']
+        verbose_name = "Carrier"
+        verbose_name_plural = "Carriers"
+
+    def __str__(self):
+        return f"{self.name} ({self.mc_number})" if self.mc_number else self.name
 
 
 class Invoice(models.Model):

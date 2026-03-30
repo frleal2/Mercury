@@ -6,7 +6,7 @@ from .models import (Driver, Company, DriverTest, Truck, Trailer, Inspection, In
                      TripDocument, DriverDocument, MaintenanceCategory, 
                      MaintenanceType, MaintenanceRecord, MaintenanceAttachment, PasswordResetToken,
                      TripInspectionRepairCertification, AnnualInspection, VehicleOperationStatus,
-                     Customer, Load, Invoice, InvoicePayment)
+                     Customer, Carrier, Load, Invoice, InvoicePayment)
 
 @admin.register(Tenant)
 class TenantAdmin(admin.ModelAdmin):
@@ -356,6 +356,39 @@ class CustomerAdmin(admin.ModelAdmin):
         }),
         ('Status', {
             'fields': ('active', 'notes')
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+
+
+@admin.register(Carrier)
+class CarrierAdmin(admin.ModelAdmin):
+    list_display = ('name', 'mc_number', 'dot_number', 'contact_name', 'phone', 'status', 'safety_rating', 'hazmat_certified', 'created_at')
+    list_filter = ('status', 'safety_rating', 'hazmat_certified', 'company')
+    search_fields = ('name', 'mc_number', 'dot_number', 'contact_name', 'email', 'city', 'state')
+    readonly_fields = ('created_at', 'updated_at')
+
+    fieldsets = (
+        ('Carrier Information', {
+            'fields': ('company', 'name', 'mc_number', 'dot_number', 'contact_name', 'email', 'phone')
+        }),
+        ('Address', {
+            'fields': ('address_line_1', 'address_line_2', 'city', 'state', 'zip_code')
+        }),
+        ('Insurance', {
+            'fields': ('insurance_provider', 'insurance_policy_number', 'insurance_expiration', 'cargo_insurance_limit', 'liability_insurance_limit')
+        }),
+        ('Capabilities', {
+            'fields': ('equipment_types', 'service_area', 'hazmat_certified')
+        }),
+        ('Payment & Rating', {
+            'fields': ('payment_terms', 'factoring_company', 'safety_rating')
+        }),
+        ('Status', {
+            'fields': ('status', 'notes')
         }),
         ('Timestamps', {
             'fields': ('created_at', 'updated_at'),
