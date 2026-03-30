@@ -41,7 +41,7 @@ const NEXT_STATUSES = {
   booked: ['dispatched', 'cancelled'],
   dispatched: ['in_transit', 'cancelled'],
   in_transit: ['delivered'],
-  delivered: ['invoiced'],
+  delivered: [],  // Invoiced status is set automatically when an invoice is created
 };
 
 function DispatchBoard() {
