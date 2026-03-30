@@ -2302,6 +2302,64 @@ def driver_upload_pod(request, trip_id):
         return Response({'error': 'Internal server error'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def download_document(request, document_source, document_id):
+    """
+    Generate a presigned S3 URL for downloading a trip or load document.
+    document_source: 'trip' or 'load'
+    """
+    try:
+        if not hasattr(request.user, 'profile'):
+            return Response({'error': 'User profile not found'}, status=status.HTTP_403_FORBIDDEN)
+
+        user_companies = request.user.profile.companies.all()
+
+        if document_source == 'trip':
+            try:
+                doc = TripDocument.objects.get(id=document_id, trip__company__in=user_companies)
+            except TripDocument.DoesNotExist:
+                return Response({'error': 'Document not found'}, status=status.HTTP_404_NOT_FOUND)
+        elif document_source == 'load':
+            try:
+                doc = LoadDocument.objects.get(id=document_id, load__company__in=user_companies)
+            except LoadDocument.DoesNotExist:
+                return Response({'error': 'Document not found'}, status=status.HTTP_404_NOT_FOUND)
+        else:
+            return Response({'error': 'Invalid document source'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not doc.file:
+            return Response({'error': 'File not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Generate presigned URL using boto3
+        try:
+            s3_client = boto3.client(
+                's3',
+                aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+                aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+                region_name=settings.AWS_S3_REGION_NAME
+            )
+
+            presigned_url = s3_client.generate_presigned_url(
+                'get_object',
+                Params={'Bucket': settings.AWS_STORAGE_BUCKET_NAME, 'Key': doc.file.name},
+                ExpiresIn=3600
+            )
+
+            return Response({
+                'download_url': presigned_url,
+                'filename': doc.file.name.split('/')[-1],
+                'expires_in': 3600
+            }, status=status.HTTP_200_OK)
+        except Exception as url_error:
+            logger.error(f"Error generating presigned URL for document {document_id}: {str(url_error)}")
+            return Response({'error': 'Could not generate download URL'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    except Exception as e:
+        logger.error(f"Error downloading document {document_source}/{document_id}: {str(e)}")
+        return Response({'error': 'Internal server error'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def sign_document(request, document_id, document_source):

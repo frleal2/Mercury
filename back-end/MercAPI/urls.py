@@ -103,6 +103,7 @@ urlpatterns = [
     # Document management endpoints
     path('api/trips/<int:trip_id>/upload-document/', views.driver_upload_pod, name='driver_upload_pod'),
     path('api/documents/<str:document_source>/<int:document_id>/sign/', views.sign_document, name='sign_document'),
+    path('api/documents/<str:document_source>/<int:document_id>/download/', views.download_document, name='download_document'),
 ]
 
 # Serve media and static files during development

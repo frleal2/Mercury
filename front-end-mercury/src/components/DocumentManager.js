@@ -305,15 +305,23 @@ export default function DocumentManager({ entityType, entityId, documentTypes, r
 
               <div className="flex items-center gap-1 flex-shrink-0">
                 {doc.file_url && (
-                  <a
-                    href={doc.file_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <button
+                    onClick={async () => {
+                      try {
+                        const res = await axios.get(
+                          `${BASE_URL}/api/documents/${entityType}/${doc.id}/download/`,
+                          { headers: { Authorization: `Bearer ${session.accessToken}` } }
+                        );
+                        window.open(res.data.download_url, '_blank');
+                      } catch (err) {
+                        console.error('Download error:', err);
+                      }
+                    }}
                     className="p-1.5 text-gray-400 hover:text-blue-600 rounded"
                     title="Download"
                   >
                     <ArrowDownTrayIcon className="h-4 w-4" />
-                  </a>
+                  </button>
                 )}
                 {!readOnly && !doc.is_signed && (
                   <button
