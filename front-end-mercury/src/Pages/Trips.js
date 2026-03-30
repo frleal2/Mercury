@@ -6,6 +6,7 @@ import AddTrip from '../components/AddTrip';
 import ViewTripDetails from '../components/ViewTripDetails';
 import CancelReassignTripModal from '../components/CancelReassignTripModal';
 import CancelTripModal from '../components/CancelTripModal';
+import ReassignDispatchModal from '../components/ReassignDispatchModal';
 import { 
   PlusIcon,
   TruckIcon,
@@ -29,6 +30,7 @@ function Trips() {
   const [searchTerm, setSearchTerm] = useState('');
   const [cancelReassignTrip, setCancelReassignTrip] = useState(null);
   const [cancelTrip, setCancelTrip] = useState(null);
+  const [reassignTrip, setReassignTrip] = useState(null);
 
   useEffect(() => {
     fetchTrips();
@@ -91,6 +93,11 @@ function Trips() {
     fetchTrips(); // Refresh the trips list
     setCancelReassignTrip(null);
     setCancelTrip(null);
+  };
+
+  const handleTripReassigned = () => {
+    fetchTrips();
+    setReassignTrip(null);
   };
 
   const getStatusColor = (status) => {
@@ -379,6 +386,17 @@ function Trips() {
                               <ArrowPathIcon className="h-5 w-5" />
                             </button>
                           )}
+
+                          {/* Reassign driver/equipment for dispatched trips with a linked load */}
+                          {(['scheduled', 'in_progress'].includes(trip.status)) && trip.load_id && canCreateTrips() && (
+                            <button
+                              onClick={() => setReassignTrip(trip)}
+                              className="text-amber-600 hover:text-amber-800 p-1 hover:bg-amber-50 rounded"
+                              title="Reassign Driver & Equipment"
+                            >
+                              <ArrowPathIcon className="h-5 w-5" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -422,6 +440,17 @@ function Trips() {
           onClose={handleCloseCancelTrip}
           trip={cancelTrip}
           onTripCancelled={handleTripCancelled}
+        />
+      )}
+
+      {/* Reassign Dispatch Modal (from Trips) */}
+      {reassignTrip && (
+        <ReassignDispatchModal
+          isOpen={!!reassignTrip}
+          onClose={() => setReassignTrip(null)}
+          load={reassignTrip.load_id ? { id: reassignTrip.load_id, company: reassignTrip.company, load_number: reassignTrip.load_number } : null}
+          trip={reassignTrip}
+          onReassigned={handleTripReassigned}
         />
       )}
     </div>

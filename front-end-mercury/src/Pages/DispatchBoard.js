@@ -4,6 +4,7 @@ import { useSession } from '../providers/SessionProvider';
 import BASE_URL from '../config';
 import ViewLoadDetails from '../components/ViewLoadDetails';
 import DispatchLoadModal from '../components/DispatchLoadModal';
+import ReassignDispatchModal from '../components/ReassignDispatchModal';
 import {
   ArrowPathIcon,
   MagnifyingGlassIcon,
@@ -54,6 +55,7 @@ function DispatchBoard() {
   const [updatingLoadId, setUpdatingLoadId] = useState(null);
   const [lastRefresh, setLastRefresh] = useState(new Date());
   const [dispatchLoad, setDispatchLoad] = useState(null);
+  const [reassignLoad, setReassignLoad] = useState(null);
 
   const fetchData = useCallback(async () => {
     try {
@@ -116,6 +118,11 @@ function DispatchBoard() {
   const handleLoadDispatched = (updatedLoad) => {
     setLoads(prev => prev.map(l => l.id === updatedLoad.id ? updatedLoad : l));
     setDispatchLoad(null);
+  };
+
+  const handleLoadReassigned = (updatedLoad) => {
+    setLoads(prev => prev.map(l => l.id === updatedLoad.id ? updatedLoad : l));
+    setReassignLoad(null);
   };
 
   const handleCloseViewLoad = () => {
@@ -356,6 +363,7 @@ function DispatchBoard() {
                       load={load}
                       onSelect={setSelectedLoadId}
                       onStatusChange={handleStatusChange}
+                      onReassign={setReassignLoad}
                       updatingLoadId={updatingLoadId}
                       formatCurrency={formatCurrency}
                       formatDate={formatDate}
@@ -385,15 +393,24 @@ function DispatchBoard() {
         load={dispatchLoad}
         onDispatched={handleLoadDispatched}
       />
+
+      {/* Reassign Dispatch Modal */}
+      <ReassignDispatchModal
+        isOpen={!!reassignLoad}
+        onClose={() => setReassignLoad(null)}
+        load={reassignLoad}
+        onReassigned={handleLoadReassigned}
+      />
     </div>
   );
 }
 
 /* Load Card Component */
-function LoadCard({ load, onSelect, onStatusChange, updatingLoadId, formatCurrency, formatDate, isOverdue, compact }) {
+function LoadCard({ load, onSelect, onStatusChange, onReassign, updatingLoadId, formatCurrency, formatDate, isOverdue, compact }) {
   const nextStatuses = NEXT_STATUSES[load.status] || [];
   const overdue = isOverdue(load);
   const isUpdating = updatingLoadId === load.id;
+  const canReassign = ['dispatched', 'in_transit'].includes(load.status) && load.trip_id;
 
   const getNextLabel = (status) => {
     switch (status) {
@@ -470,8 +487,19 @@ function LoadCard({ load, onSelect, onStatusChange, updatingLoadId, formatCurren
       </div>
 
       {/* Quick Actions */}
-      {nextStatuses.length > 0 && (
+      {(nextStatuses.length > 0 || canReassign) && (
         <div className="flex gap-1.5 border-t border-gray-100 pt-2">
+          {canReassign && onReassign && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onReassign(load);
+              }}
+              className="flex-1 text-xs font-medium py-1 px-2 rounded border transition-colors text-amber-600 hover:bg-amber-50 border-amber-200"
+            >
+              Reassign
+            </button>
+          )}
           {nextStatuses.map(ns => (
             <button
               key={ns}

@@ -3913,3 +3913,80 @@ def dispatch_load(request, load_id):
             {'error': 'Failed to dispatch load. Please try again.'},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def reassign_load(request, load_id):
+    """
+    Reassign a dispatched load's driver/truck/trailer by updating the linked Trip.
+    Allowed when load is dispatched or in_transit.
+    Expects: { driver_id, truck_id, trailer_id (optional) }
+    """
+    from django.db import transaction
+
+    try:
+        load = Load.objects.select_related('trip', 'company').get(id=load_id)
+    except Load.DoesNotExist:
+        return Response({'error': 'Load not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    # Permission check
+    user_companies = request.user.profile.companies.all()
+    if load.company not in user_companies:
+        return Response({'error': 'Load not in your company'}, status=status.HTTP_403_FORBIDDEN)
+
+    # Must have a linked trip
+    if not load.trip:
+        return Response({'error': 'This load has no linked trip to reassign.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Only allow reassignment for dispatched or in_transit loads
+    if load.status not in ('dispatched', 'in_transit'):
+        return Response(
+            {'error': f'Cannot reassign a load with status "{load.get_status_display()}". Must be Dispatched or In Transit.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    driver_id = request.data.get('driver_id')
+    truck_id = request.data.get('truck_id')
+    trailer_id = request.data.get('trailer_id')
+
+    if not driver_id:
+        return Response({'error': 'driver_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+    if not truck_id:
+        return Response({'error': 'truck_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        driver = Driver.objects.get(id=driver_id)
+    except (Driver.DoesNotExist, ValueError, TypeError):
+        return Response({'error': 'Driver not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    try:
+        truck = Truck.objects.get(id=truck_id)
+    except (Truck.DoesNotExist, ValueError, TypeError):
+        return Response({'error': 'Truck not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    trailer = None
+    if trailer_id:
+        try:
+            trailer = Trailer.objects.get(id=trailer_id)
+        except (Trailer.DoesNotExist, ValueError, TypeError):
+            return Response({'error': 'Trailer not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    try:
+        with transaction.atomic():
+            trip = load.trip
+            trip.driver = driver
+            trip.truck = truck
+            trip.trailer = trailer
+            trip.save(update_fields=['driver', 'truck', 'trailer'])
+
+        load.refresh_from_db()
+        serializer = LoadSerializer(load)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    except Exception as e:
+        logger.error(f"Error reassigning load {load_id}: {str(e)}")
+        return Response(
+            {'error': 'Failed to reassign load. Please try again.'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )

@@ -98,6 +98,7 @@ urlpatterns = [
     path('api/quote-lookup/', views.quote_lookup, name='quote_lookup'),
     # Load-Trip integration endpoints
     path('api/loads/<int:load_id>/dispatch/', views.dispatch_load, name='dispatch_load'),
+    path('api/loads/<int:load_id>/reassign/', views.reassign_load, name='reassign_load'),
 ]
 
 # Serve media and static files during development
