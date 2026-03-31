@@ -3525,10 +3525,35 @@ def dispatch_load(request, load_id):
             status=status.HTTP_400_BAD_REQUEST
         )
 
+    broker_dispatch = request.data.get('broker_dispatch', False)
     driver_id = request.data.get('driver_id')
     truck_id = request.data.get('truck_id')
     trailer_id = request.data.get('trailer_id')
 
+    # Broker dispatch: carrier is assigned, no driver/truck needed, no trip created
+    if broker_dispatch:
+        if not load.carrier:
+            return Response(
+                {'error': 'Cannot broker-dispatch a load without an assigned carrier.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        load.status = 'dispatched'
+        load.save(update_fields=['status'])
+
+        create_tracking_event(
+            load=load,
+            event_type='dispatched',
+            description=f'Dispatched to carrier: {load.carrier.name}',
+            user=request.user,
+            metadata={'carrier': load.carrier.name, 'broker_dispatch': True},
+        )
+
+        load.refresh_from_db()
+        serializer = LoadSerializer(load)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    # Carrier/self-haul dispatch: requires driver and truck, creates a trip
     if not driver_id:
         return Response({'error': 'driver_id is required'}, status=status.HTTP_400_BAD_REQUEST)
     if not truck_id:

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
-import { TruckIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { TruckIcon, XMarkIcon, BuildingOfficeIcon } from '@heroicons/react/24/outline';
 import axios from 'axios';
 import { useSession } from '../providers/SessionProvider';
 import BASE_URL from '../config';
@@ -17,9 +17,14 @@ const DispatchLoadModal = ({ isOpen, onClose, load, onDispatched }) => {
   const [fetchingData, setFetchingData] = useState(true);
   const [error, setError] = useState('');
 
+  // Broker mode: load has a carrier assigned, so driver/truck are the carrier's responsibility
+  const isBrokered = !!(load?.carrier || load?.carrier_name);
+
   useEffect(() => {
-    if (isOpen && load) {
+    if (isOpen && load && !isBrokered) {
       fetchResources();
+    } else if (isOpen && isBrokered) {
+      setFetchingData(false);
     }
   }, [isOpen, load]);
 
@@ -73,22 +78,27 @@ const DispatchLoadModal = ({ isOpen, onClose, load, onDispatched }) => {
   };
 
   const handleDispatch = async () => {
-    if (!selectedDriver) {
-      setError('Please select a driver.');
-      return;
-    }
-    if (!selectedTruck) {
-      setError('A truck is required. Select a driver with an assigned truck or choose one manually.');
-      return;
+    if (!isBrokered) {
+      if (!selectedDriver) {
+        setError('Please select a driver.');
+        return;
+      }
+      if (!selectedTruck) {
+        setError('A truck is required. Select a driver with an assigned truck or choose one manually.');
+        return;
+      }
     }
     setLoading(true);
     setError('');
     try {
-      const payload = {
-        driver_id: parseInt(selectedDriver),
-        truck_id: parseInt(selectedTruck),
-      };
-      if (selectedTrailer) payload.trailer_id = parseInt(selectedTrailer);
+      const payload = {};
+      if (!isBrokered) {
+        payload.driver_id = parseInt(selectedDriver);
+        payload.truck_id = parseInt(selectedTruck);
+        if (selectedTrailer) payload.trailer_id = parseInt(selectedTrailer);
+      } else {
+        payload.broker_dispatch = true;
+      }
 
       const res = await axios.post(`${BASE_URL}/api/loads/${load.id}/dispatch/`, payload, {
         headers: { 'Authorization': `Bearer ${session.accessToken}` }
@@ -140,7 +150,9 @@ const DispatchLoadModal = ({ isOpen, onClose, load, onDispatched }) => {
                       <TruckIcon className="h-6 w-6 text-indigo-200" />
                       <div>
                         <Dialog.Title className="text-lg font-semibold text-white">Dispatch Load</Dialog.Title>
-                        <p className="text-sm text-indigo-200">{load.load_number} — Assign driver & equipment</p>
+                        <p className="text-sm text-indigo-200">
+                          {load.load_number} — {isBrokered ? 'Brokered to carrier' : 'Assign driver & equipment'}
+                        </p>
                       </div>
                     </div>
                     <button onClick={handleClose} className="text-indigo-200 hover:text-white">
@@ -189,6 +201,29 @@ const DispatchLoadModal = ({ isOpen, onClose, load, onDispatched }) => {
                     </div>
                   </div>
 
+                  {isBrokered ? (
+                    /* Broker dispatch mode */
+                    <>
+                      <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
+                        <div className="flex items-center gap-3 mb-2">
+                          <BuildingOfficeIcon className="h-5 w-5 text-indigo-600" />
+                          <h4 className="text-sm font-semibold text-indigo-900">Brokered Load</h4>
+                        </div>
+                        <p className="text-sm text-indigo-800">
+                          Carrier: <span className="font-medium">{load.carrier_name}</span>
+                        </p>
+                        <p className="text-xs text-indigo-600 mt-2">
+                          The assigned carrier is responsible for driver and equipment. Dispatching will update the load status and notify the carrier.
+                        </p>
+                      </div>
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-800">
+                        No trip will be created for brokered loads — the carrier manages their own execution.
+                        Status syncs will need to be updated manually or via carrier check-calls.
+                      </div>
+                    </>
+                  ) : (
+                    /* Carrier/self-haul dispatch mode */
+                    <>
                   {/* Driver Selection */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -255,6 +290,8 @@ const DispatchLoadModal = ({ isOpen, onClose, load, onDispatched }) => {
                     Dispatching will create a Trip linked to this load. The trip will track inspections, DVIR compliance, and driver HOS.
                     Status syncs automatically: Trip starts → Load moves to In Transit. Trip completes → Load moves to Delivered.
                   </div>
+                    </>
+                  )}
 
                   {error && (
                     <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">

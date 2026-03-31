@@ -6,6 +6,7 @@ import { useSession } from '../providers/SessionProvider';
 import BASE_URL from '../config';
 import DocumentManager from './DocumentManager';
 import LoadTracking from './LoadTracking';
+import DispatchLoadModal from './DispatchLoadModal';
 
 const ViewLoadDetails = ({ loadId, isOpen, onClose }) => {
   const { session, refreshAccessToken } = useSession();
@@ -16,6 +17,7 @@ const ViewLoadDetails = ({ loadId, isOpen, onClose }) => {
   const [saving, setSaving] = useState(false);
   const [carriers, setCarriers] = useState([]);
   const [activeTab, setActiveTab] = useState('details');
+  const [isDispatchModalOpen, setIsDispatchModalOpen] = useState(false);
 
   useEffect(() => {
     if (loadId) fetchLoad();
@@ -57,6 +59,11 @@ const ViewLoadDetails = ({ loadId, isOpen, onClose }) => {
   };
 
   const handleStatusChange = async (newStatus) => {
+    // Intercept dispatch: open DispatchLoadModal instead of direct status change
+    if (newStatus === 'dispatched') {
+      setIsDispatchModalOpen(true);
+      return;
+    }
     try {
       setSaving(true);
       await axios.patch(`${BASE_URL}/api/loads/${loadId}/`, { status: newStatus }, {
@@ -69,6 +76,12 @@ const ViewLoadDetails = ({ loadId, isOpen, onClose }) => {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleLoadDispatched = (updatedLoad) => {
+    setLoad(updatedLoad);
+    setIsDispatchModalOpen(false);
+    fetchLoad();
   };
 
   const handleSave = async () => {
@@ -551,6 +564,16 @@ const ViewLoadDetails = ({ loadId, isOpen, onClose }) => {
           </div>
         </div>
       </Dialog>
+
+      {/* Dispatch Modal */}
+      {load && (
+        <DispatchLoadModal
+          isOpen={isDispatchModalOpen}
+          onClose={() => setIsDispatchModalOpen(false)}
+          load={load}
+          onDispatched={handleLoadDispatched}
+        />
+      )}
     </Transition>
   );
 };
