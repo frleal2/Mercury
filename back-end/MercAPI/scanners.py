@@ -345,14 +345,6 @@ def _check_and_notify(tenant, company, category, field_label, item_label,
                 recipient_phone=pref.whatsapp_phone,
             )
 
-        # ── SMS ──
-        if pref and pref.sms_enabled and pref.sms_phone:
-            count += _create_if_new(
-                tenant, profile.user, category, 'sms', subject, message,
-                related_type, related_id, today, metadata,
-                recipient_phone=pref.sms_phone,
-            )
-
     return count
 
 

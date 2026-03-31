@@ -1,6 +1,6 @@
 """
-Notification services for sending WhatsApp, SMS, and email notifications.
-Uses Twilio for WhatsApp/SMS and Django's email backend for email.
+Notification services for sending WhatsApp and email notifications.
+Uses Twilio for WhatsApp and Django's email backend for email.
 """
 import logging
 from django.conf import settings
@@ -71,50 +71,9 @@ def send_whatsapp(to_number, message, template_sid=None, template_variables=None
         }
 
 
-def send_sms(to_number, message):
-    """
-    Send an SMS message via Twilio.
-
-    Args:
-        to_number: Recipient phone with country code (e.g., '+1234567890')
-        message: Message body (max 1600 chars, will be split into segments)
-
-    Returns:
-        dict with 'success', 'message_sid', and 'error' keys
-    """
-    client = _get_twilio_client()
-    if not client:
-        return {'success': False, 'message_sid': None, 'error': 'Twilio not configured'}
-
-    if not settings.TWILIO_PHONE_NUMBER:
-        return {'success': False, 'message_sid': None, 'error': 'SMS sender number not configured'}
-
-    try:
-        twilio_message = client.messages.create(
-            from_=settings.TWILIO_PHONE_NUMBER,
-            to=to_number,
-            body=message,
-        )
-
-        logger.info(f"SMS sent to {to_number}: SID={twilio_message.sid}")
-        return {
-            'success': True,
-            'message_sid': twilio_message.sid,
-            'error': None,
-        }
-
-    except Exception as e:
-        logger.error(f"SMS send failed to {to_number}: {e}")
-        return {
-            'success': False,
-            'message_sid': None,
-            'error': str(e),
-        }
-
-
 def send_notification(notification_id):
     """
-    Send a Notification record via its configured channel (email, WhatsApp, or SMS).
+    Send a Notification record via its configured channel (email or WhatsApp).
     Updates the Notification record with delivery status.
 
     Args:
@@ -142,12 +101,6 @@ def send_notification(notification_id):
             to_number=notification.recipient_phone,
             message=notification.message,
             template_sid=template_sid,
-        )
-
-    elif notification.channel == 'sms':
-        result = send_sms(
-            to_number=notification.recipient_phone,
-            message=notification.message,
         )
 
     elif notification.channel == 'email':

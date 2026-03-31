@@ -279,14 +279,6 @@ def _notify_company_users(tenant, company, category, subject, message,
                 recipient_phone=pref.whatsapp_phone,
             )
 
-        # SMS
-        if pref and pref.sms_enabled and pref.sms_phone:
-            _create_notification(
-                tenant, profile.user, category, 'sms', subject, message,
-                related_type, related_id, today, metadata,
-                recipient_phone=pref.sms_phone,
-            )
-
 
 def _create_notification(tenant, user, category, channel, subject, message,
                          related_type, related_id, today, metadata,

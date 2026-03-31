@@ -2234,11 +2234,11 @@ class LoadTrackingEvent(models.Model):
 
 class LoadNotification(models.Model):
     """
-    Track notifications sent for load milestones (email/SMS to customers).
+    Track notifications sent for load milestones (email/WhatsApp to customers).
     """
     NOTIFICATION_TYPE_CHOICES = [
         ('email', 'Email'),
-        ('sms', 'SMS'),
+        ('whatsapp', 'WhatsApp'),
     ]
     NOTIFICATION_STATUS_CHOICES = [
         ('pending', 'Pending'),
@@ -2272,7 +2272,7 @@ class LoadNotification(models.Model):
 class NotificationTemplate(models.Model):
     """
     Reusable templates for each notification type.
-    Supports email (subject + body), WhatsApp (template ID), and SMS.
+    Supports email (subject + body) and WhatsApp (template ID).
     """
     CATEGORY_CHOICES = [
         ('compliance', 'Safety & Compliance'),
@@ -2285,7 +2285,6 @@ class NotificationTemplate(models.Model):
     CHANNEL_CHOICES = [
         ('email', 'Email'),
         ('whatsapp', 'WhatsApp'),
-        ('sms', 'SMS'),
     ]
 
     name = models.CharField(max_length=100, unique=True, help_text="Internal template name (e.g., 'license_expiring_30d')")
@@ -2334,15 +2333,10 @@ class NotificationPreference(models.Model):
     )
     email_enabled = models.BooleanField(default=True)
     whatsapp_enabled = models.BooleanField(default=False)
-    sms_enabled = models.BooleanField(default=False)
     frequency = models.CharField(max_length=20, choices=FREQUENCY_CHOICES, default='immediate')
     whatsapp_phone = models.CharField(
         max_length=20, blank=True,
         help_text="WhatsApp number with country code (e.g., +1234567890)"
-    )
-    sms_phone = models.CharField(
-        max_length=20, blank=True,
-        help_text="SMS number with country code"
     )
     quiet_hours_start = models.TimeField(
         null=True, blank=True,
@@ -2369,8 +2363,6 @@ class NotificationPreference(models.Model):
             channels.append('Email')
         if self.whatsapp_enabled:
             channels.append('WhatsApp')
-        if self.sms_enabled:
-            channels.append('SMS')
         return f"{self.user.username} — {self.get_category_display()} via {', '.join(channels) or 'None'}"
 
 
@@ -2382,7 +2374,6 @@ class Notification(models.Model):
     CHANNEL_CHOICES = [
         ('email', 'Email'),
         ('whatsapp', 'WhatsApp'),
-        ('sms', 'SMS'),
     ]
     STATUS_CHOICES = [
         ('pending', 'Pending'),
