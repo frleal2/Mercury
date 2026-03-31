@@ -45,11 +45,11 @@ const LandingPage = () => {
                         <img src={FleetlyLogo} alt="Fleetly Logo" className="h-48 md:h-64 w-auto" />
                     </div>
                     <h1 className="text-4xl md:text-6xl font-bold text-gray-900 mb-6">
-                        Streamline Your <span className="text-blue-600">Fleet Operations</span>
+                        Fleet Management & TMS <span className="text-blue-600">All-in-One</span>
                     </h1>
                     <p className="text-lg md:text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
-                        Manage drivers, vehicles, maintenance, and compliance all in one powerful platform. 
-                        Keep your fleet running smoothly with real-time insights and automated workflows.
+                        From driver management and DOT compliance to load dispatching, invoicing, and real-time 
+                        shipment tracking — run your entire trucking operation from a single platform.
                     </p>
                     <div className="flex flex-col sm:flex-row gap-4 justify-center">
                         <button 
@@ -68,12 +68,15 @@ const LandingPage = () => {
                 </div>
             </section>
 
-            {/* Features Section */}
+            {/* Fleet Management Features */}
             <section className="px-4 py-16 bg-white">
                 <div className="max-w-6xl mx-auto">
-                    <h2 className="text-3xl md:text-4xl font-bold text-center text-gray-900 mb-12">
-                        Everything You Need to Manage Your Fleet
-                    </h2>
+                    <div className="text-center mb-12">
+                        <span className="inline-block px-4 py-1 bg-blue-100 text-blue-700 text-sm font-semibold rounded-full mb-4">FLEET MANAGEMENT</span>
+                        <h2 className="text-3xl md:text-4xl font-bold text-gray-900">
+                            Keep Your Fleet Safe & Compliant
+                        </h2>
+                    </div>
                     <div className="grid md:grid-cols-3 gap-8">
                         <div className="text-center p-6 rounded-lg bg-blue-50 hover:shadow-lg transition-shadow">
                             <div className="text-4xl mb-4">👥</div>
@@ -100,27 +103,92 @@ const LandingPage = () => {
                             </p>
                         </div>
                         <div className="text-center p-6 rounded-lg bg-orange-50 hover:shadow-lg transition-shadow">
-                            <div className="text-4xl mb-4">📊</div>
-                            <h3 className="text-xl font-semibold text-gray-900 mb-3">Compliance Reports</h3>
+                            <div className="text-4xl mb-4">🛣️</div>
+                            <h3 className="text-xl font-semibold text-gray-900 mb-3">Trip Management</h3>
                             <p className="text-gray-600">
-                                Generate DOT compliance reports, track safety metrics, and maintain 
-                                audit-ready documentation with ease.
+                                Plan and track trips with pre-trip and post-trip inspections, 
+                                document uploads, and full status lifecycle management.
                             </p>
                         </div>
                         <div className="text-center p-6 rounded-lg bg-red-50 hover:shadow-lg transition-shadow">
-                            <div className="text-4xl mb-4">🎯</div>
-                            <h3 className="text-xl font-semibold text-gray-900 mb-3">Recruitment Tools</h3>
+                            <div className="text-4xl mb-4">🛡️</div>
+                            <h3 className="text-xl font-semibold text-gray-900 mb-3">Safety & Compliance</h3>
                             <p className="text-gray-600">
-                                Streamline driver recruitment with digital applications, document 
-                                management, and automated screening processes.
+                                CFR 396 annual inspections, vehicle operation status tracking, 
+                                qualified inspector management, and audit-ready reports.
                             </p>
                         </div>
                         <div className="text-center p-6 rounded-lg bg-teal-50 hover:shadow-lg transition-shadow">
-                            <div className="text-4xl mb-4">☁️</div>
-                            <h3 className="text-xl font-semibold text-gray-900 mb-3">Cloud-Based</h3>
+                            <div className="text-4xl mb-4">🎯</div>
+                            <h3 className="text-xl font-semibold text-gray-900 mb-3">Recruitment Tools</h3>
                             <p className="text-gray-600">
-                                Access your fleet data anywhere, anytime. Secure cloud storage with 
-                                real-time synchronization across all devices.
+                                Streamline driver recruitment with Quick Apply links, digital applications, 
+                                and automated screening processes.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            {/* TMS Features */}
+            <section className="px-4 py-16 bg-gradient-to-br from-gray-50 to-blue-50">
+                <div className="max-w-6xl mx-auto">
+                    <div className="text-center mb-12">
+                        <span className="inline-block px-4 py-1 bg-indigo-100 text-indigo-700 text-sm font-semibold rounded-full mb-4">TRANSPORTATION MANAGEMENT</span>
+                        <h2 className="text-3xl md:text-4xl font-bold text-gray-900">
+                            A Complete TMS Built for Your Business
+                        </h2>
+                        <p className="text-lg text-gray-600 mt-4 max-w-2xl mx-auto">
+                            Manage loads from quote to payment — dispatch, track, and invoice with full visibility across your operation.
+                        </p>
+                    </div>
+                    <div className="grid md:grid-cols-3 gap-8">
+                        <div className="text-center p-6 rounded-lg bg-white border border-gray-100 hover:shadow-lg transition-shadow">
+                            <div className="text-4xl mb-4">📦</div>
+                            <h3 className="text-xl font-semibold text-gray-900 mb-3">Load Management</h3>
+                            <p className="text-gray-600">
+                                Full load lifecycle from quote to delivery. Multi-stop support, 
+                                equipment types, temperature requirements, and rate calculations.
+                            </p>
+                        </div>
+                        <div className="text-center p-6 rounded-lg bg-white border border-gray-100 hover:shadow-lg transition-shadow">
+                            <div className="text-4xl mb-4">📋</div>
+                            <h3 className="text-xl font-semibold text-gray-900 mb-3">Dispatch Board</h3>
+                            <p className="text-gray-600">
+                                Visual dispatch board to assign drivers and carriers to loads. 
+                                Drag-and-drop scheduling with real-time status tracking.
+                            </p>
+                        </div>
+                        <div className="text-center p-6 rounded-lg bg-white border border-gray-100 hover:shadow-lg transition-shadow">
+                            <div className="text-4xl mb-4">🤝</div>
+                            <h3 className="text-xl font-semibold text-gray-900 mb-3">Customers & Carriers</h3>
+                            <p className="text-gray-600">
+                                Manage shippers with payment terms and credit limits. Track carrier 
+                                MC#, DOT#, insurance, and performance scorecards.
+                            </p>
+                        </div>
+                        <div className="text-center p-6 rounded-lg bg-white border border-gray-100 hover:shadow-lg transition-shadow">
+                            <div className="text-4xl mb-4">💰</div>
+                            <h3 className="text-xl font-semibold text-gray-900 mb-3">Billing & Invoicing</h3>
+                            <p className="text-gray-600">
+                                Auto-generate invoices from delivered loads with line items, fuel 
+                                surcharges, accessorials, and integrated payment tracking.
+                            </p>
+                        </div>
+                        <div className="text-center p-6 rounded-lg bg-white border border-gray-100 hover:shadow-lg transition-shadow">
+                            <div className="text-4xl mb-4">📄</div>
+                            <h3 className="text-xl font-semibold text-gray-900 mb-3">Document Management</h3>
+                            <p className="text-gray-600">
+                                Upload and manage BOLs, proof of delivery, rate confirmations, 
+                                and lumper receipts — all securely stored in the cloud.
+                            </p>
+                        </div>
+                        <div className="text-center p-6 rounded-lg bg-white border border-gray-100 hover:shadow-lg transition-shadow">
+                            <div className="text-4xl mb-4">📍</div>
+                            <h3 className="text-xl font-semibold text-gray-900 mb-3">Shipment Tracking</h3>
+                            <p className="text-gray-600">
+                                Real-time check calls, milestone email notifications, and a public 
+                                tracking portal so your customers always know where their freight is.
                             </p>
                         </div>
                     </div>
@@ -154,11 +222,11 @@ const LandingPage = () => {
             <section className="px-4 py-20 bg-blue-600 text-white text-center">
                 <div className="max-w-4xl mx-auto">
                     <h2 className="text-3xl md:text-4xl font-bold mb-6">
-                        Ready to Transform Your Fleet Management?
+                        Ready to Run Your Fleet & Freight Smarter?
                     </h2>
                     <p className="text-lg md:text-xl mb-8 opacity-90">
-                        Join hundreds of fleet managers who have streamlined their operations with Fleetly.
-                        Start your free trial today – no credit card required.
+                        From compliance and maintenance to dispatching and invoicing — Fleetly gives you 
+                        everything in one platform. Start your free trial today, no credit card required.
                     </p>
                     <div className="flex justify-center">
                         <button 
@@ -181,7 +249,7 @@ const LandingPage = () => {
                         Streamlining fleet operations with powerful, easy-to-use management tools.
                     </p>
                     <div className="flex flex-col sm:flex-row justify-center items-center gap-4 text-sm">
-                        <span>© 2025 Fleetly. All rights reserved.</span>
+                        <span>© 2026 Fleetly. All rights reserved.</span>
                         <div className="flex gap-4">
                             <a href="mailto:felipe.leal@myfleetly.com" className="hover:text-white transition-colors">
                                 Contact
