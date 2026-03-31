@@ -14,6 +14,14 @@ from .tasks import (
     send_load_notification_email_task,
     send_tracking_link_email_task,
 )
+from .alerts import (
+    notify_load_dispatched,
+    notify_load_status_change,
+    notify_load_reassigned,
+    notify_vehicle_status_change,
+    notify_trip_started,
+    notify_trip_completed,
+)
 from .serializers import UserSerializer, DriverSerializer, TruckSerializer, CompanySerializer, TrailerSerializer, DriverTestSerializer, DriverHOSSerializer, DriverApplicationSerializer, MaintenanceCategorySerializer, MaintenanceTypeSerializer, MaintenanceRecordSerializer, MaintenanceAttachmentSerializer, DriverDocumentSerializer, InspectionSerializer, InspectionItemSerializer, TripsSerializer, TripDocumentSerializer, LoadDocumentSerializer, AnnualInspectionSerializer, VehicleOperationStatusSerializer, CustomerSerializer, CarrierSerializer, LoadSerializer, InvoiceSerializer, InvoicePaymentSerializer, RateLaneSerializer, AccessorialChargeSerializer, FuelSurchargeScheduleSerializer, CheckCallSerializer, LoadTrackingEventSerializer, CustomerTrackingSerializer, LoadNotificationSerializer
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.viewsets import ModelViewSet
@@ -2100,6 +2108,9 @@ def start_trip(request, trip_id):
         if hasattr(trip, 'load') and trip.load and trip.load.status == 'dispatched':
             trip.load.status = 'in_transit'
             trip.load.save(update_fields=['status'])
+            notify_load_status_change(trip.load, 'dispatched', 'in_transit', changed_by=request.user)
+
+        notify_trip_started(trip, started_by=request.user)
         
         return Response({
             'message': 'Trip started successfully',
@@ -2178,6 +2189,9 @@ def complete_trip(request, trip_id):
         if hasattr(trip, 'load') and trip.load and trip.load.status == 'in_transit':
             trip.load.status = 'delivered'
             trip.load.save(update_fields=['status'])
+            notify_load_status_change(trip.load, 'in_transit', 'delivered', changed_by=request.user)
+
+        notify_trip_completed(trip, completed_by=request.user)
         
         return Response({
             'message': 'Trip completed successfully',
@@ -3094,6 +3108,17 @@ class VehicleOperationStatusViewSet(UserOrAboveMixin, CompanyFilterMixin, ModelV
             Q(truck__company__in=user_companies) | Q(trailer__company__in=user_companies)
         ).order_by('-status_set_at')
 
+    def perform_update(self, serializer):
+        old_status = serializer.instance.current_status
+        instance = serializer.save()
+        if old_status != instance.current_status:
+            notify_vehicle_status_change(instance, old_status=old_status)
+
+    def perform_create(self, serializer):
+        instance = serializer.save()
+        if instance.current_status in ('prohibited', 'out_of_service'):
+            notify_vehicle_status_change(instance, old_status=None)
+
 
 # ==================== TMS - CUSTOMER & LOAD MANAGEMENT ====================
 
@@ -3250,6 +3275,7 @@ class LoadViewSet(UserOrAboveMixin, CompanyFilterMixin, ModelViewSet):
                     description=f'Status changed to {instance.get_status_display()}',
                     user=self.request.user,
                 )
+            notify_load_status_change(instance, old_status, instance.status, changed_by=self.request.user)
 
 
 class InvoiceViewSet(UserOrAboveMixin, CompanyFilterMixin, ModelViewSet):
@@ -3547,6 +3573,8 @@ def dispatch_load(request, load_id):
             metadata={'carrier': load.carrier.name, 'broker_dispatch': True},
         )
 
+        notify_load_dispatched(load, carrier=load.carrier, dispatched_by=request.user)
+
         load.refresh_from_db()
         serializer = LoadSerializer(load)
         return Response(serializer.data, status=status.HTTP_200_OK)
@@ -3618,6 +3646,8 @@ def dispatch_load(request, load_id):
             user=request.user,
             metadata={'driver': driver.get_full_name(), 'truck': truck.unit_number, 'trip_number': trip_number},
         )
+
+        notify_load_dispatched(load, driver=driver, dispatched_by=request.user)
 
         # Refresh from DB to ensure clean serialization
         load.refresh_from_db()
@@ -3692,10 +3722,13 @@ def reassign_load(request, load_id):
     try:
         with transaction.atomic():
             trip = load.trip
+            old_driver = trip.driver
             trip.driver = driver
             trip.truck = truck
             trip.trailer = trailer
             trip.save(update_fields=['driver', 'truck', 'trailer'])
+
+        notify_load_reassigned(load, old_driver=old_driver, new_driver=driver, reassigned_by=request.user)
 
         load.refresh_from_db()
         serializer = LoadSerializer(load)

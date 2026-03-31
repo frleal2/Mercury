@@ -112,10 +112,16 @@ User preference management (opt-in channels, frequency, quiet hours)
 - [x] Multi-channel: email (default) + WhatsApp + SMS based on NotificationPreference
 
 #### Step 9.5 — Operational alert triggers
-- [ ] Load status milestone notifications (picked up, in transit, delivered) — refactor existing `LoadNotification` to use new system
-- [ ] HOS warning alerts
-- [ ] Dispatch assignment notifications
-- [ ] Vehicle status changes (prohibited/out-of-service)
+- [x] Load dispatched notifications (broker + self-haul) — wired into `dispatch_load()`
+- [x] Load status change notifications (booked, in_transit, delivered, invoiced, paid, cancelled) — wired into `LoadViewSet.perform_update`, `start_trip`, `complete_trip`
+- [x] Load reassignment notifications — wired into `reassign_load()`
+- [x] Dispatch assignment notifications — included in dispatch/reassign alerts
+- [x] Vehicle status change alerts (prohibited/out-of-service/recovery) — wired into `VehicleOperationStatusViewSet` + `update_vehicle_status()`
+- [x] Trip started / completed notifications — wired into `start_trip()` / `complete_trip()`
+- [x] Multi-channel support via NotificationPreference (email/WhatsApp/SMS)
+- [x] Excludes the acting user from notifications (no self-notify)
+- [x] De-duplication: same subject + channel + day per user
+- [ ] HOS warning alerts (deferred — DriverHOS is CRUD-only, no duty-time calculation yet)
 
 #### Step 9.6 — User preference UI (React)
 - [ ] Notification Settings page in frontend
