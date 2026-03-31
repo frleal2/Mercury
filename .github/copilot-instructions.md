@@ -2,12 +2,14 @@
 
 ## Architecture Overview
 
-Fleetly is a multi-tenant fleet management SaaS with Django REST Framework backend and React frontend.
+Fleetly is a multi-tenant fleet management and TMS (Transportation Management System) SaaS with Django REST Framework backend and React frontend.
 
 ### Project Structure
 - **Backend**: `back-end/MercAPI/` - Django project with single app architecture (legacy naming)
 - **Frontend**: `front-end-mercury/` - Create React App with Tailwind CSS and Headless UI (legacy naming)
-- **Database**: SQLite for development, PostgreSQL for production via `dj_database_url`
+- **Database**: PostgreSQL for production via `dj_database_url`, SQLite for local dev
+- **File Storage**: AWS S3 via `django-storages` + `boto3` (conditioned on `USE_S3` env var)
+- **Deployment**: Render (backend + frontend), auto-deploys on push to `origin/main`
 
 *Note: Repository and folder names use "Mercury" (legacy), but the actual application brand is "Fleetly"*
 
@@ -40,8 +42,8 @@ Fleetly is a multi-tenant fleet management SaaS with Django REST Framework backe
   - **Dropzone**: `react-dropzone` v14.3+ for file uploads in inspections and documents
   - **Charts**: `chart.js` + `react-chartjs-2` for data visualization
 - **Component Structure**: 
-  - `Pages/` for route components (Drivers, Companies, Trips, Maintenance, etc.)
-  - `components/` for reusable UI (Add/Edit modals, Header navigation, Inspections)
+  - `Pages/` for route components (Drivers, Companies, Trips, Loads, Customers, Carriers, Invoices, DispatchBoard, Maintenance, etc.)
+  - `components/` for reusable UI (Add/Edit modals, Header navigation, Inspections, DocumentManager, LoadTracking, ViewLoadDetails)
 
 ### Data Models Hierarchy (Multi-Tenant)
 - **Tenant** (1:many) **Company** (1:many) **Driver** (1:many) **DriverTest**
@@ -51,6 +53,19 @@ Fleetly is a multi-tenant fleet management SaaS with Django REST Framework backe
 - **DriverApplication** (tenant-aware recruitment with `company` FK)
 - **MaintenanceRecord** (polymorphic: trucks OR trailers with extensive categorization)
 - **UserProfile** (links User to Tenant + Companies with role permissions)
+
+### TMS Data Models
+- **Customer** (1:many) **Load** — external shippers, payment terms, credit limits
+- **Load** — full lifecycle: quoted → booked → dispatched → in_transit → delivered → invoiced → paid
+- **Load** (1:many) **LoadDocument** — BOL, POD, rate confirmations, lumper receipts
+- **Load** (1:many) **LoadTrackingEvent** — 17 event types for shipment timeline
+- **Load** (1:many) **CheckCall** — location/ETA updates from drivers/carriers
+- **Load** (1:many) **LoadNotification** — email notification tracking
+- **Load** has `tracking_token` (UUID) for public customer tracking portal
+- **Carrier** — MC#, DOT#, insurance tracking, carrier agreements
+- **Invoice** (1:many) **InvoicePayment** — linked to Load, line items, payment tracking
+- **RateLane** — lane-based contracted rates per customer
+- **AccessorialCharge** + **FuelSurchargeSchedule** — additional charge management
 
 ## Development Workflows
 
@@ -80,6 +95,7 @@ npm start  # Runs on localhost:3000
 - Backend uses `build.sh` script for Render deployment with `CREATE_SUPERUSER` env var
 - Frontend uses `static.json` for SPA routing with `_redirects` for client-side routing
 - Environment variables for API URLs managed via `config.js` (`REACT_APP_ENV`, `REACT_APP_LOCAL_API_URL`, `REACT_APP_RENDER_API_URL`)
+- S3 document downloads use presigned URLs via a backend `download_document` endpoint (direct S3 URLs fail because bucket is private with `AWS_QUERYSTRING_AUTH = True`)
 
 ## Component Patterns
 
@@ -115,22 +131,24 @@ class CompanyFilterMixin:
 ### File Upload Patterns
 - **Dropzone Integration**: Use `react-dropzone` for drag-drop file uploads (see `PostTripInspection.js`, `PreTripInspection.js`)
 - **File Storage**: Backend uses Django's `FileField` with organized upload paths (`annual_inspections/%Y/%m/`, etc.)
+- **S3 Downloads**: Private bucket requires presigned URLs — use the `download_document` endpoint, never direct S3 URLs
 - **Document Types**: Support for PDFs, images, and documents with MIME type validation
-- **Related Models**: `TripDocument`, `DriverDocument`, `MaintenanceAttachment` for file associations
+- **Related Models**: `TripDocument`, `DriverDocument`, `LoadDocument`, `MaintenanceAttachment` for file associations
 
 ### Navigation Structure
 Header component uses Headless UI with dropdown menus. Main sections:
-- Safety Compliance (Companies, Drivers, Trucks, Trailers)
-- Operations (Trips with pre/post-trip inspections)
-- Maintenance (Equipment service records)
-- Recruitment (separate module with QuickApply)
+- **Safety Compliance** (dropdown): Vehicle Status, Annual Inspections, Companies, Drivers, Trucks, Trailers
+- **Operations**: Trips, Loads, Dispatch
+- **TMS**: Customers, Carriers, Invoices, Rates
+- **Maintenance**: Equipment service records
+- **Recruitment**: Separate module with QuickApply
 
 ## Special Considerations
 
 ### Authentication
-- Public route: `/QuickApply` (recruitment form accessible without login)
+- Public routes: `/QuickApply` (recruitment), `/tracking` and `/tracking/:token` (customer shipment tracking)
 - JWT tokens with refresh mechanism in `SessionProvider`
-- All API endpoints require authentication except registration/login
+- All API endpoints require authentication except registration/login and customer tracking portal
 
 ### User Onboarding
 - Invitation-based registration via `/accept-invitation/:token`
@@ -157,6 +175,20 @@ Header component uses Headless UI with dropdown menus. Main sections:
 - **Qualified Inspectors (CFR 396.19)**: Inspector certification management for DOT compliance
 - **Auto-Assignment Logic**: Driver selection auto-assigns associated truck and trailer
 - **Enhanced Trailers**: Added `unit_number` (unique) and `trailer_type` fields
+
+### TMS Features (2025-2026)
+
+#### Phase 1 — Core TMS (Complete)
+- **Load/Order Management**: Full load lifecycle (quoted → booked → dispatched → in_transit → delivered → invoiced → paid), multi-stop support, equipment types, temperature requirements
+- **Customer/Shipper Management**: External customer entities with billing, payment terms (Net 30/60/90), credit limits, contacts
+- **Rate Management & Quoting**: Lane-based rate sheets, spot quoting, margin/markup calculations, fuel surcharge schedules, accessorial charges
+- **Carrier Management**: MC#, DOT#, insurance tracking (auto/cargo/general liability with expirations), W-9, carrier agreements, carrier scorecards
+- **Billing & Invoicing**: Auto-generated invoices from loads, line items (linehaul, fuel surcharge, detention, accessorials), payment tracking, aging
+- **Dispatch Board**: Visual board with drag-and-drop driver/carrier assignment to loads, status-based columns
+
+#### Phase 2 — Operational Efficiency (In Progress)
+- **Document Management (BOL/POD)**: TMS-specific document types (Rate Confirmation, Bill of Lading, Proof of Delivery, Carrier Packet, Lumper Receipt), e-signatures, driver POD uploads, S3 presigned URL downloads
+- **Tracking & Visibility**: Check calls (location/ETA updates), customer tracking portal (public, UUID-based), automated milestone email notifications (picked up, in transit, delivered), tracking event timeline (17 event types)
 
 ### CFR Compliance Architecture
 - **Regulatory Focus**: Models and workflows built around specific CFR requirements with help text referencing regulations
