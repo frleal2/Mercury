@@ -92,10 +92,10 @@ User preference management (opt-in channels, frequency, quiet hours)
 - [x] Migrations + admin registration
 
 #### Step 9.3 — Twilio WhatsApp + SMS integration
-- [ ] Install `twilio` SDK, add credentials to env vars
-- [ ] Create `notifications/services.py` with `send_whatsapp()` and `send_sms()` helpers
+- [x] Install `twilio` SDK, add credentials to env vars
+- [x] Create `services.py` with `send_whatsapp()`, `send_sms()`, and `send_notification()` helpers
 - [ ] Register WhatsApp message templates with Twilio (compliance alerts, load updates, etc.)
-- [ ] Celery tasks for WhatsApp/SMS delivery with retry logic
+- [x] Celery tasks for WhatsApp/SMS delivery with retry logic
 
 #### Step 9.4 — Compliance scanner (periodic Celery beat tasks)
 - [ ] Daily scan: driver license expirations (30/14/7 day warnings)
