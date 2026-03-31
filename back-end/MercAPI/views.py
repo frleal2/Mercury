@@ -3,12 +3,17 @@ import boto3
 from django.utils.text import slugify
 from botocore.exceptions import NoCredentialsError
 from django.conf import settings
-from django.core.mail import send_mail
 from django.template.loader import render_to_string
 from django.utils.html import strip_tags
 from datetime import datetime, timedelta
 from django.utils import timezone
 from urllib.parse import urlencode
+from .tasks import (
+    send_invitation_email_task,
+    send_password_reset_email_task,
+    send_load_notification_email_task,
+    send_tracking_link_email_task,
+)
 from .serializers import UserSerializer, DriverSerializer, TruckSerializer, CompanySerializer, TrailerSerializer, DriverTestSerializer, DriverHOSSerializer, DriverApplicationSerializer, MaintenanceCategorySerializer, MaintenanceTypeSerializer, MaintenanceRecordSerializer, MaintenanceAttachmentSerializer, DriverDocumentSerializer, InspectionSerializer, InspectionItemSerializer, TripsSerializer, TripDocumentSerializer, LoadDocumentSerializer, AnnualInspectionSerializer, VehicleOperationStatusSerializer, CustomerSerializer, CarrierSerializer, LoadSerializer, InvoiceSerializer, InvoicePaymentSerializer, RateLaneSerializer, AccessorialChargeSerializer, FuelSurchargeScheduleSerializer, CheckCallSerializer, LoadTrackingEventSerializer, CustomerTrackingSerializer, LoadNotificationSerializer
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.viewsets import ModelViewSet
@@ -549,14 +554,11 @@ def invite_user(request):
             html_message = render_to_string('emails/user_invitation.html', email_context)
             plain_message = render_to_string('emails/user_invitation.txt', email_context)
             
-            # Send email
-            send_mail(
-                subject=f'You\'re invited to {request.user.profile.tenant.name} - Fleetly Fleet Management',
-                message=plain_message,
-                html_message=html_message,
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[data['email']],
-                fail_silently=False,
+            # Send email asynchronously via Celery
+            send_invitation_email_task.delay(
+                data['email'],
+                request.user.profile.tenant.name,
+                email_context,
             )
             
         except Exception as email_error:
@@ -2910,9 +2912,6 @@ def forgot_password(request):
         
         # Send email (you'll need to configure email settings)
         try:
-            from django.core.mail import send_mail
-            from django.conf import settings
-            
             subject = 'Password Reset Request - Fleetly'
             message = f"""
 Hello {user.first_name or user.username},
@@ -2929,12 +2928,11 @@ Best regards,
 The Fleetly Team
             """
             
-            send_mail(
+            # Send email asynchronously via Celery
+            send_password_reset_email_task.delay(
+                user.email,
                 subject,
                 message,
-                settings.DEFAULT_FROM_EMAIL,
-                [user.email],
-                fail_silently=False,
             )
             
             logger.info(f"Password reset email sent to {user.email}")
@@ -3763,16 +3761,13 @@ def _send_milestone_notification(load, event):
             message=message,
         )
 
-        send_mail(
-            subject=subject,
-            message=message,
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[load.customer.email],
-            fail_silently=True,
+        # Send email asynchronously via Celery
+        send_load_notification_email_task.delay(
+            notification.id,
+            subject,
+            message,
+            load.customer.email,
         )
-        notification.status = 'sent'
-        notification.sent_at = timezone.now()
-        notification.save(update_fields=['status', 'sent_at'])
 
     except Exception as e:
         logger.error(f"Failed to send milestone notification for load {load.load_number}: {str(e)}")
@@ -3917,12 +3912,11 @@ def send_tracking_link(request, load_id):
             f"Thank you for your business.\n"
         )
 
-        send_mail(
-            subject=subject,
-            message=message,
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[load.customer.email],
-            fail_silently=False,
+        # Send tracking link email asynchronously via Celery
+        send_tracking_link_email_task.delay(
+            subject,
+            message,
+            load.customer.email,
         )
 
         create_tracking_event(

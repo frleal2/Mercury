@@ -55,6 +55,7 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt.token_blacklist',  # Add blacklist for token rotation
     'corsheaders',  # Add corsheaders to installed apps
     'storages',  # Add django-storages for S3
+    'django_celery_beat',  # Periodic task scheduling
 ]
 
 MIDDLEWARE = [
@@ -301,3 +302,12 @@ SERVER_EMAIL = DEFAULT_FROM_EMAIL
 EMAIL_DEBUG = os.getenv('EMAIL_DEBUG', 'False').lower() == 'true'
 if EMAIL_DEBUG:
     EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+
+# Celery Configuration
+CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', 'redis://localhost:6379/0')
+CELERY_RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND', 'redis://localhost:6379/0')
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'UTC'
+CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'

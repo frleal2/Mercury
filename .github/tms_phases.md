@@ -14,15 +14,15 @@
 
 ## Phase 2 — Operational Efficiency (IN PROGRESS)
 - [x] 7. Document Management (BOL/POD) — commits c314165, da5cd01 (S3 presigned URL fix)
-- [ ] 8. Tracking & Visibility
-- [ ] 9. Accounting Integration
+- [x] 8. Tracking & Visibility
+- [ ] 9. Proactive Notifications & Reminders (WhatsApp + Email)
 - [ ] 10. Reporting & Analytics
 
 ## Phase 3 — Competitive Differentiators
 - [ ] 11. Load Board Integration
 - [ ] 12. IFTA & Fuel Tax Reporting
 - [ ] 13. Claims Management
-- [ ] 14. Automated Notifications & Communication
+- [ ] 14. Accounting Integration
 - [ ] 15. Accessorial & Detention Tracking
 
 Phase 1 — Core TMS (Build First)
@@ -64,10 +64,64 @@ Check Calls: scheduled status update requests to driver/carrier (location, ETA)
 Automated tracking integration (ELD/GPS providers like Samsara, KeepTruckin/Motive)
 Customer Portal: read-only load tracking for shippers (your customers)
 Automated email/SMS notifications at milestones (picked up, in transit, delivered)
-9. Accounting Integration
-QuickBooks Online API integration (sync invoices, payments, carrier bills)
-Revenue and expense tracking per load
-Factoring company integration (for carriers who factor their receivables)
+9. Proactive Notifications & Reminders (WhatsApp + Email)
+WhatsApp Business API integration (Twilio or Meta Cloud API)
+Email reminder service for scheduled notifications
+Safety & compliance alerts: license/certification expirations, annual inspection due dates, insurance renewals
+Operational alerts: load status milestones, HOS warnings, maintenance due dates
+User preference management (opt-in channels, frequency, quiet hours)
+
+### Step 9 Build Plan — Proactive Notifications & Reminders
+
+**Current state**: Email is synchronous via Gmail SMTP (invitations, password resets, load tracking links, milestone notifications). No background task system. `LoadNotification` model exists for load-specific email/SMS tracking.
+
+**New packages**: `celery`, `django-celery-beat`, `redis`, `twilio`
+
+#### Step 9.1 — Celery + Redis (async task foundation)
+- [x] Install `celery`, `django-celery-beat`, `redis`
+- [x] Configure Celery app in `MercAPI/__init__.py` and `celery.py`
+- [x] Add Redis connection (local + Render add-on)
+- [x] Convert existing synchronous `send_mail()` calls to Celery tasks
+- [x] Configure `django-celery-beat` for periodic task scheduling
+- [ ] Verify Celery worker runs on Render deployment
+
+#### Step 9.2 — Notification models
+- [ ] `NotificationTemplate` — reusable templates per alert type (email subject/body, WhatsApp template ID)
+- [ ] `NotificationPreference` — per-user channel preferences (email, WhatsApp, quiet hours, frequency)
+- [ ] `Notification` — unified log for all sent notifications (replaces/extends `LoadNotification`)
+- [ ] Migrations + admin registration
+
+#### Step 9.3 — Twilio WhatsApp + SMS integration
+- [ ] Install `twilio` SDK, add credentials to env vars
+- [ ] Create `notifications/services.py` with `send_whatsapp()` and `send_sms()` helpers
+- [ ] Register WhatsApp message templates with Twilio (compliance alerts, load updates, etc.)
+- [ ] Celery tasks for WhatsApp/SMS delivery with retry logic
+
+#### Step 9.4 — Compliance scanner (periodic Celery beat tasks)
+- [ ] Daily scan: driver license expirations (30/14/7 day warnings)
+- [ ] Daily scan: annual inspection due dates
+- [ ] Daily scan: medical card / certification expirations
+- [ ] Daily scan: carrier insurance expirations (auto, cargo, general liability)
+- [ ] Daily scan: maintenance due dates (overdue + upcoming)
+- [ ] Weekly digest: summary of all upcoming compliance items
+
+#### Step 9.5 — Operational alert triggers
+- [ ] Load status milestone notifications (picked up, in transit, delivered) — refactor existing `LoadNotification` to use new system
+- [ ] HOS warning alerts
+- [ ] Dispatch assignment notifications
+- [ ] Vehicle status changes (prohibited/out-of-service)
+
+#### Step 9.6 — User preference UI (React)
+- [ ] Notification Settings page in frontend
+- [ ] Channel selection (email, WhatsApp, SMS) per notification category
+- [ ] Frequency controls (immediate, daily digest, weekly digest)
+- [ ] Quiet hours configuration
+- [ ] WhatsApp opt-in flow (user sends initial message to Twilio number)
+
+#### Step 9.7 — Notification templates
+- [ ] HTML email templates for each alert type (matching existing invitation template style)
+- [ ] WhatsApp-approved message templates submitted to Twilio
+- [ ] Plain text fallbacks for all templates
 10. Reporting & Analytics
 Profit per load, profit per mile
 Lane analysis (most/least profitable lanes)
@@ -88,10 +142,10 @@ Fuel purchase tracking, IFTA quarterly report generation
 Claim model: linked to Load, type (cargo damage, shortage, loss), amount, status, carrier liability
 Document uploads (photos, inspection reports)
 Resolution tracking
-14. Automated Notifications & Communication
-In-app notification system
-Email/SMS for: load tenders, appointment reminders, document requests, payment confirmations, compliance expirations
-You already have email for invitations/password reset — extend the infrastructure
+14. Accounting Integration
+QuickBooks Online API integration (sync invoices, payments, carrier bills)
+Revenue and expense tracking per load
+Factoring company integration (for carriers who factor their receivables)
 15. Accessorial & Detention Tracking
 Detention time tracking (driver waiting at shipper/consignee)
 Accessorial charges: liftgate, inside delivery, residential, hazmat, layover
