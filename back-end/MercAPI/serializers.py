@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Inspection, InspectionItem, Trips, UserProfile, TripDocument, LoadDocument, AnnualInspection, VehicleOperationStatus, Customer, Carrier, Load, Invoice, InvoicePayment, RateLane, AccessorialCharge, FuelSurchargeSchedule, CheckCall, LoadTrackingEvent, LoadNotification
+from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Inspection, InspectionItem, Trips, UserProfile, TripDocument, LoadDocument, AnnualInspection, VehicleOperationStatus, Customer, Carrier, Load, Invoice, InvoicePayment, RateLane, AccessorialCharge, FuelSurchargeSchedule, CheckCall, LoadTrackingEvent, LoadNotification, NotificationTemplate, NotificationPreference, Notification
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -843,3 +843,41 @@ class LoadNotificationSerializer(serializers.ModelSerializer):
         model = LoadNotification
         fields = '__all__'
         read_only_fields = ['created_at', 'sent_at']
+
+
+class NotificationTemplateSerializer(serializers.ModelSerializer):
+    category_display = serializers.CharField(source='get_category_display', read_only=True)
+    channel_display = serializers.CharField(source='get_channel_display', read_only=True)
+
+    class Meta:
+        model = NotificationTemplate
+        fields = '__all__'
+        read_only_fields = ['created_at', 'updated_at']
+
+
+class NotificationPreferenceSerializer(serializers.ModelSerializer):
+    category_display = serializers.CharField(source='get_category_display', read_only=True)
+    frequency_display = serializers.CharField(source='get_frequency_display', read_only=True)
+    username = serializers.CharField(source='user.username', read_only=True)
+
+    class Meta:
+        model = NotificationPreference
+        fields = '__all__'
+        read_only_fields = ['user', 'created_at', 'updated_at']
+
+
+class NotificationSerializer(serializers.ModelSerializer):
+    category_display = serializers.CharField(source='get_category_display', read_only=True)
+    channel_display = serializers.CharField(source='get_channel_display', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    recipient_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Notification
+        fields = '__all__'
+        read_only_fields = ['tenant', 'created_at', 'sent_at', 'delivered_at']
+
+    def get_recipient_name(self, obj):
+        if obj.recipient:
+            return obj.recipient.get_full_name() or obj.recipient.username
+        return obj.recipient_email or obj.recipient_phone or 'Unknown'

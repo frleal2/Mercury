@@ -501,3 +501,25 @@ from .models import CheckCall, LoadTrackingEvent, LoadNotification
 admin.site.register(CheckCall)
 admin.site.register(LoadTrackingEvent)
 admin.site.register(LoadNotification)
+
+# Notification System
+from .models import NotificationTemplate, NotificationPreference, Notification
+
+@admin.register(NotificationTemplate)
+class NotificationTemplateAdmin(admin.ModelAdmin):
+    list_display = ['name', 'category', 'channel', 'is_active', 'updated_at']
+    list_filter = ['category', 'channel', 'is_active']
+    search_fields = ['name', 'subject']
+
+@admin.register(NotificationPreference)
+class NotificationPreferenceAdmin(admin.ModelAdmin):
+    list_display = ['user', 'category', 'email_enabled', 'whatsapp_enabled', 'sms_enabled', 'frequency']
+    list_filter = ['category', 'frequency', 'email_enabled', 'whatsapp_enabled']
+    search_fields = ['user__username', 'user__email']
+
+@admin.register(Notification)
+class NotificationAdmin(admin.ModelAdmin):
+    list_display = ['recipient', 'category', 'channel', 'status', 'sent_at', 'created_at']
+    list_filter = ['category', 'channel', 'status', 'tenant']
+    search_fields = ['recipient__username', 'recipient_email', 'subject']
+    readonly_fields = ['created_at', 'sent_at', 'delivered_at']

@@ -2267,6 +2267,189 @@ class LoadNotification(models.Model):
         return f"{self.load.load_number} — {self.get_notification_type_display()} to {self.recipient_email or self.recipient_phone}"
 
 
+# ==================== NOTIFICATION SYSTEM (Phase 2 Step 9.2) ====================
+
+class NotificationTemplate(models.Model):
+    """
+    Reusable templates for each notification type.
+    Supports email (subject + body), WhatsApp (template ID), and SMS.
+    """
+    CATEGORY_CHOICES = [
+        ('compliance', 'Safety & Compliance'),
+        ('operations', 'Operations'),
+        ('insurance', 'Insurance'),
+        ('maintenance', 'Maintenance'),
+        ('load', 'Load Updates'),
+        ('system', 'System'),
+    ]
+    CHANNEL_CHOICES = [
+        ('email', 'Email'),
+        ('whatsapp', 'WhatsApp'),
+        ('sms', 'SMS'),
+    ]
+
+    name = models.CharField(max_length=100, unique=True, help_text="Internal template name (e.g., 'license_expiring_30d')")
+    category = models.CharField(max_length=20, choices=CATEGORY_CHOICES)
+    channel = models.CharField(max_length=10, choices=CHANNEL_CHOICES)
+    subject = models.CharField(max_length=255, blank=True, help_text="Email subject line (supports {variable} placeholders)")
+    body = models.TextField(help_text="Message body (supports {variable} placeholders)")
+    html_template = models.CharField(
+        max_length=255, blank=True,
+        help_text="Path to Django HTML template for email (e.g., 'emails/license_expiring.html')"
+    )
+    whatsapp_template_id = models.CharField(
+        max_length=100, blank=True,
+        help_text="Twilio-approved WhatsApp template SID"
+    )
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['category', 'name']
+        verbose_name = 'Notification Template'
+        verbose_name_plural = 'Notification Templates'
+
+    def __str__(self):
+        return f"{self.name} ({self.get_channel_display()})"
+
+
+class NotificationPreference(models.Model):
+    """
+    Per-user channel preferences for each notification category.
+    Controls how and when a user receives notifications.
+    """
+    FREQUENCY_CHOICES = [
+        ('immediate', 'Immediate'),
+        ('daily_digest', 'Daily Digest'),
+        ('weekly_digest', 'Weekly Digest'),
+    ]
+
+    user = models.ForeignKey(
+        'auth.User', on_delete=models.CASCADE, related_name='notification_preferences'
+    )
+    category = models.CharField(
+        max_length=20, choices=NotificationTemplate.CATEGORY_CHOICES,
+        help_text="Notification category this preference applies to"
+    )
+    email_enabled = models.BooleanField(default=True)
+    whatsapp_enabled = models.BooleanField(default=False)
+    sms_enabled = models.BooleanField(default=False)
+    frequency = models.CharField(max_length=20, choices=FREQUENCY_CHOICES, default='immediate')
+    whatsapp_phone = models.CharField(
+        max_length=20, blank=True,
+        help_text="WhatsApp number with country code (e.g., +1234567890)"
+    )
+    sms_phone = models.CharField(
+        max_length=20, blank=True,
+        help_text="SMS number with country code"
+    )
+    quiet_hours_start = models.TimeField(
+        null=True, blank=True,
+        help_text="Don't send notifications after this time (user's local time)"
+    )
+    quiet_hours_end = models.TimeField(
+        null=True, blank=True,
+        help_text="Resume notifications after this time (user's local time)"
+    )
+    timezone = models.CharField(max_length=50, default='UTC', help_text="User's timezone for quiet hours")
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ['user', 'category']
+        ordering = ['user', 'category']
+        verbose_name = 'Notification Preference'
+        verbose_name_plural = 'Notification Preferences'
+
+    def __str__(self):
+        channels = []
+        if self.email_enabled:
+            channels.append('Email')
+        if self.whatsapp_enabled:
+            channels.append('WhatsApp')
+        if self.sms_enabled:
+            channels.append('SMS')
+        return f"{self.user.username} — {self.get_category_display()} via {', '.join(channels) or 'None'}"
+
+
+class Notification(models.Model):
+    """
+    Unified log of all sent notifications across all channels and types.
+    Replaces/extends LoadNotification for non-load notifications.
+    """
+    CHANNEL_CHOICES = [
+        ('email', 'Email'),
+        ('whatsapp', 'WhatsApp'),
+        ('sms', 'SMS'),
+    ]
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('sent', 'Sent'),
+        ('delivered', 'Delivered'),
+        ('failed', 'Failed'),
+    ]
+
+    tenant = models.ForeignKey(
+        Tenant, on_delete=models.CASCADE, related_name='notifications',
+        help_text="Tenant this notification belongs to"
+    )
+    recipient = models.ForeignKey(
+        'auth.User', on_delete=models.CASCADE, related_name='notifications',
+        null=True, blank=True,
+        help_text="User who received this notification (null for external recipients)"
+    )
+    template = models.ForeignKey(
+        NotificationTemplate, on_delete=models.SET_NULL, null=True, blank=True,
+        help_text="Template used to generate this notification"
+    )
+    category = models.CharField(max_length=20, choices=NotificationTemplate.CATEGORY_CHOICES)
+    channel = models.CharField(max_length=10, choices=CHANNEL_CHOICES)
+    subject = models.CharField(max_length=255, blank=True)
+    message = models.TextField(blank=True)
+    recipient_email = models.EmailField(blank=True)
+    recipient_phone = models.CharField(max_length=20, blank=True)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')
+    sent_at = models.DateTimeField(null=True, blank=True)
+    delivered_at = models.DateTimeField(null=True, blank=True)
+    error_message = models.TextField(blank=True)
+    # External reference IDs for tracking delivery
+    external_id = models.CharField(
+        max_length=100, blank=True,
+        help_text="Twilio Message SID or other external tracking ID"
+    )
+    # Context: what triggered this notification
+    related_object_type = models.CharField(
+        max_length=50, blank=True,
+        help_text="Model name of related object (e.g., 'Driver', 'Load', 'Truck')"
+    )
+    related_object_id = models.PositiveIntegerField(
+        null=True, blank=True,
+        help_text="ID of the related object that triggered this notification"
+    )
+    metadata = models.JSONField(
+        default=dict, blank=True,
+        help_text="Additional context data (e.g., days until expiry, inspection details)"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['tenant', '-created_at']),
+            models.Index(fields=['recipient', '-created_at']),
+            models.Index(fields=['status']),
+            models.Index(fields=['related_object_type', 'related_object_id']),
+        ]
+        verbose_name = 'Notification'
+        verbose_name_plural = 'Notifications'
+
+    def __str__(self):
+        target = self.recipient_email or self.recipient_phone or (self.recipient.username if self.recipient else 'Unknown')
+        return f"{self.get_category_display()} — {self.get_channel_display()} to {target} ({self.status})"
+
+
 class FuelSurchargeSchedule(models.Model):
     """
     Fuel surcharge schedule based on DOE fuel price index.

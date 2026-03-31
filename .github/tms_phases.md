@@ -83,13 +83,13 @@ User preference management (opt-in channels, frequency, quiet hours)
 - [x] Add Redis connection (local + Render add-on)
 - [x] Convert existing synchronous `send_mail()` calls to Celery tasks
 - [x] Configure `django-celery-beat` for periodic task scheduling
-- [ ] Verify Celery worker runs on Render deployment
+- [x] Verify Celery worker runs on Render deployment
 
 #### Step 9.2 — Notification models
-- [ ] `NotificationTemplate` — reusable templates per alert type (email subject/body, WhatsApp template ID)
-- [ ] `NotificationPreference` — per-user channel preferences (email, WhatsApp, quiet hours, frequency)
-- [ ] `Notification` — unified log for all sent notifications (replaces/extends `LoadNotification`)
-- [ ] Migrations + admin registration
+- [x] `NotificationTemplate` — reusable templates per alert type (email subject/body, WhatsApp template ID)
+- [x] `NotificationPreference` — per-user channel preferences (email, WhatsApp, quiet hours, frequency)
+- [x] `Notification` — unified log for all sent notifications (replaces/extends `LoadNotification`)
+- [x] Migrations + admin registration
 
 #### Step 9.3 — Twilio WhatsApp + SMS integration
 - [ ] Install `twilio` SDK, add credentials to env vars
