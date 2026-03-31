@@ -167,3 +167,44 @@ def send_sms_task(self, to_number, message):
     except Exception as exc:
         logger.error(f"SMS task failed to {to_number}: {exc}")
         raise self.retry(exc=exc)
+
+
+# ==================== COMPLIANCE SCANNER TASKS ====================
+
+@shared_task(bind=True, max_retries=1, default_retry_delay=300)
+def run_compliance_scan(self):
+    """
+    Daily compliance scanner — finds expiring documents, certifications,
+    and insurance across all tenants and creates Notification records.
+    Scheduled via django-celery-beat.
+    """
+    from MercAPI.scanners import scan_all_compliance
+    try:
+        results = scan_all_compliance()
+        logger.info("Compliance scan results: %s", results)
+        return results
+    except Exception as exc:
+        logger.error("Compliance scan failed: %s", exc)
+        raise self.retry(exc=exc)
+
+
+@shared_task(bind=True, max_retries=2, default_retry_delay=120)
+def dispatch_pending_notifications(self):
+    """
+    Pick up all pending Notification records and send them via the
+    appropriate channel (email / WhatsApp / SMS).
+    Runs every 5 minutes via django-celery-beat.
+    """
+    from MercAPI.models import Notification
+    pending = Notification.objects.filter(status='pending').order_by('created_at')[:200]
+    sent = 0
+    failed = 0
+    for notification in pending:
+        try:
+            send_notification_task.delay(notification.id)
+            sent += 1
+        except Exception as exc:
+            logger.error("Failed to queue notification %d: %s", notification.id, exc)
+            failed += 1
+    logger.info("Dispatched %d notifications (%d queue failures)", sent, failed)
+    return {'dispatched': sent, 'failed': failed}

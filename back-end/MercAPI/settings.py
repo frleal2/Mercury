@@ -311,6 +311,16 @@ CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = 'UTC'
 CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
+CELERY_BEAT_SCHEDULE = {
+    'compliance-scan-daily': {
+        'task': 'MercAPI.tasks.run_compliance_scan',
+        'schedule': 86400.0,  # every 24 hours (seconds)
+    },
+    'dispatch-pending-notifications': {
+        'task': 'MercAPI.tasks.dispatch_pending_notifications',
+        'schedule': 300.0,  # every 5 minutes
+    },
+}
 
 # Twilio Configuration for WhatsApp and SMS
 TWILIO_ACCOUNT_SID = os.getenv('TWILIO_ACCOUNT_SID', '')

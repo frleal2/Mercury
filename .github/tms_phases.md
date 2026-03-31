@@ -98,12 +98,18 @@ User preference management (opt-in channels, frequency, quiet hours)
 - [x] Celery tasks for WhatsApp/SMS delivery with retry logic
 
 #### Step 9.4 — Compliance scanner (periodic Celery beat tasks)
-- [ ] Daily scan: driver license expirations (30/14/7 day warnings)
-- [ ] Daily scan: annual inspection due dates
-- [ ] Daily scan: medical card / certification expirations
-- [ ] Daily scan: carrier insurance expirations (auto, cargo, general liability)
-- [ ] Daily scan: maintenance due dates (overdue + upcoming)
-- [ ] Weekly digest: summary of all upcoming compliance items
+- [x] Daily scan: driver license expirations (30/14/7/1/0 day warnings)
+- [x] Daily scan: annual inspection due dates
+- [x] Daily scan: medical card / certification expirations (DOT physical, MVR)
+- [x] Daily scan: carrier insurance expirations
+- [x] Daily scan: truck registration, insurance, license plate expirations
+- [x] Daily scan: maintenance due dates (scheduled + in-progress)
+- [x] Daily scan: drug/alcohol test scheduling (next_scheduled_test_date)
+- [x] Notification dispatch task (every 5 min, picks up pending → send_notification)
+- [x] Celery Beat schedule registered (compliance-scan-daily + dispatch-pending-notifications)
+- [x] Management command: `python manage.py run_compliance_scan`
+- [x] Duplicate-prevention per user/channel/item/day
+- [x] Multi-channel: email (default) + WhatsApp + SMS based on NotificationPreference
 
 #### Step 9.5 — Operational alert triggers
 - [ ] Load status milestone notifications (picked up, in transit, delivered) — refactor existing `LoadNotification` to use new system
