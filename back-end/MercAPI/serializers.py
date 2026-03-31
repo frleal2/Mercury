@@ -660,6 +660,7 @@ class LoadSerializer(serializers.ModelSerializer):
     trip_id = serializers.IntegerField(source='trip.id', read_only=True, default=None)
     trip_status = serializers.CharField(source='trip.get_status_display', read_only=True, default=None)
     trip_driver_name = serializers.SerializerMethodField()
+    trip_driver_id = serializers.IntegerField(source='trip.driver.id', read_only=True, default=None)
     trip_truck_unit_number = serializers.CharField(source='trip.truck.unit_number', read_only=True, default=None)
     created_by_name = serializers.CharField(source='created_by.get_full_name', read_only=True)
     tracking_url = serializers.SerializerMethodField()

@@ -16,6 +16,7 @@ const DispatchLoadModal = ({ isOpen, onClose, load, onDispatched }) => {
   const [loading, setLoading] = useState(false);
   const [fetchingData, setFetchingData] = useState(true);
   const [error, setError] = useState('');
+  const [driverActiveLoads, setDriverActiveLoads] = useState({});
 
   // Broker mode: load has a carrier assigned, so driver/truck are the carrier's responsibility
   const isBrokered = !!(load?.carrier || load?.carrier_name);
@@ -31,22 +32,30 @@ const DispatchLoadModal = ({ isOpen, onClose, load, onDispatched }) => {
   const fetchResources = async () => {
     setFetchingData(true);
     try {
-      const [driversRes, trucksRes, trailersRes] = await Promise.all([
-        axios.get(`${BASE_URL}/api/drivers/`, {
-          headers: { 'Authorization': `Bearer ${session.accessToken}` }
-        }),
-        axios.get(`${BASE_URL}/api/trucks/`, {
-          headers: { 'Authorization': `Bearer ${session.accessToken}` }
-        }),
-        axios.get(`${BASE_URL}/api/trailers/`, {
-          headers: { 'Authorization': `Bearer ${session.accessToken}` }
-        }),
+      const headers = { 'Authorization': `Bearer ${session.accessToken}` };
+      const [driversRes, trucksRes, trailersRes, dispatchedRes, inTransitRes] = await Promise.all([
+        axios.get(`${BASE_URL}/api/drivers/`, { headers }),
+        axios.get(`${BASE_URL}/api/trucks/`, { headers }),
+        axios.get(`${BASE_URL}/api/trailers/`, { headers }),
+        axios.get(`${BASE_URL}/api/loads/?status=dispatched`, { headers }),
+        axios.get(`${BASE_URL}/api/loads/?status=in_transit`, { headers }),
       ]);
       // Filter by load's company
       const companyId = load.company;
       setDrivers(driversRes.data.filter(d => d.company === companyId || d.company?.id === companyId));
       setTrucks(trucksRes.data.filter(t => t.company === companyId || t.company?.id === companyId));
       setTrailers(trailersRes.data.filter(t => t.company === companyId || t.company?.id === companyId));
+
+      // Build driver → active load count map
+      const activeLoads = [...dispatchedRes.data, ...inTransitRes.data];
+      const loadsByDriver = {};
+      activeLoads.forEach(l => {
+        if (l.trip_driver_id) {
+          if (!loadsByDriver[l.trip_driver_id]) loadsByDriver[l.trip_driver_id] = [];
+          loadsByDriver[l.trip_driver_id].push(l.load_number);
+        }
+      });
+      setDriverActiveLoads(loadsByDriver);
     } catch (err) {
       console.error('Error fetching resources:', err);
       if (err.response?.status === 401) await refreshAccessToken();
@@ -238,10 +247,23 @@ const DispatchLoadModal = ({ isOpen, onClose, load, onDispatched }) => {
                       <option value="">Select a driver...</option>
                       {drivers.map(d => (
                         <option key={d.id} value={d.id}>
-                          {d.first_name} {d.last_name}
+                          {d.first_name} {d.last_name}{driverActiveLoads[d.id] ? ` ⚠ (${driverActiveLoads[d.id].length} active)` : ''}
                         </option>
                       ))}
                     </select>
+                    {selectedDriver && driverActiveLoads[parseInt(selectedDriver)] && (
+                      <div className="mt-2 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                        <p className="text-sm font-medium text-amber-800">
+                          ⚠ This driver has {driverActiveLoads[parseInt(selectedDriver)].length} active load{driverActiveLoads[parseInt(selectedDriver)].length > 1 ? 's' : ''}:
+                        </p>
+                        <ul className="mt-1 text-xs text-amber-700 list-disc list-inside">
+                          {driverActiveLoads[parseInt(selectedDriver)].map(ln => (
+                            <li key={ln}>{ln}</li>
+                          ))}
+                        </ul>
+                        <p className="mt-1 text-xs text-amber-600">You can still dispatch, but verify the driver's availability.</p>
+                      </div>
+                    )}
                   </div>
 
                   {/* Truck */}
