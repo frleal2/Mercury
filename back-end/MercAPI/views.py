@@ -15,6 +15,7 @@ from .tasks import (
     send_tracking_link_email_task,
 )
 from .alerts import (
+    _tracking_url,
     notify_load_dispatched,
     notify_load_status_change,
     notify_load_reassigned,
@@ -3782,7 +3783,7 @@ def _send_milestone_notification(load, event):
     """Send email notification to customer for a load milestone."""
     try:
         subject = f"Load {load.load_number} — {event.get_event_type_display()}"
-        tracking_info = f"Track your shipment: use tracking token {load.tracking_token}"
+        tracking_link = _tracking_url(load)
 
         message = (
             f"Load Update: {load.load_number}\n\n"
@@ -3791,7 +3792,7 @@ def _send_milestone_notification(load, event):
             f"{'ETA: ' + load.current_eta.strftime('%m/%d/%Y %I:%M %p') if load.current_eta else ''}\n\n"
             f"Route: {load.pickup_location_display} → {load.delivery_location_display}\n"
             f"Reference: {load.customer_reference or load.bol_number or 'N/A'}\n\n"
-            f"{tracking_info}\n"
+            f"Track your shipment: {tracking_link}\n"
         )
 
         notification = LoadNotification.objects.create(
@@ -3943,14 +3944,14 @@ def send_tracking_link(request, load_id):
             return Response({'error': 'Customer has no email address'}, status=status.HTTP_400_BAD_REQUEST)
 
         subject = f"Track Your Shipment — Load {load.load_number}"
+        tracking_link = _tracking_url(load)
         message = (
             f"Hello {load.customer.contact_name or load.customer.name},\n\n"
             f"You can track your shipment using the link below:\n\n"
             f"Load: {load.load_number}\n"
             f"Reference: {load.customer_reference or 'N/A'}\n"
             f"Route: {load.pickup_location_display} → {load.delivery_location_display}\n\n"
-            f"Tracking Token: {load.tracking_token}\n\n"
-            f"Use this token on our tracking portal to view real-time updates.\n\n"
+            f"Track your shipment: {tracking_link}\n\n"
             f"Thank you for your business.\n"
         )
 
