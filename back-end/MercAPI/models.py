@@ -2402,6 +2402,7 @@ class Notification(models.Model):
     recipient_email = models.EmailField(blank=True)
     recipient_phone = models.CharField(max_length=20, blank=True)
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')
+    is_read = models.BooleanField(default=False, help_text="Whether the recipient has read this notification in the app")
     sent_at = models.DateTimeField(null=True, blank=True)
     delivered_at = models.DateTimeField(null=True, blank=True)
     error_message = models.TextField(blank=True)
@@ -2430,6 +2431,7 @@ class Notification(models.Model):
         indexes = [
             models.Index(fields=['tenant', '-created_at']),
             models.Index(fields=['recipient', '-created_at']),
+            models.Index(fields=['recipient', 'is_read']),
             models.Index(fields=['status']),
             models.Index(fields=['related_object_type', 'related_object_id']),
         ]

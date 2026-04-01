@@ -13,6 +13,8 @@ import logging
 
 from django.utils import timezone
 
+from django.conf import settings
+
 from .models import (
     Notification, NotificationPreference, UserProfile,
     Tenant, Company,
@@ -120,8 +122,212 @@ def notify_load_reassigned(load, old_driver, new_driver, reassigned_by=None):
                 'new_driver': new_name,
             },
         )
+
+        # Notify the displaced driver directly
+        if old_driver:
+            notify_driver_load_reassigned_away(load, old_driver)
     except Exception:
         logger.exception("notify_load_reassigned failed for load %s", load.id)
+
+
+# ── Driver-facing alerts ────────────────────────────────────────────────
+
+def notify_driver_load_assigned(load, driver):
+    """
+    Notify a driver that a load has been assigned to them.
+    Called from dispatch_load() after the trip is created.
+    """
+    try:
+        if not driver or not driver.user_account:
+            return
+
+        tenant = load.company.tenant
+        today = timezone.now().date()
+
+        subject = f"Load {load.load_number} assigned to you"
+        message = (
+            f"You have been assigned Load {load.load_number}.\n\n"
+            f"Route: {load.pickup_location_display} → {load.delivery_location_display}\n"
+            f"Pickup: {load.pickup_date.strftime('%m/%d/%Y') if load.pickup_date else 'TBD'}\n"
+            f"Delivery: {load.delivery_date.strftime('%m/%d/%Y') if load.delivery_date else 'TBD'}\n"
+        )
+        if load.special_instructions:
+            message += f"\nSpecial instructions: {load.special_instructions}\n"
+
+        _create_notification(
+            tenant, driver.user_account, 'operations', 'email', subject, message,
+            'Load', load.id, today, {'load_number': load.load_number, 'event': 'assigned'},
+            recipient_email=driver.user_account.email,
+        )
+
+        # WhatsApp if driver has a preference with a phone number
+        pref = NotificationPreference.objects.filter(
+            user=driver.user_account, category='operations', whatsapp_enabled=True,
+        ).only('whatsapp_phone').first()
+        if pref and pref.whatsapp_phone:
+            _create_notification(
+                tenant, driver.user_account, 'operations', 'whatsapp', subject, message,
+                'Load', load.id, today, {'load_number': load.load_number, 'event': 'assigned'},
+                recipient_phone=pref.whatsapp_phone,
+            )
+    except Exception:
+        logger.exception("notify_driver_load_assigned failed for load %s", load.id)
+
+
+def notify_driver_load_reassigned_away(load, old_driver):
+    """
+    Notify the driver that a load has been reassigned away from them.
+    Called from notify_load_reassigned().
+    """
+    try:
+        if not old_driver or not old_driver.user_account:
+            return
+
+        tenant = load.company.tenant
+        today = timezone.now().date()
+
+        subject = f"Load {load.load_number} has been reassigned"
+        message = (
+            f"Load {load.load_number} ({load.pickup_location_display} → "
+            f"{load.delivery_location_display}) has been reassigned to another driver."
+        )
+
+        _create_notification(
+            tenant, old_driver.user_account, 'operations', 'email', subject, message,
+            'Load', load.id, today, {'load_number': load.load_number, 'event': 'reassigned_away'},
+            recipient_email=old_driver.user_account.email,
+        )
+
+        pref = NotificationPreference.objects.filter(
+            user=old_driver.user_account, category='operations', whatsapp_enabled=True,
+        ).only('whatsapp_phone').first()
+        if pref and pref.whatsapp_phone:
+            _create_notification(
+                tenant, old_driver.user_account, 'operations', 'whatsapp', subject, message,
+                'Load', load.id, today, {'load_number': load.load_number, 'event': 'reassigned_away'},
+                recipient_phone=pref.whatsapp_phone,
+            )
+    except Exception:
+        logger.exception("notify_driver_load_reassigned_away failed for load %s", load.id)
+
+
+# ── Customer-facing alerts ───────────────────────────────────────────────
+
+def _tracking_url(load):
+    """Return the public customer tracking URL for a load."""
+    base = getattr(settings, 'FRONTEND_URL', 'https://myfleetly.com')
+    return f"{base}/TrackShipment?token={load.tracking_token}"
+
+
+def notify_customer_load_dispatched(load):
+    """
+    Email the customer when their load is dispatched.
+    Called from dispatch_load() after the existing company alert.
+    """
+    try:
+        if not load.customer or not load.customer.email:
+            return
+
+        tenant = load.company.tenant
+        today = timezone.now().date()
+
+        driver_name = None
+        if hasattr(load, 'trip') and load.trip and load.trip.driver:
+            d = load.trip.driver
+            driver_name = f"{d.first_name} {d.last_name}"
+
+        subject = f"Your shipment {load.load_number} is on its way"
+        message = (
+            f"Great news! Your shipment {load.load_number} has been dispatched.\n\n"
+            f"Route: {load.pickup_location_display} → {load.delivery_location_display}\n"
+            f"Estimated pickup: {load.pickup_date.strftime('%m/%d/%Y') if load.pickup_date else 'TBD'}\n"
+            f"Estimated delivery: {load.delivery_date.strftime('%m/%d/%Y') if load.delivery_date else 'TBD'}\n"
+        )
+        if driver_name:
+            message += f"Driver: {driver_name}\n"
+        message += f"\nTrack your shipment: {_tracking_url(load)}\n"
+
+        _create_notification(
+            tenant, None, 'load', 'email', subject, message,
+            'Load', load.id, today,
+            {'load_number': load.load_number, 'event': 'customer_dispatched'},
+            recipient_email=load.customer.email,
+        )
+    except Exception:
+        logger.exception("notify_customer_load_dispatched failed for load %s", load.id)
+
+
+def notify_customer_trip_started(trip):
+    """
+    Email the customer when their shipment is picked up and in transit.
+    Called from start_trip() after the existing company alert.
+    """
+    try:
+        if not hasattr(trip, 'load') or not trip.load:
+            return
+        load = trip.load
+        if not load.customer or not load.customer.email:
+            return
+
+        tenant = trip.company.tenant
+        today = timezone.now().date()
+        driver_name = f"{trip.driver.first_name} {trip.driver.last_name}" if trip.driver else "your driver"
+
+        subject = f"Your shipment {load.load_number} is now in transit"
+        message = (
+            f"Your shipment {load.load_number} has been picked up and is now in transit.\n\n"
+            f"Driver: {driver_name}\n"
+            f"Origin: {trip.start_location}\n"
+            f"Destination: {trip.end_location}\n"
+            f"Departed: {timezone.now().strftime('%m/%d/%Y %I:%M %p')}\n"
+        )
+        if load.delivery_date:
+            message += f"Estimated delivery: {load.delivery_date.strftime('%m/%d/%Y')}\n"
+        message += f"\nTrack your shipment: {_tracking_url(load)}\n"
+
+        _create_notification(
+            tenant, None, 'load', 'email', subject, message,
+            'Load', load.id, today,
+            {'load_number': load.load_number, 'event': 'customer_in_transit'},
+            recipient_email=load.customer.email,
+        )
+    except Exception:
+        logger.exception("notify_customer_trip_started failed for trip %s", trip.id)
+
+
+def notify_customer_trip_completed(trip):
+    """
+    Email the customer when their shipment has been delivered.
+    Called from complete_trip() after the existing company alert.
+    """
+    try:
+        if not hasattr(trip, 'load') or not trip.load:
+            return
+        load = trip.load
+        if not load.customer or not load.customer.email:
+            return
+
+        tenant = trip.company.tenant
+        today = timezone.now().date()
+
+        subject = f"Your shipment {load.load_number} has been delivered"
+        message = (
+            f"Your shipment {load.load_number} has been successfully delivered.\n\n"
+            f"Delivered: {timezone.now().strftime('%m/%d/%Y %I:%M %p')}\n"
+            f"Destination: {trip.end_location}\n"
+        )
+        if trip.miles_driven:
+            message += f"Total miles: {trip.miles_driven}\n"
+        message += f"\nView your proof of delivery: {_tracking_url(load)}\n"
+
+        _create_notification(
+            tenant, None, 'load', 'email', subject, message,
+            'Load', load.id, today,
+            {'load_number': load.load_number, 'event': 'customer_delivered'},
+            recipient_email=load.customer.email,
+        )
+    except Exception:
+        logger.exception("notify_customer_trip_completed failed for trip %s", trip.id)
 
 
 # ── Vehicle status alerts ──────────────────────────────────────────────

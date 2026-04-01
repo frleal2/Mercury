@@ -1,7 +1,10 @@
+import { useState } from 'react';
 import { Disclosure, DisclosureButton, DisclosurePanel, Menu, MenuButton, MenuItem, MenuItems } from '@headlessui/react'
 import { Bars3Icon, BellIcon, XMarkIcon, UserIcon } from '@heroicons/react/24/outline'
 import logo from '../images/fleetlyWhite.png';
-import { useSession } from '../providers/SessionProvider'; // Import useSession
+import { useSession } from '../providers/SessionProvider';
+import { useNotifications } from './useNotifications';
+import NotificationCenter from './NotificationCenter';
 
 const getNavigationItems = (userRole) => {
   // Driver role navigation
@@ -48,9 +51,11 @@ function handleSignOut(setSession) {
 }
 
 export default function Example() {
-  const { session, setSession, userProfile } = useSession(); // Access session, setSession, and userProfile from SessionProvider
+  const { session, setSession, userProfile } = useSession();
   const userRole = session?.userInfo?.role || 'user';
   const navigation = getNavigationItems(userRole);
+  const { notifications, unreadCount, loading, error, fetchNotifications, markRead, markAllRead } = useNotifications();
+  const [notifOpen, setNotifOpen] = useState(false);
   
   return (
     <Disclosure as="nav" className="bg-gray-800">
@@ -115,14 +120,35 @@ export default function Example() {
             </div>
           </div>
           <div className="absolute inset-y-0 right-0 flex items-center pr-2 sm:static sm:inset-auto sm:ml-6 sm:pr-0">
-            <button
-              type="button"
-              className="relative rounded-full bg-gray-800 p-1 text-gray-400 hover:text-white focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-gray-800 focus:outline-hidden"
-            >
-              <span className="absolute -inset-1.5" />
-              <span className="sr-only">View notifications</span>
-              <BellIcon aria-hidden="true" className="size-6" />
-            </button>
+            {/* Notification bell */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setNotifOpen(prev => !prev)}
+                className="relative rounded-full bg-gray-800 p-1 text-gray-400 hover:text-white focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-gray-800 focus:outline-hidden"
+              >
+                <span className="absolute -inset-1.5" />
+                <span className="sr-only">View notifications</span>
+                <BellIcon aria-hidden="true" className="size-6" />
+                {unreadCount > 0 && (
+                  <span className="absolute top-0 right-0 h-4 w-4 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center leading-none pointer-events-none">
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
+                )}
+              </button>
+              {notifOpen && (
+                <NotificationCenter
+                  notifications={notifications}
+                  unreadCount={unreadCount}
+                  loading={loading}
+                  error={error}
+                  onMarkRead={markRead}
+                  onMarkAllRead={markAllRead}
+                  onFetchNotifications={fetchNotifications}
+                  onClose={() => setNotifOpen(false)}
+                />
+              )}
+            </div>
 
             {/* Profile dropdown */}
             <Menu as="div" className="relative ml-3">

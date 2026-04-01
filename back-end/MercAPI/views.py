@@ -21,9 +21,13 @@ from .alerts import (
     notify_vehicle_status_change,
     notify_trip_started,
     notify_trip_completed,
+    notify_driver_load_assigned,
+    notify_customer_load_dispatched,
+    notify_customer_trip_started,
+    notify_customer_trip_completed,
 )
-from .serializers import UserSerializer, DriverSerializer, TruckSerializer, CompanySerializer, TrailerSerializer, DriverTestSerializer, DriverHOSSerializer, DriverApplicationSerializer, MaintenanceCategorySerializer, MaintenanceTypeSerializer, MaintenanceRecordSerializer, MaintenanceAttachmentSerializer, DriverDocumentSerializer, InspectionSerializer, InspectionItemSerializer, TripsSerializer, TripDocumentSerializer, LoadDocumentSerializer, AnnualInspectionSerializer, VehicleOperationStatusSerializer, CustomerSerializer, CarrierSerializer, LoadSerializer, InvoiceSerializer, InvoicePaymentSerializer, RateLaneSerializer, AccessorialChargeSerializer, FuelSurchargeScheduleSerializer, CheckCallSerializer, LoadTrackingEventSerializer, CustomerTrackingSerializer, LoadNotificationSerializer
-from rest_framework.decorators import api_view, permission_classes
+from .serializers import UserSerializer, DriverSerializer, TruckSerializer, CompanySerializer, TrailerSerializer, DriverTestSerializer, DriverHOSSerializer, DriverApplicationSerializer, MaintenanceCategorySerializer, MaintenanceTypeSerializer, MaintenanceRecordSerializer, MaintenanceAttachmentSerializer, DriverDocumentSerializer, InspectionSerializer, InspectionItemSerializer, TripsSerializer, TripDocumentSerializer, LoadDocumentSerializer, AnnualInspectionSerializer, VehicleOperationStatusSerializer, CustomerSerializer, CarrierSerializer, LoadSerializer, InvoiceSerializer, InvoicePaymentSerializer, RateLaneSerializer, AccessorialChargeSerializer, FuelSurchargeScheduleSerializer, CheckCallSerializer, LoadTrackingEventSerializer, CustomerTrackingSerializer, LoadNotificationSerializer, NotificationSerializer, NotificationPreferenceSerializer
+from rest_framework.decorators import api_view, permission_classes, action
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.contrib.auth.models import User
@@ -33,7 +37,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework_simplejwt.views import TokenObtainPairView
-from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Tenant, UserProfile, Inspection, InspectionItem, Trips, InvitationToken, TripDocument, LoadDocument, PasswordResetToken, AnnualInspection, VehicleOperationStatus, Customer, Carrier, Load, Invoice, InvoicePayment, RateLane, AccessorialCharge, FuelSurchargeSchedule, CheckCall, LoadTrackingEvent, LoadNotification
+from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Tenant, UserProfile, Inspection, InspectionItem, Trips, InvitationToken, TripDocument, LoadDocument, PasswordResetToken, AnnualInspection, VehicleOperationStatus, Customer, Carrier, Load, Invoice, InvoicePayment, RateLane, AccessorialCharge, FuelSurchargeSchedule, CheckCall, LoadTrackingEvent, LoadNotification, Notification, NotificationPreference
 from rest_framework.serializers import ValidationError
 from rest_framework import serializers
 from django.core.files.storage import default_storage
@@ -2111,7 +2115,8 @@ def start_trip(request, trip_id):
             notify_load_status_change(trip.load, 'dispatched', 'in_transit', changed_by=request.user)
 
         notify_trip_started(trip, started_by=request.user)
-        
+        notify_customer_trip_started(trip)
+
         return Response({
             'message': 'Trip started successfully',
             'trip_id': trip.id,
@@ -2192,7 +2197,8 @@ def complete_trip(request, trip_id):
             notify_load_status_change(trip.load, 'in_transit', 'delivered', changed_by=request.user)
 
         notify_trip_completed(trip, completed_by=request.user)
-        
+        notify_customer_trip_completed(trip)
+
         return Response({
             'message': 'Trip completed successfully',
             'trip_id': trip.id,
@@ -3574,6 +3580,7 @@ def dispatch_load(request, load_id):
         )
 
         notify_load_dispatched(load, carrier=load.carrier, dispatched_by=request.user)
+        notify_customer_load_dispatched(load)
 
         load.refresh_from_db()
         serializer = LoadSerializer(load)
@@ -3648,6 +3655,8 @@ def dispatch_load(request, load_id):
         )
 
         notify_load_dispatched(load, driver=driver, dispatched_by=request.user)
+        notify_driver_load_assigned(load, driver)
+        notify_customer_load_dispatched(load)
 
         # Refresh from DB to ensure clean serialization
         load.refresh_from_db()
@@ -4001,3 +4010,72 @@ def load_tracking_timeline(request, load_id):
     except Exception as e:
         logger.error(f"Error fetching tracking timeline for load {load_id}: {str(e)}")
         return Response({'error': 'Internal server error'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# ── Notification Center ──────────────────────────────────────────────────
+
+class NotificationViewSet(ModelViewSet):
+    """
+    Notification center endpoints.
+    All operations are scoped to the authenticated user's own notifications.
+    """
+    serializer_class = NotificationSerializer
+    http_method_names = ['get', 'patch', 'post', 'head', 'options']
+
+    def get_queryset(self):
+        return (
+            Notification.objects
+            .filter(recipient=self.request.user)
+            .order_by('-created_at')
+        )
+
+    def list(self, request, *args, **kwargs):
+        qs = self.get_queryset()
+        category = request.query_params.get('category')
+        if category:
+            qs = qs.filter(category=category)
+        serializer = self.get_serializer(qs[:20], many=True)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['patch'], url_path='mark-read')
+    def mark_read(self, request, pk=None):
+        notification = self.get_object()
+        if not notification.is_read:
+            notification.is_read = True
+            notification.save(update_fields=['is_read'])
+        return Response(self.get_serializer(notification).data)
+
+    @action(detail=False, methods=['post'], url_path='mark-all-read')
+    def mark_all_read(self, request):
+        updated = self.get_queryset().filter(is_read=False).update(is_read=True)
+        return Response({'marked_read': updated})
+
+    @action(detail=False, methods=['get'], url_path='unread-count')
+    def unread_count(self, request):
+        count = self.get_queryset().filter(is_read=False).count()
+        return Response({'unread_count': count})
+
+
+class NotificationPreferenceViewSet(ModelViewSet):
+    """
+    Notification preference management.
+    Auto-creates missing preference rows on first list; scoped to the current user.
+    """
+    serializer_class = NotificationPreferenceSerializer
+    http_method_names = ['get', 'patch', 'head', 'options']
+
+    _ALL_CATEGORIES = ['compliance', 'operations', 'insurance', 'maintenance', 'load', 'system']
+
+    def get_queryset(self):
+        return NotificationPreference.objects.filter(user=self.request.user)
+
+    def list(self, request, *args, **kwargs):
+        existing = {p.category for p in self.get_queryset()}
+        missing = [
+            NotificationPreference(user=request.user, category=cat)
+            for cat in self._ALL_CATEGORIES
+            if cat not in existing
+        ]
+        if missing:
+            NotificationPreference.objects.bulk_create(missing, ignore_conflicts=True)
+        return super().list(request, *args, **kwargs)
