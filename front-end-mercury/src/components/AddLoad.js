@@ -277,7 +277,15 @@ const AddLoad = ({ isOpen, onClose }) => {
                     </div>
                   </div>
 
-                  <form onSubmit={handleSubmit}>
+                  <form
+                    onSubmit={handleSubmit}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') {
+                        e.preventDefault();
+                        if (step < 3) handleNext();
+                      }
+                    }}
+                  >
                     <div className="px-6 py-4 max-h-[60vh] overflow-y-auto">
 
                       {/* Step 1: Customer & References */}
