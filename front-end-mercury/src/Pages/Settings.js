@@ -39,10 +39,8 @@ const Settings = () => {
     const [success, setSuccess] = useState('');
     const [companies, setCompanies] = useState([]);
 
-    // Notification preference state
+    // Notification preference state (WhatsApp number)
     const [preferences, setPreferences] = useState([]);
-    const [prefLoading, setPrefLoading] = useState(false);
-    const [prefSaving, setPrefSaving] = useState({});
     const [prefError, setPrefError] = useState('');
     const [whatsappPhone, setWhatsappPhone] = useState('');
     const [phoneSaving, setPhoneSaving] = useState(false);
@@ -110,7 +108,6 @@ const Settings = () => {
     };
 
     const fetchNotificationPreferences = useCallback(async () => {
-        setPrefLoading(true);
         try {
             const res = await axios.get(`${BASE_URL}/api/notification-preferences/`, {
                 headers: { Authorization: `Bearer ${session.accessToken}` }
@@ -121,9 +118,7 @@ const Settings = () => {
             const phoneRow = rows.find(r => r.whatsapp_phone);
             if (phoneRow) setWhatsappPhone(phoneRow.whatsapp_phone);
         } catch {
-            setPrefError('Failed to load notification preferences');
-        } finally {
-            setPrefLoading(false);
+            // silently ignore — phone field will just be empty
         }
     }, [session.accessToken]);
 
@@ -157,22 +152,6 @@ const Settings = () => {
             showToast('Failed to save', 'error');
         } finally {
             setCompanySettingsSaving(prev => ({ ...prev, [settingId]: false }));
-        }
-    };
-
-    const handlePrefToggle = async (prefId, field, currentValue) => {
-        setPrefSaving(prev => ({ ...prev, [prefId]: true }));
-        try {
-            const res = await axios.patch(
-                `${BASE_URL}/api/notification-preferences/${prefId}/`,
-                { [field]: !currentValue },
-                { headers: { Authorization: `Bearer ${session.accessToken}` } }
-            );
-            setPreferences(prev => prev.map(p => p.id === prefId ? res.data : p));
-        } catch {
-            setPrefError('Failed to save preference');
-        } finally {
-            setPrefSaving(prev => ({ ...prev, [prefId]: false }));
         }
     };
 
@@ -370,6 +349,32 @@ const Settings = () => {
                                     />
                                 </div>
 
+                                {/* WhatsApp Number */}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        WhatsApp Number
+                                    </label>
+                                    <div className="flex items-center gap-3">
+                                        <input
+                                            type="tel"
+                                            value={whatsappPhone}
+                                            onChange={e => setWhatsappPhone(e.target.value)}
+                                            onBlur={handlePhoneSave}
+                                            placeholder="+1XXXXXXXXXX"
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                        />
+                                        {phoneSaving && (
+                                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 shrink-0" />
+                                        )}
+                                    </div>
+                                    <p className="mt-1 text-xs text-gray-500">
+                                        Include country code (e.g., +1 for US). Used for WhatsApp notifications.
+                                    </p>
+                                    {prefError && (
+                                        <p className="mt-1 text-xs text-red-600">{prefError}</p>
+                                    )}
+                                </div>
+
                                 {/* Error/Success Messages */}
                                 {error && (
                                     <div className="rounded-md bg-red-50 p-4">
@@ -495,104 +500,6 @@ const Settings = () => {
                     />
                 )}
 
-                {/* Notification Preferences */}
-                <div id="notifications" className="bg-white shadow rounded-lg mt-6">
-                    <div className="px-6 py-4 border-b border-gray-200 flex items-center gap-2">
-                        <BellIcon className="h-5 w-5 text-blue-600" />
-                        <div>
-                            <h2 className="text-lg font-semibold text-gray-900">Notification Preferences</h2>
-                            <p className="text-sm text-gray-600">Control which notifications you receive and how</p>
-                        </div>
-                    </div>
-                    <div className="px-6 py-4">
-                        {prefError && (
-                            <div className="mb-4 rounded-md bg-red-50 border border-red-200 p-3">
-                                <p className="text-sm text-red-700">{prefError}</p>
-                            </div>
-                        )}
-
-                        {/* WhatsApp phone number */}
-                        <div className="mb-6">
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                WhatsApp Number
-                            </label>
-                            <div className="flex items-center gap-3 max-w-sm">
-                                <input
-                                    type="tel"
-                                    value={whatsappPhone}
-                                    onChange={e => setWhatsappPhone(e.target.value)}
-                                    onBlur={handlePhoneSave}
-                                    placeholder="+1XXXXXXXXXX"
-                                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                                />
-                                {phoneSaving && (
-                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600" />
-                                )}
-                            </div>
-                            <p className="mt-1 text-xs text-gray-500">
-                                Include country code (e.g., +1 for US). Used for WhatsApp notifications.
-                            </p>
-                        </div>
-
-                        {/* Category toggles table */}
-                        {prefLoading ? (
-                            <div className="flex items-center justify-center py-6">
-                                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600" />
-                            </div>
-                        ) : (
-                            <div className="overflow-x-auto">
-                                <table className="min-w-full">
-                                    <thead>
-                                        <tr className="border-b border-gray-100">
-                                            <th className="text-left text-xs font-medium text-gray-500 uppercase pb-3 w-1/2">Category</th>
-                                            <th className="text-center text-xs font-medium text-gray-500 uppercase pb-3 w-1/6">Enabled</th>
-                                            <th className="text-center text-xs font-medium text-gray-500 uppercase pb-3 w-1/6">Email</th>
-                                            <th className="text-center text-xs font-medium text-gray-500 uppercase pb-3 w-1/6">WhatsApp</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-50">
-                                        {preferences.map(pref => (
-                                            <tr key={pref.id}>
-                                                <td className="py-3 text-sm font-medium text-gray-900">
-                                                    {pref.category_display}
-                                                </td>
-                                                <td className="py-3 text-center">
-                                                    <Toggle
-                                                        checked={pref.is_active}
-                                                        disabled={!!prefSaving[pref.id]}
-                                                        onChange={() => handlePrefToggle(pref.id, 'is_active', pref.is_active)}
-                                                    />
-                                                </td>
-                                                <td className={`py-3 text-center ${!pref.is_active ? 'opacity-40 pointer-events-none' : ''}`}>
-                                                    <Toggle
-                                                        checked={pref.email_enabled}
-                                                        disabled={!!prefSaving[pref.id]}
-                                                        onChange={() => handlePrefToggle(pref.id, 'email_enabled', pref.email_enabled)}
-                                                    />
-                                                </td>
-                                                <td className={`py-3 text-center ${!pref.is_active ? 'opacity-40 pointer-events-none' : ''}`}>
-                                                    <div className="flex flex-col items-center gap-1">
-                                                        <Toggle
-                                                            checked={pref.whatsapp_enabled}
-                                                            disabled={!!prefSaving[pref.id]}
-                                                            onChange={() => handlePrefToggle(pref.id, 'whatsapp_enabled', pref.whatsapp_enabled)}
-                                                        />
-                                                        {pref.whatsapp_enabled && !whatsappPhone && (
-                                                            <span className="text-[10px] text-amber-600 leading-none">Add number above</span>
-                                                        )}
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        )}
-                        <p className="mt-4 text-xs text-gray-400">
-                            Toggle changes are saved immediately. Email notifications go to your account email.
-                        </p>
-                    </div>
-                </div>
             </div>
         </div>
     );
