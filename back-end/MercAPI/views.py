@@ -4135,7 +4135,14 @@ class CompanyNotificationSettingViewSet(ModelViewSet):
     def partial_update(self, request, *args, **kwargs):
         if not request.user.profile.is_admin():
             return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
-        instance = self.get_object()
+        # get_queryset() requires ?company= which isn't present on PATCH, so fetch directly
+        try:
+            instance = CompanyNotificationSetting.objects.get(pk=kwargs['pk'])
+        except CompanyNotificationSetting.DoesNotExist:
+            return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+        # Verify the requesting user belongs to this company
+        if not request.user.profile.companies.filter(id=instance.company_id).exists():
+            return Response({'error': 'Access denied'}, status=status.HTTP_403_FORBIDDEN)
         serializer = self.get_serializer(instance, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save(updated_by=request.user)
