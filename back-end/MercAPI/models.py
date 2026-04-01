@@ -2374,6 +2374,7 @@ class Notification(models.Model):
     CHANNEL_CHOICES = [
         ('email', 'Email'),
         ('whatsapp', 'WhatsApp'),
+        ('in_app', 'In-App'),
     ]
     STATUS_CHOICES = [
         ('pending', 'Pending'),
@@ -2441,6 +2442,67 @@ class Notification(models.Model):
     def __str__(self):
         target = self.recipient_email or self.recipient_phone or (self.recipient.username if self.recipient else 'Unknown')
         return f"{self.get_category_display()} — {self.get_channel_display()} to {target} ({self.status})"
+
+
+class CompanyNotificationSetting(models.Model):
+    """
+    Company-wide notification settings managed by admins.
+    One row per (company, notification_key). All channels default to off.
+    """
+    NOTIFICATION_KEY_CHOICES = [
+        # Load status → customer (email/WhatsApp) + company users (in-app bell)
+        ('load_quoted_customer',     'Load Quoted → Customer'),
+        ('load_booked_customer',     'Load Booked → Customer'),
+        ('load_dispatched_customer', 'Load Dispatched → Customer'),
+        ('load_in_transit_customer', 'Load In Transit → Customer'),
+        ('load_delivered_customer',  'Load Delivered → Customer'),
+        ('load_invoiced_customer',   'Load Invoiced → Customer'),
+        ('load_paid_customer',       'Load Paid → Customer'),
+        ('load_cancelled_customer',  'Load Cancelled → Customer'),
+        # Driver notifications → driver only
+        ('driver_load_assigned',   'Driver Assigned to Load'),
+        ('driver_load_reassigned', 'Driver Reassigned'),
+        # Trip notifications → user who dispatched the load
+        ('trip_started_dispatcher', 'Trip Started → Dispatcher'),
+        # Compliance – driver
+        ('compliance_driver_cdl',       'Driver CDL Expiration'),
+        ('compliance_driver_physical',  'Driver DOT Physical'),
+        ('compliance_driver_mvr',       'Driver MVR'),
+        ('compliance_driver_drug_test', 'Driver Drug/Alcohol Test'),
+        # Compliance – truck / trailer
+        ('compliance_truck_registration',   'Truck Registration'),
+        ('compliance_truck_insurance',      'Truck Insurance'),
+        ('compliance_truck_license_plate',  'Truck License Plate'),
+        ('compliance_annual_inspection',    'Annual DOT Inspection'),
+        ('compliance_carrier_insurance',    'Carrier Insurance'),
+        ('compliance_maintenance',          'Maintenance Schedule'),
+        # Safety alerts
+        ('safety_vehicle_prohibited', 'Vehicle Prohibited'),
+        ('safety_vehicle_oos',        'Vehicle Out of Service'),
+        ('safety_vehicle_cleared',    'Vehicle Status Cleared'),
+    ]
+
+    company = models.ForeignKey(
+        Company, on_delete=models.CASCADE, related_name='notification_settings'
+    )
+    notification_key = models.CharField(max_length=50, choices=NOTIFICATION_KEY_CHOICES)
+    in_app_enabled = models.BooleanField(default=False)
+    email_enabled = models.BooleanField(default=False)
+    whatsapp_enabled = models.BooleanField(default=False)
+    updated_by = models.ForeignKey(
+        'auth.User', on_delete=models.SET_NULL, null=True, blank=True
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ['company', 'notification_key']
+        ordering = ['company', 'notification_key']
+        verbose_name = 'Company Notification Setting'
+        verbose_name_plural = 'Company Notification Settings'
+
+    def __str__(self):
+        return f"{self.company.name} — {self.notification_key}"
 
 
 class FuelSurchargeSchedule(models.Model):

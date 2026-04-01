@@ -1,10 +1,15 @@
 """
-Step 9.5 — Operational Alert Triggers
+Operational Alert Triggers
 
 Helper functions called from views after key operational events.
-Each creates Notification records (and optionally a unified Notification
-record) that get dispatched by the 5-minute `dispatch_pending_notifications`
-beat task.
+Each creates Notification records that get dispatched by the 5-minute
+`dispatch_pending_notifications` beat task.
+
+Recipient routing (company-wide settings control which channels fire):
+  - Load status changes  → email/WhatsApp to customer, in-app to company users
+  - Driver assigned/reassigned → in-app/email/WhatsApp to the driver only
+  - Trip started          → in-app/email/WhatsApp to the user who dispatched the load
+  - Compliance/safety     → in-app/email/WhatsApp to all company users
 
 All functions are non-blocking best-effort: failures are logged but never
 raised back to the caller so the main business logic is unaffected.
@@ -12,122 +17,169 @@ raised back to the caller so the main business logic is unaffected.
 import logging
 
 from django.utils import timezone
-
 from django.conf import settings
 
 from .models import (
     Notification, NotificationPreference, UserProfile,
-    Tenant, Company,
+    Tenant, Company, CompanyNotificationSetting,
 )
 
 logger = logging.getLogger(__name__)
 
 
-# ── Load lifecycle alerts ───────────────────────────────────────────────
+# ── settings lookup ────────────────────────────────────────────────────
+
+def _get_setting(company, key):
+    """
+    Return (in_app_enabled, email_enabled, whatsapp_enabled) for a
+    company + notification_key pair. Defaults to all-False if not found.
+    """
+    try:
+        s = CompanyNotificationSetting.objects.only(
+            'in_app_enabled', 'email_enabled', 'whatsapp_enabled'
+        ).get(company=company, notification_key=key)
+        return s.in_app_enabled, s.email_enabled, s.whatsapp_enabled
+    except CompanyNotificationSetting.DoesNotExist:
+        return False, False, False
+
+
+def _get_whatsapp_phone(user):
+    """Look up a user's WhatsApp phone from their NotificationPreference."""
+    return (
+        NotificationPreference.objects
+        .filter(user=user, whatsapp_phone__gt='')
+        .values_list('whatsapp_phone', flat=True)
+        .first() or ''
+    )
+
+
+# ── Load status notifications → customer (email/WA) + company (in-app) ─
+
+# Maps load status values to notification keys
+_LOAD_STATUS_KEY = {
+    'quoted':     'load_quoted_customer',
+    'booked':     'load_booked_customer',
+    'dispatched': 'load_dispatched_customer',
+    'in_transit': 'load_in_transit_customer',
+    'delivered':  'load_delivered_customer',
+    'invoiced':   'load_invoiced_customer',
+    'paid':       'load_paid_customer',
+    'cancelled':  'load_cancelled_customer',
+}
+
+_CUSTOMER_SUBJECT = {
+    'quoted':     "Your shipment {num} has been quoted",
+    'booked':     "Your shipment {num} has been booked",
+    'dispatched': "Your shipment {num} is on its way",
+    'in_transit': "Your shipment {num} is now in transit",
+    'delivered':  "Your shipment {num} has been delivered",
+    'invoiced':   "Invoice ready for shipment {num}",
+    'paid':       "Payment confirmed for shipment {num}",
+    'cancelled':  "Your shipment {num} has been cancelled",
+}
+
+
+def _tracking_url(load):
+    base = getattr(settings, 'FRONTEND_URL', 'https://myfleetly.com')
+    return f"{base}/TrackShipment?token={load.tracking_token}"
+
 
 def notify_load_dispatched(load, driver=None, carrier=None, dispatched_by=None):
     """
     Called from dispatch_load() after a load transitions to 'dispatched'.
-    Notifies company users about the dispatch assignment.
+    Delegates to notify_load_status_change so the single status-key
+    controls both internal (in-app) and customer (email/WA) channels.
     """
-    try:
-        tenant = load.company.tenant
-        company = load.company
-
-        if driver:
-            details = f"Driver: {driver.first_name} {driver.last_name}"
-        elif carrier:
-            details = f"Carrier: {carrier.name}"
-        else:
-            details = "Assignment details unavailable"
-
-        subject = f"Load {load.load_number} dispatched"
-        message = (
-            f"Load {load.load_number} has been dispatched.\n\n"
-            f"{details}\n"
-            f"Route: {load.pickup_location_display} → {load.delivery_location_display}\n"
-            f"Pickup: {load.pickup_date.strftime('%m/%d/%Y') if load.pickup_date else 'TBD'}\n"
-        )
-        if dispatched_by:
-            message += f"Dispatched by: {dispatched_by.get_full_name() or dispatched_by.username}\n"
-
-        _notify_company_users(
-            tenant, company, 'operations', subject, message,
-            related_type='Load', related_id=load.id,
-            exclude_user=dispatched_by,
-            metadata={'load_number': load.load_number, 'event': 'dispatched'},
-        )
-    except Exception:
-        logger.exception("notify_load_dispatched failed for load %s", load.id)
+    notify_load_status_change(load, 'booked', 'dispatched', changed_by=dispatched_by)
 
 
 def notify_load_status_change(load, old_status, new_status, changed_by=None):
     """
-    Called from LoadViewSet.perform_update / trip start / trip complete
-    when a load changes status.  Skips 'dispatched' (handled by notify_load_dispatched).
+    Unified handler for all load status changes.
+    - in_app  → all company users (bell icon), excluding the actor
+    - email   → load.customer.email
+    - whatsapp → load.customer.phone
     """
     try:
-        if new_status == 'dispatched':
-            return  # handled separately
+        key = _LOAD_STATUS_KEY.get(new_status)
+        if not key:
+            return
 
-        tenant = load.company.tenant
         company = load.company
+        in_app, email, whatsapp = _get_setting(company, key)
+        if not (in_app or email or whatsapp):
+            return
 
-        subject = f"Load {load.load_number} — {load.get_status_display()}"
-        message = (
-            f"Load {load.load_number} status changed: "
-            f"{old_status} → {new_status}\n\n"
-            f"Route: {load.pickup_location_display} → {load.delivery_location_display}\n"
+        tenant = company.tenant
+        today = timezone.now().date()
+
+        # Build messages
+        num = load.load_number
+        route = f"{load.pickup_location_display} → {load.delivery_location_display}"
+
+        internal_subject = f"Load {num} — {load.get_status_display()}"
+        internal_message = (
+            f"Load {num} status changed to {load.get_status_display()}.\n\n"
+            f"Route: {route}\n"
         )
 
-        _notify_company_users(
-            tenant, company, 'load', subject, message,
-            related_type='Load', related_id=load.id,
-            exclude_user=changed_by,
-            metadata={
-                'load_number': load.load_number,
-                'old_status': old_status,
-                'new_status': new_status,
-            },
+        customer_subject = _CUSTOMER_SUBJECT.get(new_status, internal_subject).format(num=num)
+        customer_message = (
+            f"{customer_subject}.\n\n"
+            f"Route: {route}\n"
+            f"Pickup: {load.pickup_date.strftime('%m/%d/%Y') if load.pickup_date else 'TBD'}\n"
+            f"Delivery: {load.delivery_date.strftime('%m/%d/%Y') if load.delivery_date else 'TBD'}\n"
+            f"\nTrack your shipment: {_tracking_url(load)}\n"
         )
+
+        metadata = {
+            'load_number': num,
+            'old_status': old_status,
+            'new_status': new_status,
+        }
+
+        # in-app → all company users (bell), excluding actor
+        if in_app:
+            _notify_company_users_inapp(
+                tenant, company, 'load',
+                internal_subject, internal_message,
+                'Load', load.id, today, metadata,
+                exclude_user=changed_by,
+            )
+
+        # email → customer
+        if email and load.customer and load.customer.email:
+            _create_notification(
+                tenant, None, 'load', 'email',
+                customer_subject, customer_message,
+                'Load', load.id, today, metadata,
+                recipient_email=load.customer.email,
+            )
+
+        # WhatsApp → customer
+        if whatsapp and load.customer and load.customer.phone:
+            _create_notification(
+                tenant, None, 'load', 'whatsapp',
+                customer_subject, customer_message,
+                'Load', load.id, today, metadata,
+                recipient_phone=load.customer.phone,
+            )
+
     except Exception:
         logger.exception("notify_load_status_change failed for load %s", load.id)
 
 
-def notify_load_reassigned(load, old_driver, new_driver, reassigned_by=None):
-    """Called from reassign_load() when a load's driver/truck is changed."""
-    try:
-        tenant = load.company.tenant
-        company = load.company
+# No-ops: these are now folded into notify_load_status_change
+def notify_customer_load_dispatched(load):
+    pass
 
-        old_name = f"{old_driver.first_name} {old_driver.last_name}" if old_driver else "None"
-        new_name = f"{new_driver.first_name} {new_driver.last_name}" if new_driver else "None"
 
-        subject = f"Load {load.load_number} reassigned"
-        message = (
-            f"Load {load.load_number} has been reassigned.\n\n"
-            f"Previous driver: {old_name}\n"
-            f"New driver: {new_name}\n"
-            f"Route: {load.pickup_location_display} → {load.delivery_location_display}\n"
-        )
+def notify_customer_trip_started(trip):
+    pass
 
-        _notify_company_users(
-            tenant, company, 'operations', subject, message,
-            related_type='Load', related_id=load.id,
-            exclude_user=reassigned_by,
-            metadata={
-                'load_number': load.load_number,
-                'event': 'reassigned',
-                'old_driver': old_name,
-                'new_driver': new_name,
-            },
-        )
 
-        # Notify the displaced driver directly
-        if old_driver:
-            notify_driver_load_reassigned_away(load, old_driver)
-    except Exception:
-        logger.exception("notify_load_reassigned failed for load %s", load.id)
+def notify_customer_trip_completed(trip):
+    pass
 
 
 # ── Driver-facing alerts ────────────────────────────────────────────────
@@ -135,13 +187,17 @@ def notify_load_reassigned(load, old_driver, new_driver, reassigned_by=None):
 def notify_driver_load_assigned(load, driver):
     """
     Notify a driver that a load has been assigned to them.
-    Called from dispatch_load() after the trip is created.
+    Recipient: the driver only (in-app, email, WhatsApp).
     """
     try:
+        company = load.company
+        in_app, email, whatsapp = _get_setting(company, 'driver_load_assigned')
+        if not (in_app or email or whatsapp):
+            return
         if not driver or not driver.user_account:
             return
 
-        tenant = load.company.tenant
+        tenant = company.tenant
         today = timezone.now().date()
 
         subject = f"Load {load.load_number} assigned to you"
@@ -151,24 +207,27 @@ def notify_driver_load_assigned(load, driver):
             f"Pickup: {load.pickup_date.strftime('%m/%d/%Y') if load.pickup_date else 'TBD'}\n"
             f"Delivery: {load.delivery_date.strftime('%m/%d/%Y') if load.delivery_date else 'TBD'}\n"
         )
-        if load.special_instructions:
+        if hasattr(load, 'special_instructions') and load.special_instructions:
             message += f"\nSpecial instructions: {load.special_instructions}\n"
 
-        _create_notification(
-            tenant, driver.user_account, 'operations', 'email', subject, message,
-            'Load', load.id, today, {'load_number': load.load_number, 'event': 'assigned'},
-            recipient_email=driver.user_account.email,
-        )
+        metadata = {'load_number': load.load_number, 'event': 'assigned'}
 
-        # WhatsApp if driver has a preference with a phone number
-        pref = NotificationPreference.objects.filter(
-            user=driver.user_account, category='operations', whatsapp_enabled=True,
-        ).only('whatsapp_phone').first()
-        if pref and pref.whatsapp_phone:
+        if in_app:
             _create_notification(
-                tenant, driver.user_account, 'operations', 'whatsapp', subject, message,
-                'Load', load.id, today, {'load_number': load.load_number, 'event': 'assigned'},
-                recipient_phone=pref.whatsapp_phone,
+                tenant, driver.user_account, 'operations', 'in_app',
+                subject, message, 'Load', load.id, today, metadata,
+            )
+        if email and driver.user_account.email:
+            _create_notification(
+                tenant, driver.user_account, 'operations', 'email',
+                subject, message, 'Load', load.id, today, metadata,
+                recipient_email=driver.user_account.email,
+            )
+        if whatsapp and driver.phone:
+            _create_notification(
+                tenant, driver.user_account, 'operations', 'whatsapp',
+                subject, message, 'Load', load.id, today, metadata,
+                recipient_phone=driver.phone,
             )
     except Exception:
         logger.exception("notify_driver_load_assigned failed for load %s", load.id)
@@ -177,13 +236,17 @@ def notify_driver_load_assigned(load, driver):
 def notify_driver_load_reassigned_away(load, old_driver):
     """
     Notify the driver that a load has been reassigned away from them.
-    Called from notify_load_reassigned().
+    Recipient: the displaced driver only.
     """
     try:
+        company = load.company
+        in_app, email, whatsapp = _get_setting(company, 'driver_load_reassigned')
+        if not (in_app or email or whatsapp):
+            return
         if not old_driver or not old_driver.user_account:
             return
 
-        tenant = load.company.tenant
+        tenant = company.tenant
         today = timezone.now().date()
 
         subject = f"Load {load.load_number} has been reassigned"
@@ -191,151 +254,108 @@ def notify_driver_load_reassigned_away(load, old_driver):
             f"Load {load.load_number} ({load.pickup_location_display} → "
             f"{load.delivery_location_display}) has been reassigned to another driver."
         )
+        metadata = {'load_number': load.load_number, 'event': 'reassigned_away'}
 
-        _create_notification(
-            tenant, old_driver.user_account, 'operations', 'email', subject, message,
-            'Load', load.id, today, {'load_number': load.load_number, 'event': 'reassigned_away'},
-            recipient_email=old_driver.user_account.email,
-        )
-
-        pref = NotificationPreference.objects.filter(
-            user=old_driver.user_account, category='operations', whatsapp_enabled=True,
-        ).only('whatsapp_phone').first()
-        if pref and pref.whatsapp_phone:
+        if in_app:
             _create_notification(
-                tenant, old_driver.user_account, 'operations', 'whatsapp', subject, message,
-                'Load', load.id, today, {'load_number': load.load_number, 'event': 'reassigned_away'},
-                recipient_phone=pref.whatsapp_phone,
+                tenant, old_driver.user_account, 'operations', 'in_app',
+                subject, message, 'Load', load.id, today, metadata,
+            )
+        if email and old_driver.user_account.email:
+            _create_notification(
+                tenant, old_driver.user_account, 'operations', 'email',
+                subject, message, 'Load', load.id, today, metadata,
+                recipient_email=old_driver.user_account.email,
+            )
+        if whatsapp and old_driver.phone:
+            _create_notification(
+                tenant, old_driver.user_account, 'operations', 'whatsapp',
+                subject, message, 'Load', load.id, today, metadata,
+                recipient_phone=old_driver.phone,
             )
     except Exception:
         logger.exception("notify_driver_load_reassigned_away failed for load %s", load.id)
 
 
-# ── Customer-facing alerts ───────────────────────────────────────────────
-
-def _tracking_url(load):
-    """Return the public customer tracking URL for a load."""
-    base = getattr(settings, 'FRONTEND_URL', 'https://myfleetly.com')
-    return f"{base}/TrackShipment?token={load.tracking_token}"
-
-
-def notify_customer_load_dispatched(load):
+def notify_load_reassigned(load, old_driver, new_driver, reassigned_by=None):
     """
-    Email the customer when their load is dispatched.
-    Called from dispatch_load() after the existing company alert.
+    Called from reassign_load(). Notifies the displaced driver only.
+    No company-wide broadcast in the new design.
     """
-    try:
-        if not load.customer or not load.customer.email:
-            return
-
-        tenant = load.company.tenant
-        today = timezone.now().date()
-
-        driver_name = None
-        if hasattr(load, 'trip') and load.trip and load.trip.driver:
-            d = load.trip.driver
-            driver_name = f"{d.first_name} {d.last_name}"
-
-        subject = f"Your shipment {load.load_number} is on its way"
-        message = (
-            f"Great news! Your shipment {load.load_number} has been dispatched.\n\n"
-            f"Route: {load.pickup_location_display} → {load.delivery_location_display}\n"
-            f"Estimated pickup: {load.pickup_date.strftime('%m/%d/%Y') if load.pickup_date else 'TBD'}\n"
-            f"Estimated delivery: {load.delivery_date.strftime('%m/%d/%Y') if load.delivery_date else 'TBD'}\n"
-        )
-        if driver_name:
-            message += f"Driver: {driver_name}\n"
-        message += f"\nTrack your shipment: {_tracking_url(load)}\n"
-
-        _create_notification(
-            tenant, None, 'load', 'email', subject, message,
-            'Load', load.id, today,
-            {'load_number': load.load_number, 'event': 'customer_dispatched'},
-            recipient_email=load.customer.email,
-        )
-    except Exception:
-        logger.exception("notify_customer_load_dispatched failed for load %s", load.id)
+    if old_driver:
+        notify_driver_load_reassigned_away(load, old_driver)
 
 
-def notify_customer_trip_started(trip):
+# ── Trip alerts ─────────────────────────────────────────────────────────
+
+def notify_trip_started(trip, started_by=None):
     """
-    Email the customer when their shipment is picked up and in transit.
-    Called from start_trip() after the existing company alert.
+    Called from start_trip(). Notifies the user who dispatched the load
+    (trip.created_by), not all company users.
     """
     try:
-        if not hasattr(trip, 'load') or not trip.load:
-            return
-        load = trip.load
-        if not load.customer or not load.customer.email:
+        company = trip.company
+        in_app, email, whatsapp = _get_setting(company, 'trip_started_dispatcher')
+        if not (in_app or email or whatsapp):
             return
 
-        tenant = trip.company.tenant
+        dispatcher = getattr(trip, 'created_by', None)
+        if not dispatcher:
+            return
+
+        tenant = company.tenant
         today = timezone.now().date()
-        driver_name = f"{trip.driver.first_name} {trip.driver.last_name}" if trip.driver else "your driver"
+        driver_name = (
+            f"{trip.driver.first_name} {trip.driver.last_name}"
+            if trip.driver else "your driver"
+        )
 
-        subject = f"Your shipment {load.load_number} is now in transit"
+        subject = f"Trip {trip.trip_number} started"
         message = (
-            f"Your shipment {load.load_number} has been picked up and is now in transit.\n\n"
+            f"Trip {trip.trip_number} is now in progress.\n\n"
             f"Driver: {driver_name}\n"
-            f"Origin: {trip.start_location}\n"
-            f"Destination: {trip.end_location}\n"
-            f"Departed: {timezone.now().strftime('%m/%d/%Y %I:%M %p')}\n"
+            f"Route: {trip.start_location} → {trip.end_location}\n"
+            f"Started: {timezone.now().strftime('%m/%d/%Y %I:%M %p')}\n"
         )
-        if load.delivery_date:
-            message += f"Estimated delivery: {load.delivery_date.strftime('%m/%d/%Y')}\n"
-        message += f"\nTrack your shipment: {_tracking_url(load)}\n"
+        metadata = {'trip_number': trip.trip_number, 'event': 'started'}
 
-        _create_notification(
-            tenant, None, 'load', 'email', subject, message,
-            'Load', load.id, today,
-            {'load_number': load.load_number, 'event': 'customer_in_transit'},
-            recipient_email=load.customer.email,
-        )
+        if in_app:
+            _create_notification(
+                tenant, dispatcher, 'operations', 'in_app',
+                subject, message, 'Trips', trip.id, today, metadata,
+            )
+        if email and dispatcher.email:
+            _create_notification(
+                tenant, dispatcher, 'operations', 'email',
+                subject, message, 'Trips', trip.id, today, metadata,
+                recipient_email=dispatcher.email,
+            )
+        if whatsapp:
+            phone = _get_whatsapp_phone(dispatcher)
+            if phone:
+                _create_notification(
+                    tenant, dispatcher, 'operations', 'whatsapp',
+                    subject, message, 'Trips', trip.id, today, metadata,
+                    recipient_phone=phone,
+                )
     except Exception:
-        logger.exception("notify_customer_trip_started failed for trip %s", trip.id)
+        logger.exception("notify_trip_started failed for trip %s", trip.id)
 
 
-def notify_customer_trip_completed(trip):
+def notify_trip_completed(trip, completed_by=None):
     """
-    Email the customer when their shipment has been delivered.
-    Called from complete_trip() after the existing company alert.
+    Trip completion is surfaced through the load status change
+    (in_transit → delivered). No separate company broadcast needed.
     """
-    try:
-        if not hasattr(trip, 'load') or not trip.load:
-            return
-        load = trip.load
-        if not load.customer or not load.customer.email:
-            return
-
-        tenant = trip.company.tenant
-        today = timezone.now().date()
-
-        subject = f"Your shipment {load.load_number} has been delivered"
-        message = (
-            f"Your shipment {load.load_number} has been successfully delivered.\n\n"
-            f"Delivered: {timezone.now().strftime('%m/%d/%Y %I:%M %p')}\n"
-            f"Destination: {trip.end_location}\n"
-        )
-        if trip.miles_driven:
-            message += f"Total miles: {trip.miles_driven}\n"
-        message += f"\nView your proof of delivery: {_tracking_url(load)}\n"
-
-        _create_notification(
-            tenant, None, 'load', 'email', subject, message,
-            'Load', load.id, today,
-            {'load_number': load.load_number, 'event': 'customer_delivered'},
-            recipient_email=load.customer.email,
-        )
-    except Exception:
-        logger.exception("notify_customer_trip_completed failed for trip %s", trip.id)
+    pass
 
 
-# ── Vehicle status alerts ──────────────────────────────────────────────
+# ── Vehicle safety alerts ───────────────────────────────────────────────
 
 def notify_vehicle_status_change(vehicle_status, old_status=None):
     """
-    Called when a VehicleOperationStatus record changes to prohibited or
-    out_of_service.  These are safety-critical, so we always alert.
+    Called when a VehicleOperationStatus changes to prohibited, out_of_service,
+    or recovers to safe/conditional. Notifies all company users.
     """
     try:
         new_status = vehicle_status.current_status
@@ -351,6 +371,18 @@ def notify_vehicle_status_change(vehicle_status, old_status=None):
         else:
             return
 
+        # Determine the setting key
+        if new_status == 'prohibited':
+            key = 'safety_vehicle_prohibited'
+        elif new_status == 'out_of_service':
+            key = 'safety_vehicle_oos'
+        else:
+            key = 'safety_vehicle_cleared'
+
+        in_app, email, whatsapp = _get_setting(company, key)
+        if not (in_app or email or whatsapp):
+            return
+
         tenant = company.tenant
 
         if new_status in ('prohibited', 'out_of_service'):
@@ -362,134 +394,94 @@ def notify_vehicle_status_change(vehicle_status, old_status=None):
             if vehicle_status.clear_status_date:
                 message += f"Expected clearance: {vehicle_status.clear_status_date}\n"
         else:
-            # Recovery: back to safe / conditional
             subject = f"{label} — returned to {vehicle_status.get_current_status_display()}"
             message = (
                 f"{label} is now {vehicle_status.get_current_status_display()}.\n"
                 f"Previous status: {old_status}\n"
             )
 
-        _notify_company_users(
+        metadata = {
+            'vehicle': label,
+            'new_status': new_status,
+            'old_status': old_status,
+        }
+
+        _notify_company_users_all_channels(
             tenant, company, 'compliance', subject, message,
-            related_type='VehicleOperationStatus', related_id=vehicle_status.id,
-            metadata={
-                'vehicle': label,
-                'new_status': new_status,
-                'old_status': old_status,
-            },
+            'VehicleOperationStatus', vehicle_status.id,
+            metadata=metadata,
+            in_app=in_app, email=email, whatsapp=whatsapp,
         )
     except Exception:
         logger.exception("notify_vehicle_status_change failed for %s", vehicle_status.id)
 
 
-# ── Trip alerts ─────────────────────────────────────────────────────────
+# ── Shared helpers ──────────────────────────────────────────────────────
 
-def notify_trip_started(trip, started_by=None):
-    """Called from start_trip() when a trip begins."""
-    try:
-        tenant = trip.company.tenant
-        company = trip.company
-        driver_name = f"{trip.driver.first_name} {trip.driver.last_name}" if trip.driver else "Unknown"
-
-        subject = f"Trip {trip.trip_number} started"
-        message = (
-            f"Trip {trip.trip_number} is now in progress.\n\n"
-            f"Driver: {driver_name}\n"
-            f"Route: {trip.start_location} → {trip.end_location}\n"
-            f"Started: {timezone.now().strftime('%m/%d/%Y %I:%M %p')}\n"
+def _notify_company_users_inapp(tenant, company, category, subject, message,
+                                related_type, related_id, today, metadata,
+                                exclude_user=None):
+    """Create in-app Notification records for every user in *company*."""
+    profiles = (
+        UserProfile.objects
+        .filter(companies=company)
+        .select_related('user')
+        .only('user__id')
+    )
+    for profile in profiles:
+        if exclude_user and profile.user_id == exclude_user.id:
+            continue
+        _create_notification(
+            tenant, profile.user, category, 'in_app',
+            subject, message, related_type, related_id, today, metadata,
         )
 
-        _notify_company_users(
-            tenant, company, 'operations', subject, message,
-            related_type='Trips', related_id=trip.id,
-            exclude_user=started_by,
-            metadata={'trip_number': trip.trip_number, 'event': 'started'},
-        )
-    except Exception:
-        logger.exception("notify_trip_started failed for trip %s", trip.id)
 
-
-def notify_trip_completed(trip, completed_by=None):
-    """Called from complete_trip() when a trip finishes."""
-    try:
-        tenant = trip.company.tenant
-        company = trip.company
-        driver_name = f"{trip.driver.first_name} {trip.driver.last_name}" if trip.driver else "Unknown"
-
-        subject = f"Trip {trip.trip_number} completed"
-        message = (
-            f"Trip {trip.trip_number} has been completed.\n\n"
-            f"Driver: {driver_name}\n"
-            f"Route: {trip.start_location} → {trip.end_location}\n"
-        )
-        if trip.miles_driven:
-            message += f"Miles driven: {trip.miles_driven}\n"
-
-        _notify_company_users(
-            tenant, company, 'operations', subject, message,
-            related_type='Trips', related_id=trip.id,
-            exclude_user=completed_by,
-            metadata={'trip_number': trip.trip_number, 'event': 'completed'},
-        )
-    except Exception:
-        logger.exception("notify_trip_completed failed for trip %s", trip.id)
-
-
-# ── shared helper ───────────────────────────────────────────────────────
-
-def _notify_company_users(tenant, company, category, subject, message,
-                          related_type='', related_id=None,
-                          exclude_user=None, metadata=None):
+def _notify_company_users_all_channels(tenant, company, category, subject, message,
+                                       related_type, related_id,
+                                       metadata=None, exclude_user=None,
+                                       in_app=False, email=False, whatsapp=False):
     """
-    Create Notification records for each user in *company* respecting their
-    NotificationPreference per category.  Skips the *exclude_user* (the person
-    who performed the action).
+    Notify all company users across the enabled channels.
+    Used for compliance and safety alerts.
     """
     profiles = (
         UserProfile.objects
         .filter(companies=company)
         .select_related('user')
-        .only('user__id', 'user__email', 'user__username')
+        .only('user__id', 'user__email')
     )
-
-    # Batch-load preferences
-    user_ids = [p.user_id for p in profiles]
-    prefs = {
-        (p.user_id, p.category): p
-        for p in NotificationPreference.objects.filter(
-            user_id__in=user_ids, category=category,
-        )
-    }
-
     today = timezone.now().date()
 
     for profile in profiles:
         if exclude_user and profile.user_id == exclude_user.id:
             continue
 
-        pref = prefs.get((profile.user_id, category))
-
-        # Email (default on)
-        if pref is None or pref.email_enabled:
+        if in_app:
             _create_notification(
-                tenant, profile.user, category, 'email', subject, message,
-                related_type, related_id, today, metadata,
+                tenant, profile.user, category, 'in_app',
+                subject, message, related_type, related_id, today, metadata,
+            )
+        if email and profile.user.email:
+            _create_notification(
+                tenant, profile.user, category, 'email',
+                subject, message, related_type, related_id, today, metadata,
                 recipient_email=profile.user.email,
             )
-
-        # WhatsApp
-        if pref and pref.whatsapp_enabled and pref.whatsapp_phone:
-            _create_notification(
-                tenant, profile.user, category, 'whatsapp', subject, message,
-                related_type, related_id, today, metadata,
-                recipient_phone=pref.whatsapp_phone,
-            )
+        if whatsapp:
+            phone = _get_whatsapp_phone(profile.user)
+            if phone:
+                _create_notification(
+                    tenant, profile.user, category, 'whatsapp',
+                    subject, message, related_type, related_id, today, metadata,
+                    recipient_phone=phone,
+                )
 
 
 def _create_notification(tenant, user, category, channel, subject, message,
                          related_type, related_id, today, metadata,
                          recipient_email='', recipient_phone=''):
-    """Create a single Notification (de-duped by subject + channel + day)."""
+    """Create a single Notification (de-duped by subject + channel + object + day)."""
     exists = Notification.objects.filter(
         tenant=tenant,
         recipient=user,

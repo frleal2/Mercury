@@ -26,7 +26,7 @@ from .alerts import (
     notify_customer_trip_started,
     notify_customer_trip_completed,
 )
-from .serializers import UserSerializer, DriverSerializer, TruckSerializer, CompanySerializer, TrailerSerializer, DriverTestSerializer, DriverHOSSerializer, DriverApplicationSerializer, MaintenanceCategorySerializer, MaintenanceTypeSerializer, MaintenanceRecordSerializer, MaintenanceAttachmentSerializer, DriverDocumentSerializer, InspectionSerializer, InspectionItemSerializer, TripsSerializer, TripDocumentSerializer, LoadDocumentSerializer, AnnualInspectionSerializer, VehicleOperationStatusSerializer, CustomerSerializer, CarrierSerializer, LoadSerializer, InvoiceSerializer, InvoicePaymentSerializer, RateLaneSerializer, AccessorialChargeSerializer, FuelSurchargeScheduleSerializer, CheckCallSerializer, LoadTrackingEventSerializer, CustomerTrackingSerializer, LoadNotificationSerializer, NotificationSerializer, NotificationPreferenceSerializer
+from .serializers import UserSerializer, DriverSerializer, TruckSerializer, CompanySerializer, TrailerSerializer, DriverTestSerializer, DriverHOSSerializer, DriverApplicationSerializer, MaintenanceCategorySerializer, MaintenanceTypeSerializer, MaintenanceRecordSerializer, MaintenanceAttachmentSerializer, DriverDocumentSerializer, InspectionSerializer, InspectionItemSerializer, TripsSerializer, TripDocumentSerializer, LoadDocumentSerializer, AnnualInspectionSerializer, VehicleOperationStatusSerializer, CustomerSerializer, CarrierSerializer, LoadSerializer, InvoiceSerializer, InvoicePaymentSerializer, RateLaneSerializer, AccessorialChargeSerializer, FuelSurchargeScheduleSerializer, CheckCallSerializer, LoadTrackingEventSerializer, CustomerTrackingSerializer, LoadNotificationSerializer, NotificationSerializer, NotificationPreferenceSerializer, CompanyNotificationSettingSerializer
 from rest_framework.decorators import api_view, permission_classes, action
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -37,7 +37,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework_simplejwt.views import TokenObtainPairView
-from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Tenant, UserProfile, Inspection, InspectionItem, Trips, InvitationToken, TripDocument, LoadDocument, PasswordResetToken, AnnualInspection, VehicleOperationStatus, Customer, Carrier, Load, Invoice, InvoicePayment, RateLane, AccessorialCharge, FuelSurchargeSchedule, CheckCall, LoadTrackingEvent, LoadNotification, Notification, NotificationPreference
+from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Tenant, UserProfile, Inspection, InspectionItem, Trips, InvitationToken, TripDocument, LoadDocument, PasswordResetToken, AnnualInspection, VehicleOperationStatus, Customer, Carrier, Load, Invoice, InvoicePayment, RateLane, AccessorialCharge, FuelSurchargeSchedule, CheckCall, LoadTrackingEvent, LoadNotification, Notification, NotificationPreference, CompanyNotificationSetting
 from rest_framework.serializers import ValidationError
 from rest_framework import serializers
 from django.core.files.storage import default_storage
@@ -4025,7 +4025,7 @@ class NotificationViewSet(ModelViewSet):
     def get_queryset(self):
         return (
             Notification.objects
-            .filter(recipient=self.request.user)
+            .filter(recipient=self.request.user, channel='in_app')
             .order_by('-created_at')
         )
 
@@ -4079,3 +4079,65 @@ class NotificationPreferenceViewSet(ModelViewSet):
         if missing:
             NotificationPreference.objects.bulk_create(missing, ignore_conflicts=True)
         return super().list(request, *args, **kwargs)
+
+
+class CompanyNotificationSettingViewSet(ModelViewSet):
+    """
+    Company-wide notification settings. Admin-only.
+    Auto-seeds all 24 setting rows for the requested company on first list.
+    PATCH individual rows to toggle channels.
+    """
+    serializer_class = CompanyNotificationSettingSerializer
+    http_method_names = ['get', 'patch', 'head', 'options']
+
+    _ALL_KEYS = [key for key, _ in CompanyNotificationSetting.NOTIFICATION_KEY_CHOICES]
+
+    def _get_company(self):
+        company_id = self.request.query_params.get('company') or self.request.data.get('company')
+        if not company_id:
+            return None
+        try:
+            profile = self.request.user.profile
+            return profile.companies.get(id=company_id)
+        except Exception:
+            return None
+
+    def get_queryset(self):
+        company = self._get_company()
+        if not company:
+            return CompanyNotificationSetting.objects.none()
+        return CompanyNotificationSetting.objects.filter(company=company).order_by('notification_key')
+
+    def list(self, request, *args, **kwargs):
+        # Admins only
+        if not request.user.profile.is_admin():
+            return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+        company = self._get_company()
+        if not company:
+            return Response({'error': 'company query param required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Auto-seed missing rows (all default to False)
+        existing_keys = set(
+            CompanyNotificationSetting.objects.filter(company=company)
+            .values_list('notification_key', flat=True)
+        )
+        missing = [
+            CompanyNotificationSetting(company=company, notification_key=key)
+            for key in self._ALL_KEYS
+            if key not in existing_keys
+        ]
+        if missing:
+            CompanyNotificationSetting.objects.bulk_create(missing, ignore_conflicts=True)
+
+        return super().list(request, *args, **kwargs)
+
+    def partial_update(self, request, *args, **kwargs):
+        if not request.user.profile.is_admin():
+            return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(updated_by=request.user)
+        return Response(serializer.data)
+

@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Inspection, InspectionItem, Trips, UserProfile, TripDocument, LoadDocument, AnnualInspection, VehicleOperationStatus, Customer, Carrier, Load, Invoice, InvoicePayment, RateLane, AccessorialCharge, FuelSurchargeSchedule, CheckCall, LoadTrackingEvent, LoadNotification, NotificationTemplate, NotificationPreference, Notification
+from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Inspection, InspectionItem, Trips, UserProfile, TripDocument, LoadDocument, AnnualInspection, VehicleOperationStatus, Customer, Carrier, Load, Invoice, InvoicePayment, RateLane, AccessorialCharge, FuelSurchargeSchedule, CheckCall, LoadTrackingEvent, LoadNotification, NotificationTemplate, NotificationPreference, Notification, CompanyNotificationSetting
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -881,3 +881,16 @@ class NotificationSerializer(serializers.ModelSerializer):
         if obj.recipient:
             return obj.recipient.get_full_name() or obj.recipient.username
         return obj.recipient_email or obj.recipient_phone or 'Unknown'
+
+
+class CompanyNotificationSettingSerializer(serializers.ModelSerializer):
+    notification_key_display = serializers.CharField(source='get_notification_key_display', read_only=True)
+
+    class Meta:
+        model = CompanyNotificationSetting
+        fields = [
+            'id', 'company', 'notification_key', 'notification_key_display',
+            'in_app_enabled', 'email_enabled', 'whatsapp_enabled',
+            'updated_by', 'updated_at',
+        ]
+        read_only_fields = ['company', 'notification_key', 'updated_by', 'updated_at']

@@ -1,11 +1,14 @@
 """
-Step 9.4 — Compliance Scanner
+Compliance Scanner
 Periodic scanner that detects expiring documents, certifications, and insurance
 across all tenants and creates Notification records for company users.
 
 Memory-optimised: uses SQL-level date filtering so only rows that actually
 hit a warning threshold are loaded.  All querysets use .iterator() and .only()
 to keep the working set small (safe for 512 MB worker instances).
+
+Channel behaviour is controlled by CompanyNotificationSetting per notification key.
+NotificationPreference is still used to look up each user's WhatsApp phone number.
 """
 from datetime import date, timedelta
 from django.db.models import Q
@@ -15,26 +18,32 @@ from .models import (
     Tenant, Company, Driver, DriverTest, Truck, Trailer,
     AnnualInspection, MaintenanceRecord, Carrier,
     Notification, NotificationPreference, UserProfile,
+    CompanyNotificationSetting,
 )
 
 logger = logging.getLogger(__name__)
 
-# Days-before-expiration that trigger a notification
 THRESHOLDS = [30, 14, 7, 1, 0]
 
 
 def _threshold_dates(today):
-    """Return the concrete dates that match our warning thresholds."""
     return [today + timedelta(days=d) for d in THRESHOLDS]
 
 
 def _threshold_date_filter(field_name, today):
-    """
-    Q filter that matches rows whose *field_name* equals one of the
-    threshold dates OR is already in the past (expired).
-    """
     dates = _threshold_dates(today)
     return Q(**{f'{field_name}__in': dates}) | Q(**{f'{field_name}__lt': today})
+
+
+def _get_company_setting(company, key):
+    """Return (in_app, email, whatsapp) for a company notification key."""
+    try:
+        s = CompanyNotificationSetting.objects.only(
+            'in_app_enabled', 'email_enabled', 'whatsapp_enabled'
+        ).get(company=company, notification_key=key)
+        return s.in_app_enabled, s.email_enabled, s.whatsapp_enabled
+    except CompanyNotificationSetting.DoesNotExist:
+        return False, False, False
 
 
 # ── public entry point ──────────────────────────────────────────────────
@@ -67,7 +76,6 @@ def scan_all_compliance():
 def _scan_tenant(tenant, today):
     count = 0
     for company in Company.objects.filter(tenant=tenant).only('id', 'name', 'tenant_id').iterator():
-        # Pre-fetch users + preferences for this company once
         profiles = list(
             UserProfile.objects.filter(companies=company)
             .select_related('user')
@@ -76,30 +84,31 @@ def _scan_tenant(tenant, today):
         if not profiles:
             continue
 
-        pref_cache = _load_preferences(profiles)
+        whatsapp_phones = _load_whatsapp_phones(profiles)
 
-        count += _scan_driver_compliance(tenant, company, today, profiles, pref_cache)
-        count += _scan_driver_tests(tenant, company, today, profiles, pref_cache)
-        count += _scan_truck_compliance(tenant, company, today, profiles, pref_cache)
-        count += _scan_annual_inspections(tenant, company, today, profiles, pref_cache)
-        count += _scan_carrier_insurance(tenant, company, today, profiles, pref_cache)
-        count += _scan_maintenance(tenant, company, today, profiles, pref_cache)
+        count += _scan_driver_compliance(tenant, company, today, profiles, whatsapp_phones)
+        count += _scan_driver_tests(tenant, company, today, profiles, whatsapp_phones)
+        count += _scan_truck_compliance(tenant, company, today, profiles, whatsapp_phones)
+        count += _scan_annual_inspections(tenant, company, today, profiles, whatsapp_phones)
+        count += _scan_carrier_insurance(tenant, company, today, profiles, whatsapp_phones)
+        count += _scan_maintenance(tenant, company, today, profiles, whatsapp_phones)
     return count
 
 
-def _load_preferences(profiles):
-    """
-    Build {(user_id, category): NotificationPreference} lookup in one query.
-    """
+def _load_whatsapp_phones(profiles):
+    """Return {user_id: whatsapp_phone} for users that have a phone on file."""
     user_ids = [p.user_id for p in profiles]
-    prefs = NotificationPreference.objects.filter(user_id__in=user_ids)
-    return {(p.user_id, p.category): p for p in prefs}
+    rows = (
+        NotificationPreference.objects
+        .filter(user_id__in=user_ids, whatsapp_phone__gt='')
+        .values_list('user_id', 'whatsapp_phone')
+    )
+    return {uid: phone for uid, phone in rows}
 
 
 # ── individual scanners ─────────────────────────────────────────────────
 
-def _scan_driver_compliance(tenant, company, today, profiles, pref_cache):
-    """CDL, DOT physical, annual MVR — only rows near a threshold."""
+def _scan_driver_compliance(tenant, company, today, profiles, whatsapp_phones):
     date_q = (
         _threshold_date_filter('cdl_expiration_date', today)
         | _threshold_date_filter('physical_date', today)
@@ -117,23 +126,25 @@ def _scan_driver_compliance(tenant, company, today, profiles, pref_cache):
         count += _check_and_notify(
             tenant, company, 'compliance', 'CDL License',
             label, driver.cdl_expiration_date, 'Driver', driver.id,
-            today, profiles, pref_cache,
+            today, profiles, whatsapp_phones,
+            notification_key='compliance_driver_cdl',
         )
         count += _check_and_notify(
             tenant, company, 'compliance', 'DOT Physical / Medical Card',
             label, driver.physical_date, 'Driver', driver.id,
-            today, profiles, pref_cache,
+            today, profiles, whatsapp_phones,
+            notification_key='compliance_driver_physical',
         )
         count += _check_and_notify(
             tenant, company, 'compliance', 'Annual MVR',
             label, driver.annual_vmr_date, 'Driver', driver.id,
-            today, profiles, pref_cache,
+            today, profiles, whatsapp_phones,
+            notification_key='compliance_driver_mvr',
         )
     return count
 
 
-def _scan_driver_tests(tenant, company, today, profiles, pref_cache):
-    """Drug & alcohol test scheduling."""
+def _scan_driver_tests(tenant, company, today, profiles, whatsapp_phones):
     tests = (
         DriverTest.objects.filter(
             _threshold_date_filter('next_scheduled_test_date', today),
@@ -151,13 +162,13 @@ def _scan_driver_tests(tenant, company, today, profiles, pref_cache):
         count += _check_and_notify(
             tenant, company, 'compliance', 'Drug/Alcohol Test',
             label, test.next_scheduled_test_date, 'DriverTest', test.id,
-            today, profiles, pref_cache,
+            today, profiles, whatsapp_phones,
+            notification_key='compliance_driver_drug_test',
         )
     return count
 
 
-def _scan_truck_compliance(tenant, company, today, profiles, pref_cache):
-    """Registration, insurance, license plate."""
+def _scan_truck_compliance(tenant, company, today, profiles, whatsapp_phones):
     date_q = (
         _threshold_date_filter('registration_expiration', today)
         | _threshold_date_filter('insurance_expiration', today)
@@ -176,23 +187,25 @@ def _scan_truck_compliance(tenant, company, today, profiles, pref_cache):
         count += _check_and_notify(
             tenant, company, 'compliance', 'Registration',
             label, truck.registration_expiration, 'Truck', truck.id,
-            today, profiles, pref_cache,
+            today, profiles, whatsapp_phones,
+            notification_key='compliance_truck_registration',
         )
         count += _check_and_notify(
-            tenant, company, 'insurance', 'Insurance',
+            tenant, company, 'compliance', 'Insurance',
             label, truck.insurance_expiration, 'Truck', truck.id,
-            today, profiles, pref_cache,
+            today, profiles, whatsapp_phones,
+            notification_key='compliance_truck_insurance',
         )
         count += _check_and_notify(
             tenant, company, 'compliance', 'License Plate',
             label, truck.license_plate_expiration, 'Truck', truck.id,
-            today, profiles, pref_cache,
+            today, profiles, whatsapp_phones,
+            notification_key='compliance_truck_license_plate',
         )
     return count
 
 
-def _scan_annual_inspections(tenant, company, today, profiles, pref_cache):
-    """CFR 396.17 annual inspection due dates."""
+def _scan_annual_inspections(tenant, company, today, profiles, whatsapp_phones):
     inspections = (
         AnnualInspection.objects.filter(
             _threshold_date_filter('next_inspection_due', today),
@@ -215,13 +228,13 @@ def _scan_annual_inspections(tenant, company, today, profiles, pref_cache):
         count += _check_and_notify(
             tenant, company, 'compliance', 'Annual DOT Inspection',
             label, insp.next_inspection_due, 'AnnualInspection', insp.id,
-            today, profiles, pref_cache,
+            today, profiles, whatsapp_phones,
+            notification_key='compliance_annual_inspection',
         )
     return count
 
 
-def _scan_carrier_insurance(tenant, company, today, profiles, pref_cache):
-    """Carrier insurance expirations."""
+def _scan_carrier_insurance(tenant, company, today, profiles, whatsapp_phones):
     carriers = (
         Carrier.objects.filter(
             _threshold_date_filter('insurance_expiration', today),
@@ -236,13 +249,13 @@ def _scan_carrier_insurance(tenant, company, today, profiles, pref_cache):
         count += _check_and_notify(
             tenant, company, 'insurance', 'Insurance',
             label, carrier.insurance_expiration, 'Carrier', carrier.id,
-            today, profiles, pref_cache,
+            today, profiles, whatsapp_phones,
+            notification_key='compliance_carrier_insurance',
         )
     return count
 
 
-def _scan_maintenance(tenant, company, today, profiles, pref_cache):
-    """Upcoming / overdue scheduled maintenance (uncompleted only)."""
+def _scan_maintenance(tenant, company, today, profiles, whatsapp_phones):
     records = (
         MaintenanceRecord.objects.filter(
             _threshold_date_filter('scheduled_date', today),
@@ -267,7 +280,8 @@ def _scan_maintenance(tenant, company, today, profiles, pref_cache):
             tenant, company, 'maintenance',
             f'Scheduled Maintenance ({rec.get_maintenance_type_display()})',
             label, rec.scheduled_date, 'MaintenanceRecord', rec.record_id,
-            today, profiles, pref_cache,
+            today, profiles, whatsapp_phones,
+            notification_key='compliance_maintenance',
         )
     return count
 
@@ -276,18 +290,26 @@ def _scan_maintenance(tenant, company, today, profiles, pref_cache):
 
 def _check_and_notify(tenant, company, category, field_label, item_label,
                       expiration_date, related_type, related_id,
-                      today, profiles, pref_cache):
+                      today, profiles, whatsapp_phones,
+                      notification_key=None):
     """
-    If *expiration_date* falls on a warning threshold, create Notification
-    records for every eligible user in *company*.
+    If *expiration_date* falls on a warning threshold AND the company has the
+    notification enabled, create Notification records for every company user.
     Returns the number of notifications created.
     """
     if not expiration_date:
         return 0
 
+    # Check company-wide setting first
+    if notification_key:
+        in_app, email, whatsapp = _get_company_setting(company, notification_key)
+        if not (in_app or email or whatsapp):
+            return 0
+    else:
+        in_app, email, whatsapp = False, True, False  # legacy fallback
+
     days_left = (expiration_date - today).days
 
-    # Build subject / message based on urgency
     if days_left < 0:
         subject = f"EXPIRED: {field_label} for {item_label}"
         message = (
@@ -314,7 +336,7 @@ def _check_and_notify(tenant, company, category, field_label, item_label,
             f"({days_left} days remaining). Please schedule renewal."
         )
     else:
-        return 0  # not on a threshold day
+        return 0
 
     metadata = {
         'urgency': urgency,
@@ -326,24 +348,25 @@ def _check_and_notify(tenant, company, category, field_label, item_label,
 
     count = 0
     for profile in profiles:
-        pref = pref_cache.get((profile.user_id, category))
-
-        # ── email (default channel) ──
-        email_enabled = pref.email_enabled if pref else True
-        if email_enabled:
+        if in_app:
+            count += _create_if_new(
+                tenant, profile.user, category, 'in_app', subject, message,
+                related_type, related_id, today, metadata,
+            )
+        if email and profile.user.email:
             count += _create_if_new(
                 tenant, profile.user, category, 'email', subject, message,
                 related_type, related_id, today, metadata,
                 recipient_email=profile.user.email,
             )
-
-        # ── WhatsApp ──
-        if pref and pref.whatsapp_enabled and pref.whatsapp_phone:
-            count += _create_if_new(
-                tenant, profile.user, category, 'whatsapp', subject, message,
-                related_type, related_id, today, metadata,
-                recipient_phone=pref.whatsapp_phone,
-            )
+        if whatsapp:
+            phone = whatsapp_phones.get(profile.user_id, '')
+            if phone:
+                count += _create_if_new(
+                    tenant, profile.user, category, 'whatsapp', subject, message,
+                    related_type, related_id, today, metadata,
+                    recipient_phone=phone,
+                )
 
     return count
 

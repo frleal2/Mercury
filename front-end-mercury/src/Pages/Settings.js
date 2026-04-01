@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 import { useSession } from '../providers/SessionProvider';
 import BASE_URL from '../config';
-import { UserIcon, EnvelopeIcon, BuildingOfficeIcon, CheckIcon, BellIcon } from '@heroicons/react/24/outline';
+import { UserIcon, EnvelopeIcon, BuildingOfficeIcon, CheckIcon, BellIcon, DevicePhoneMobileIcon } from '@heroicons/react/24/outline';
 
 function Toggle({ checked, disabled, onChange }) {
     return (
@@ -47,6 +47,19 @@ const Settings = () => {
     const [whatsappPhone, setWhatsappPhone] = useState('');
     const [phoneSaving, setPhoneSaving] = useState(false);
 
+    // Company notification settings (admin only)
+    const [companySettings, setCompanySettings] = useState([]);
+    const [companySettingsLoading, setCompanySettingsLoading] = useState(false);
+    const [companySettingsSaving, setCompanySettingsSaving] = useState({});
+    const [toast, setToast] = useState(null); // { message, type }
+    const toastTimer = useRef(null);
+
+    const showToast = (message, type = 'success') => {
+        if (toastTimer.current) clearTimeout(toastTimer.current);
+        setToast({ message, type });
+        toastTimer.current = setTimeout(() => setToast(null), 2500);
+    };
+
     useEffect(() => {
         fetchUserProfile();
         fetchUserCompanies();
@@ -85,7 +98,12 @@ const Settings = () => {
             const response = await axios.get(`${BASE_URL}/api/companies/`, {
                 headers: { 'Authorization': `Bearer ${session.accessToken}` }
             });
-            setCompanies(response.data);
+            const list = Array.isArray(response.data) ? response.data : (response.data.results ?? []);
+            setCompanies(list);
+            // Load company notification settings for the first company (admins only)
+            if (list.length > 0) {
+                fetchCompanyNotificationSettings(list[0].id);
+            }
         } catch (error) {
             console.error('Error fetching companies:', error);
         }
@@ -108,6 +126,39 @@ const Settings = () => {
             setPrefLoading(false);
         }
     }, [session.accessToken]);
+
+    const fetchCompanyNotificationSettings = useCallback(async (companyId) => {
+        setCompanySettingsLoading(true);
+        try {
+            const res = await axios.get(
+                `${BASE_URL}/api/notification-settings/?company=${companyId}`,
+                { headers: { Authorization: `Bearer ${session.accessToken}` } }
+            );
+            const rows = Array.isArray(res.data) ? res.data : (res.data.results ?? []);
+            setCompanySettings(rows);
+        } catch {
+            // not an admin or no company — silently ignore
+        } finally {
+            setCompanySettingsLoading(false);
+        }
+    }, [session.accessToken]);
+
+    const handleCompanySettingToggle = async (settingId, field, currentValue) => {
+        setCompanySettingsSaving(prev => ({ ...prev, [settingId]: true }));
+        try {
+            const res = await axios.patch(
+                `${BASE_URL}/api/notification-settings/${settingId}/`,
+                { [field]: !currentValue },
+                { headers: { Authorization: `Bearer ${session.accessToken}` } }
+            );
+            setCompanySettings(prev => prev.map(s => s.id === settingId ? res.data : s));
+            showToast('Saved');
+        } catch {
+            showToast('Failed to save', 'error');
+        } finally {
+            setCompanySettingsSaving(prev => ({ ...prev, [settingId]: false }));
+        }
+    };
 
     const handlePrefToggle = async (prefId, field, currentValue) => {
         setPrefSaving(prev => ({ ...prev, [prefId]: true }));
@@ -420,6 +471,30 @@ const Settings = () => {
                     </div>
                 </div>
 
+                {/* Toast */}
+                {toast && (
+                    <div className={`fixed bottom-6 right-6 z-50 px-4 py-2.5 rounded-lg shadow-lg text-sm font-medium flex items-center gap-2 transition-all ${
+                        toast.type === 'error'
+                            ? 'bg-red-600 text-white'
+                            : 'bg-gray-900 text-white'
+                    }`}>
+                        {toast.type !== 'error' && <CheckIcon className="h-4 w-4 text-green-400" />}
+                        {toast.message}
+                    </div>
+                )}
+
+                {/* Company Notification Settings — admin only */}
+                {companySettings.length > 0 && (
+                    <CompanyNotificationSettings
+                        settings={companySettings}
+                        saving={companySettingsSaving}
+                        loading={companySettingsLoading}
+                        onToggle={handleCompanySettingToggle}
+                        companies={companies}
+                        onCompanyChange={fetchCompanyNotificationSettings}
+                    />
+                )}
+
                 {/* Notification Preferences */}
                 <div id="notifications" className="bg-white shadow rounded-lg mt-6">
                     <div className="px-6 py-4 border-b border-gray-200 flex items-center gap-2">
@@ -522,5 +597,181 @@ const Settings = () => {
         </div>
     );
 };
+
+// ── Section groupings for company notification settings ──────────────────
+
+const NOTIFICATION_GROUPS = [
+    {
+        label: 'Load Notifications → Customer',
+        description: 'Email and WhatsApp go to the customer on the load. Bell alerts your team.',
+        keys: [
+            'load_quoted_customer',
+            'load_booked_customer',
+            'load_dispatched_customer',
+            'load_in_transit_customer',
+            'load_delivered_customer',
+            'load_invoiced_customer',
+            'load_paid_customer',
+            'load_cancelled_customer',
+        ],
+        hideInApp: false,
+    },
+    {
+        label: 'Driver Notifications → Driver',
+        description: 'Sent directly to the assigned driver.',
+        keys: [
+            'driver_load_assigned',
+            'driver_load_reassigned',
+        ],
+        hideInApp: false,
+    },
+    {
+        label: 'Trip Notifications → Dispatcher',
+        description: 'Sent to the user who dispatched the load.',
+        keys: ['trip_started_dispatcher'],
+        hideInApp: false,
+    },
+    {
+        label: 'Compliance Alerts → All Users',
+        description: 'Sent to all users in the company.',
+        keys: [
+            'compliance_driver_cdl',
+            'compliance_driver_physical',
+            'compliance_driver_mvr',
+            'compliance_driver_drug_test',
+            'compliance_truck_registration',
+            'compliance_truck_insurance',
+            'compliance_truck_license_plate',
+            'compliance_annual_inspection',
+            'compliance_carrier_insurance',
+            'compliance_maintenance',
+        ],
+        hideInApp: false,
+    },
+    {
+        label: 'Safety Alerts → All Users',
+        description: 'Sent to all users in the company.',
+        keys: [
+            'safety_vehicle_prohibited',
+            'safety_vehicle_oos',
+            'safety_vehicle_cleared',
+        ],
+        hideInApp: false,
+    },
+];
+
+function CompanyNotificationSettings({ settings, saving, loading, onToggle, companies, onCompanyChange }) {
+    const [selectedCompanyId, setSelectedCompanyId] = useState(companies[0]?.id ?? null);
+
+    const settingByKey = Object.fromEntries(settings.map(s => [s.notification_key, s]));
+
+    const handleCompanySwitch = (id) => {
+        setSelectedCompanyId(id);
+        onCompanyChange(id);
+    };
+
+    return (
+        <div className="bg-white shadow rounded-lg mt-6">
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between flex-wrap gap-3">
+                <div className="flex items-center gap-2">
+                    <BellIcon className="h-5 w-5 text-blue-600" />
+                    <div>
+                        <h2 className="text-lg font-semibold text-gray-900">Company Notification Settings</h2>
+                        <p className="text-sm text-gray-500">Admin-controlled. Applies company-wide. All off by default.</p>
+                    </div>
+                </div>
+                {companies.length > 1 && (
+                    <select
+                        value={selectedCompanyId ?? ''}
+                        onChange={e => handleCompanySwitch(Number(e.target.value))}
+                        className="text-sm border border-gray-300 rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                        {companies.map(c => (
+                            <option key={c.id} value={c.id}>{c.name}</option>
+                        ))}
+                    </select>
+                )}
+            </div>
+
+            {loading ? (
+                <div className="flex items-center justify-center py-10">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600" />
+                </div>
+            ) : (
+                <div className="px-6 py-4 space-y-8">
+                    {NOTIFICATION_GROUPS.map(group => {
+                        const rows = group.keys
+                            .map(key => settingByKey[key])
+                            .filter(Boolean);
+                        if (!rows.length) return null;
+
+                        return (
+                            <div key={group.label}>
+                                <div className="mb-2">
+                                    <p className="text-sm font-semibold text-gray-800">{group.label}</p>
+                                    <p className="text-xs text-gray-500">{group.description}</p>
+                                </div>
+                                <div className="overflow-x-auto">
+                                    <table className="min-w-full">
+                                        <thead>
+                                            <tr className="border-b border-gray-100">
+                                                <th className="text-left text-xs font-medium text-gray-400 uppercase pb-2 w-1/2">Notification</th>
+                                                <th className="text-center text-xs font-medium text-gray-400 uppercase pb-2 w-1/6">
+                                                    <span className="flex items-center justify-center gap-1">
+                                                        <BellIcon className="h-3.5 w-3.5" /> Bell
+                                                    </span>
+                                                </th>
+                                                <th className="text-center text-xs font-medium text-gray-400 uppercase pb-2 w-1/6">
+                                                    <span className="flex items-center justify-center gap-1">
+                                                        <EnvelopeIcon className="h-3.5 w-3.5" /> Email
+                                                    </span>
+                                                </th>
+                                                <th className="text-center text-xs font-medium text-gray-400 uppercase pb-2 w-1/6">
+                                                    <span className="flex items-center justify-center gap-1">
+                                                        <DevicePhoneMobileIcon className="h-3.5 w-3.5" /> WhatsApp
+                                                    </span>
+                                                </th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-50">
+                                            {rows.map(s => (
+                                                <tr key={s.id}>
+                                                    <td className="py-2.5 text-sm text-gray-700">
+                                                        {s.notification_key_display}
+                                                    </td>
+                                                    <td className="py-2.5 text-center">
+                                                        <Toggle
+                                                            checked={s.in_app_enabled}
+                                                            disabled={!!saving[s.id]}
+                                                            onChange={() => onToggle(s.id, 'in_app_enabled', s.in_app_enabled)}
+                                                        />
+                                                    </td>
+                                                    <td className="py-2.5 text-center">
+                                                        <Toggle
+                                                            checked={s.email_enabled}
+                                                            disabled={!!saving[s.id]}
+                                                            onChange={() => onToggle(s.id, 'email_enabled', s.email_enabled)}
+                                                        />
+                                                    </td>
+                                                    <td className="py-2.5 text-center">
+                                                        <Toggle
+                                                            checked={s.whatsapp_enabled}
+                                                            disabled={!!saving[s.id]}
+                                                            onChange={() => onToggle(s.id, 'whatsapp_enabled', s.whatsapp_enabled)}
+                                                        />
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+        </div>
+    );
+}
 
 export default Settings;
