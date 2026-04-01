@@ -278,7 +278,7 @@ const AddLoad = ({ isOpen, onClose }) => {
                   </div>
 
                   <form
-                    onSubmit={handleSubmit}
+                    onSubmit={(e) => e.preventDefault()}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') {
                         e.preventDefault();
@@ -607,7 +607,7 @@ const AddLoad = ({ isOpen, onClose }) => {
                             Next
                           </button>
                         ) : (
-                          <button type="submit" disabled={loading} className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 disabled:opacity-50">
+                          <button type="button" onClick={handleSubmit} disabled={loading} className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 disabled:opacity-50">
                             {loading ? 'Creating...' : 'Create Load'}
                           </button>
                         )}
