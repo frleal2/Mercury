@@ -125,6 +125,10 @@ const AddLoad = ({ isOpen, onClose }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (step < 3) {
+      handleNext();
+      return;
+    }
     if (!validateStep(3)) return;
 
     setLoading(true);
