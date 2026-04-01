@@ -71,7 +71,7 @@ _CUSTOMER_SUBJECT = {
 
 def _tracking_url(load):
     base = getattr(settings, 'FRONTEND_URL', 'https://myfleetly.com')
-    return f"{base}/TrackShipment?token={load.tracking_token}"
+    return f"{base}/tracking/{load.tracking_token}"
 
 
 def notify_load_dispatched(load, driver=None, carrier=None, dispatched_by=None):
