@@ -127,29 +127,13 @@ def send_tracking_link_email_task(self, subject, message, recipient_email):
 def send_notification_task(self, notification_id):
     """
     Send a Notification record via its configured channel.
-    Delegates to services.send_notification() which handles email/WhatsApp.
+    Delegates to services.send_notification() which handles email.
     """
     from MercAPI.services import send_notification
     try:
         send_notification(notification_id)
     except Exception as exc:
         logger.error(f"Notification {notification_id} send failed: {exc}")
-        raise self.retry(exc=exc)
-
-
-@shared_task(bind=True, max_retries=3, default_retry_delay=60)
-def send_whatsapp_task(self, to_number, message, template_sid=None):
-    """
-    Send a WhatsApp message asynchronously via Celery.
-    """
-    from MercAPI.services import send_whatsapp
-    try:
-        result = send_whatsapp(to_number, message, template_sid=template_sid)
-        if not result['success']:
-            raise Exception(result['error'])
-        return result
-    except Exception as exc:
-        logger.error(f"WhatsApp task failed to {to_number}: {exc}")
         raise self.retry(exc=exc)
 
 
@@ -176,7 +160,7 @@ def run_compliance_scan(self):
 def dispatch_pending_notifications(self):
     """
     Pick up all pending Notification records and send them via the
-    appropriate channel (email / WhatsApp).
+    appropriate channel (email).
     Runs every 5 minutes via django-celery-beat.
     """
     from MercAPI.models import Notification

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 import { useSession } from '../providers/SessionProvider';
 import BASE_URL from '../config';
-import { UserIcon, EnvelopeIcon, BuildingOfficeIcon, CheckIcon, BellIcon, DevicePhoneMobileIcon } from '@heroicons/react/24/outline';
+import { UserIcon, EnvelopeIcon, BuildingOfficeIcon, CheckIcon, BellIcon } from '@heroicons/react/24/outline';
 
 function Toggle({ checked, disabled, onChange }) {
     return (
@@ -39,11 +39,9 @@ const Settings = () => {
     const [success, setSuccess] = useState('');
     const [companies, setCompanies] = useState([]);
 
-    // Notification preference state (WhatsApp number)
+    // Notification preference state
     const [preferences, setPreferences] = useState([]);
     const [prefError, setPrefError] = useState('');
-    const [whatsappPhone, setWhatsappPhone] = useState('');
-    const [phoneSaving, setPhoneSaving] = useState(false);
 
     // Company notification settings (admin only)
     const [companySettings, setCompanySettings] = useState([]);
@@ -114,9 +112,6 @@ const Settings = () => {
             });
             const rows = Array.isArray(res.data) ? res.data : (res.data.results ?? []);
             setPreferences(rows);
-            // Pre-fill phone from first row that has one
-            const phoneRow = rows.find(r => r.whatsapp_phone);
-            if (phoneRow) setWhatsappPhone(phoneRow.whatsapp_phone);
         } catch {
             // silently ignore — phone field will just be empty
         }
@@ -152,27 +147,6 @@ const Settings = () => {
             showToast('Failed to save', 'error');
         } finally {
             setCompanySettingsSaving(prev => ({ ...prev, [settingId]: false }));
-        }
-    };
-
-    const handlePhoneSave = async () => {
-        if (!preferences.length) return;
-        setPhoneSaving(true);
-        try {
-            await Promise.all(
-                preferences.map(pref =>
-                    axios.patch(
-                        `${BASE_URL}/api/notification-preferences/${pref.id}/`,
-                        { whatsapp_phone: whatsappPhone },
-                        { headers: { Authorization: `Bearer ${session.accessToken}` } }
-                    )
-                )
-            );
-            setPreferences(prev => prev.map(p => ({ ...p, whatsapp_phone: whatsappPhone })));
-        } catch {
-            setPrefError('Failed to save WhatsApp number');
-        } finally {
-            setPhoneSaving(false);
         }
     };
 
@@ -349,32 +323,6 @@ const Settings = () => {
                                     />
                                 </div>
 
-                                {/* WhatsApp Number */}
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        WhatsApp Number
-                                    </label>
-                                    <div className="flex items-center gap-3">
-                                        <input
-                                            type="tel"
-                                            value={whatsappPhone}
-                                            onChange={e => setWhatsappPhone(e.target.value)}
-                                            onBlur={handlePhoneSave}
-                                            placeholder="+1XXXXXXXXXX"
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                        />
-                                        {phoneSaving && (
-                                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 shrink-0" />
-                                        )}
-                                    </div>
-                                    <p className="mt-1 text-xs text-gray-500">
-                                        Include country code (e.g., +1 for US). Used for WhatsApp notifications.
-                                    </p>
-                                    {prefError && (
-                                        <p className="mt-1 text-xs text-red-600">{prefError}</p>
-                                    )}
-                                </div>
-
                                 {/* Error/Success Messages */}
                                 {error && (
                                     <div className="rounded-md bg-red-50 p-4">
@@ -510,7 +458,7 @@ const Settings = () => {
 const NOTIFICATION_GROUPS = [
     {
         label: 'Load Notifications → Customer',
-        description: 'Email and WhatsApp go to the customer on the load. Bell alerts your team.',
+        description: 'Email notifications go to the customer on the load. Bell alerts your team.',
         keys: [
             'load_quoted_customer',
             'load_booked_customer',
@@ -633,11 +581,6 @@ function CompanyNotificationSettings({ settings, saving, loading, onToggle, comp
                                                         <EnvelopeIcon className="h-3.5 w-3.5" /> Email
                                                     </span>
                                                 </th>
-                                                <th className="text-center text-xs font-medium text-gray-400 uppercase pb-2 w-1/6">
-                                                    <span className="flex items-center justify-center gap-1">
-                                                        <DevicePhoneMobileIcon className="h-3.5 w-3.5" /> WhatsApp
-                                                    </span>
-                                                </th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-gray-50">
@@ -658,13 +601,6 @@ function CompanyNotificationSettings({ settings, saving, loading, onToggle, comp
                                                             checked={s.email_enabled}
                                                             disabled={!!saving[s.id]}
                                                             onChange={() => onToggle(s.id, 'email_enabled', s.email_enabled)}
-                                                        />
-                                                    </td>
-                                                    <td className="py-2.5 text-center">
-                                                        <Toggle
-                                                            checked={s.whatsapp_enabled}
-                                                            disabled={!!saving[s.id]}
-                                                            onChange={() => onToggle(s.id, 'whatsapp_enabled', s.whatsapp_enabled)}
                                                         />
                                                     </td>
                                                 </tr>

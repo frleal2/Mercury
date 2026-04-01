@@ -513,8 +513,8 @@ class NotificationTemplateAdmin(admin.ModelAdmin):
 
 @admin.register(NotificationPreference)
 class NotificationPreferenceAdmin(admin.ModelAdmin):
-    list_display = ['user', 'category', 'email_enabled', 'whatsapp_enabled', 'frequency']
-    list_filter = ['category', 'frequency', 'email_enabled', 'whatsapp_enabled']
+    list_display = ['user', 'category', 'email_enabled', 'frequency']
+    list_filter = ['category', 'frequency', 'email_enabled']
     search_fields = ['user__username', 'user__email']
 
 @admin.register(Notification)

@@ -2234,11 +2234,10 @@ class LoadTrackingEvent(models.Model):
 
 class LoadNotification(models.Model):
     """
-    Track notifications sent for load milestones (email/WhatsApp to customers).
+    Track notifications sent for load milestones (email to customers).
     """
     NOTIFICATION_TYPE_CHOICES = [
         ('email', 'Email'),
-        ('whatsapp', 'WhatsApp'),
     ]
     NOTIFICATION_STATUS_CHOICES = [
         ('pending', 'Pending'),
@@ -2272,7 +2271,7 @@ class LoadNotification(models.Model):
 class NotificationTemplate(models.Model):
     """
     Reusable templates for each notification type.
-    Supports email (subject + body) and WhatsApp (template ID).
+    Supports email (subject + body).
     """
     CATEGORY_CHOICES = [
         ('compliance', 'Safety & Compliance'),
@@ -2284,7 +2283,6 @@ class NotificationTemplate(models.Model):
     ]
     CHANNEL_CHOICES = [
         ('email', 'Email'),
-        ('whatsapp', 'WhatsApp'),
     ]
 
     name = models.CharField(max_length=100, unique=True, help_text="Internal template name (e.g., 'license_expiring_30d')")
@@ -2295,10 +2293,6 @@ class NotificationTemplate(models.Model):
     html_template = models.CharField(
         max_length=255, blank=True,
         help_text="Path to Django HTML template for email (e.g., 'emails/license_expiring.html')"
-    )
-    whatsapp_template_id = models.CharField(
-        max_length=100, blank=True,
-        help_text="Twilio-approved WhatsApp template SID"
     )
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -2332,12 +2326,7 @@ class NotificationPreference(models.Model):
         help_text="Notification category this preference applies to"
     )
     email_enabled = models.BooleanField(default=True)
-    whatsapp_enabled = models.BooleanField(default=False)
     frequency = models.CharField(max_length=20, choices=FREQUENCY_CHOICES, default='immediate')
-    whatsapp_phone = models.CharField(
-        max_length=20, blank=True,
-        help_text="WhatsApp number with country code (e.g., +1234567890)"
-    )
     quiet_hours_start = models.TimeField(
         null=True, blank=True,
         help_text="Don't send notifications after this time (user's local time)"
@@ -2361,8 +2350,6 @@ class NotificationPreference(models.Model):
         channels = []
         if self.email_enabled:
             channels.append('Email')
-        if self.whatsapp_enabled:
-            channels.append('WhatsApp')
         return f"{self.user.username} — {self.get_category_display()} via {', '.join(channels) or 'None'}"
 
 
@@ -2373,7 +2360,6 @@ class Notification(models.Model):
     """
     CHANNEL_CHOICES = [
         ('email', 'Email'),
-        ('whatsapp', 'WhatsApp'),
         ('in_app', 'In-App'),
     ]
     STATUS_CHOICES = [
@@ -2410,7 +2396,7 @@ class Notification(models.Model):
     # External reference IDs for tracking delivery
     external_id = models.CharField(
         max_length=100, blank=True,
-        help_text="Twilio Message SID or other external tracking ID"
+        help_text="External tracking ID for delivery confirmation"
     )
     # Context: what triggered this notification
     related_object_type = models.CharField(
@@ -2450,7 +2436,7 @@ class CompanyNotificationSetting(models.Model):
     One row per (company, notification_key). All channels default to off.
     """
     NOTIFICATION_KEY_CHOICES = [
-        # Load status → customer (email/WhatsApp) + company users (in-app bell)
+        # Load status → customer (email) + company users (in-app bell)
         ('load_quoted_customer',     'Load Quoted → Customer'),
         ('load_booked_customer',     'Load Booked → Customer'),
         ('load_dispatched_customer', 'Load Dispatched → Customer'),
@@ -2488,7 +2474,6 @@ class CompanyNotificationSetting(models.Model):
     notification_key = models.CharField(max_length=50, choices=NOTIFICATION_KEY_CHOICES)
     in_app_enabled = models.BooleanField(default=False)
     email_enabled = models.BooleanField(default=False)
-    whatsapp_enabled = models.BooleanField(default=False)
     updated_by = models.ForeignKey(
         'auth.User', on_delete=models.SET_NULL, null=True, blank=True
     )

@@ -6,10 +6,10 @@ Each creates Notification records that get dispatched by the 5-minute
 `dispatch_pending_notifications` beat task.
 
 Recipient routing (company-wide settings control which channels fire):
-  - Load status changes  → email/WhatsApp to customer, in-app to company users
-  - Driver assigned/reassigned → in-app/email/WhatsApp to the driver only
-  - Trip started          → in-app/email/WhatsApp to the user who dispatched the load
-  - Compliance/safety     → in-app/email/WhatsApp to all company users
+  - Load status changes  → email to customer, in-app to company users
+  - Driver assigned/reassigned → in-app/email to the driver only
+  - Trip started          → in-app/email to the user who dispatched the load
+  - Compliance/safety     → in-app/email to all company users
 
 All functions are non-blocking best-effort: failures are logged but never
 raised back to the caller so the main business logic is unaffected.
@@ -20,7 +20,7 @@ from django.utils import timezone
 from django.conf import settings
 
 from .models import (
-    Notification, NotificationPreference, UserProfile,
+    Notification, UserProfile,
     Tenant, Company, CompanyNotificationSetting,
 )
 
@@ -31,26 +31,16 @@ logger = logging.getLogger(__name__)
 
 def _get_setting(company, key):
     """
-    Return (in_app_enabled, email_enabled, whatsapp_enabled) for a
+    Return (in_app_enabled, email_enabled) for a
     company + notification_key pair. Defaults to all-False if not found.
     """
     try:
         s = CompanyNotificationSetting.objects.only(
-            'in_app_enabled', 'email_enabled', 'whatsapp_enabled'
+            'in_app_enabled', 'email_enabled'
         ).get(company=company, notification_key=key)
-        return s.in_app_enabled, s.email_enabled, s.whatsapp_enabled
+        return s.in_app_enabled, s.email_enabled
     except CompanyNotificationSetting.DoesNotExist:
-        return False, False, False
-
-
-def _get_whatsapp_phone(user):
-    """Look up a user's WhatsApp phone from their NotificationPreference."""
-    return (
-        NotificationPreference.objects
-        .filter(user=user, whatsapp_phone__gt='')
-        .values_list('whatsapp_phone', flat=True)
-        .first() or ''
-    )
+        return False, False
 
 
 # ── Load status notifications → customer (email/WA) + company (in-app) ─
@@ -98,7 +88,6 @@ def notify_load_status_change(load, old_status, new_status, changed_by=None):
     Unified handler for all load status changes.
     - in_app  → all company users (bell icon), excluding the actor
     - email   → load.customer.email
-    - whatsapp → load.customer.phone
     """
     try:
         key = _LOAD_STATUS_KEY.get(new_status)
@@ -106,8 +95,8 @@ def notify_load_status_change(load, old_status, new_status, changed_by=None):
             return
 
         company = load.company
-        in_app, email, whatsapp = _get_setting(company, key)
-        if not (in_app or email or whatsapp):
+        in_app, email = _get_setting(company, key)
+        if not (in_app or email):
             return
 
         tenant = company.tenant
@@ -156,15 +145,6 @@ def notify_load_status_change(load, old_status, new_status, changed_by=None):
                 recipient_email=load.customer.email,
             )
 
-        # WhatsApp → customer
-        if whatsapp and load.customer and load.customer.phone:
-            _create_notification(
-                tenant, None, 'load', 'whatsapp',
-                customer_subject, customer_message,
-                'Load', load.id, today, metadata,
-                recipient_phone=load.customer.phone,
-            )
-
     except Exception:
         logger.exception("notify_load_status_change failed for load %s", load.id)
 
@@ -187,12 +167,12 @@ def notify_customer_trip_completed(trip):
 def notify_driver_load_assigned(load, driver):
     """
     Notify a driver that a load has been assigned to them.
-    Recipient: the driver only (in-app, email, WhatsApp).
+    Recipient: the driver only (in-app, email).
     """
     try:
         company = load.company
-        in_app, email, whatsapp = _get_setting(company, 'driver_load_assigned')
-        if not (in_app or email or whatsapp):
+        in_app, email = _get_setting(company, 'driver_load_assigned')
+        if not (in_app or email):
             return
         if not driver or not driver.user_account:
             return
@@ -223,12 +203,6 @@ def notify_driver_load_assigned(load, driver):
                 subject, message, 'Load', load.id, today, metadata,
                 recipient_email=driver.user_account.email,
             )
-        if whatsapp and driver.phone:
-            _create_notification(
-                tenant, driver.user_account, 'operations', 'whatsapp',
-                subject, message, 'Load', load.id, today, metadata,
-                recipient_phone=driver.phone,
-            )
     except Exception:
         logger.exception("notify_driver_load_assigned failed for load %s", load.id)
 
@@ -240,8 +214,8 @@ def notify_driver_load_reassigned_away(load, old_driver):
     """
     try:
         company = load.company
-        in_app, email, whatsapp = _get_setting(company, 'driver_load_reassigned')
-        if not (in_app or email or whatsapp):
+        in_app, email = _get_setting(company, 'driver_load_reassigned')
+        if not (in_app or email):
             return
         if not old_driver or not old_driver.user_account:
             return
@@ -267,12 +241,6 @@ def notify_driver_load_reassigned_away(load, old_driver):
                 subject, message, 'Load', load.id, today, metadata,
                 recipient_email=old_driver.user_account.email,
             )
-        if whatsapp and old_driver.phone:
-            _create_notification(
-                tenant, old_driver.user_account, 'operations', 'whatsapp',
-                subject, message, 'Load', load.id, today, metadata,
-                recipient_phone=old_driver.phone,
-            )
     except Exception:
         logger.exception("notify_driver_load_reassigned_away failed for load %s", load.id)
 
@@ -295,8 +263,8 @@ def notify_trip_started(trip, started_by=None):
     """
     try:
         company = trip.company
-        in_app, email, whatsapp = _get_setting(company, 'trip_started_dispatcher')
-        if not (in_app or email or whatsapp):
+        in_app, email = _get_setting(company, 'trip_started_dispatcher')
+        if not (in_app or email):
             return
 
         dispatcher = getattr(trip, 'created_by', None)
@@ -330,14 +298,6 @@ def notify_trip_started(trip, started_by=None):
                 subject, message, 'Trips', trip.id, today, metadata,
                 recipient_email=dispatcher.email,
             )
-        if whatsapp:
-            phone = _get_whatsapp_phone(dispatcher)
-            if phone:
-                _create_notification(
-                    tenant, dispatcher, 'operations', 'whatsapp',
-                    subject, message, 'Trips', trip.id, today, metadata,
-                    recipient_phone=phone,
-                )
     except Exception:
         logger.exception("notify_trip_started failed for trip %s", trip.id)
 

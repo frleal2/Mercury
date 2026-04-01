@@ -890,7 +890,7 @@ class CompanyNotificationSettingSerializer(serializers.ModelSerializer):
         model = CompanyNotificationSetting
         fields = [
             'id', 'company', 'notification_key', 'notification_key_display',
-            'in_app_enabled', 'email_enabled', 'whatsapp_enabled',
+            'in_app_enabled', 'email_enabled',
             'updated_by', 'updated_at',
         ]
         read_only_fields = ['company', 'notification_key', 'updated_by', 'updated_at']
