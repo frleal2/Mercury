@@ -29,6 +29,7 @@ import Carriers from './Pages/Carriers';
 import DispatchBoard from './Pages/DispatchBoard';
 import RateManagement from './Pages/RateManagement';
 import TrackShipment from './Pages/TrackShipment';
+import Integrations from './Pages/Integrations';
 
 function AppContent() {
     const { session } = useSession();
@@ -62,6 +63,7 @@ function AppContent() {
                             <Route path="/Rates" element={<Navigate to="/DriverDashboard" />} />
                             <Route path="/Recruitment" element={<Navigate to="/DriverDashboard" />} />
                             <Route path="/UserManagement" element={<Navigate to="/DriverDashboard" />} />
+                            <Route path="/Integrations" element={<Navigate to="/DriverDashboard" />} />
                             <Route path="*" element={<Navigate to="/DriverDashboard" />} />
                         </>
                     ) : (
@@ -88,6 +90,7 @@ function AppContent() {
                             <Route path="/AnnualInspection" element={<><Header /><AnnualInspectionPage /></>} />
                             <Route path="/CompanySafety" element={<><Header /><CompanySafety /></>} />
                             <Route path="/Settings" element={<><Header /><Settings /></>} />
+                            <Route path="/Integrations" element={<><Header /><Integrations /></>} />
                         </>
                     )}
                     <Route path="/QuickApply" element={<ApplicationForm />} /> {/* Allow access to Recruitment without login */}

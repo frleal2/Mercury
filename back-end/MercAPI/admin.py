@@ -7,7 +7,8 @@ from .models import (Driver, Company, DriverTest, Truck, Trailer, Inspection, In
                      MaintenanceType, MaintenanceRecord, MaintenanceAttachment, PasswordResetToken,
                      TripInspectionRepairCertification, AnnualInspection, VehicleOperationStatus,
                      Customer, Carrier, Load, Invoice, InvoicePayment,
-                     FMCSASnapshot, ComplianceMetric)
+                     FMCSASnapshot, ComplianceMetric,
+                     ELDProvider, ELDVehicleMapping, ELDDriverMapping, VehicleLocation)
 
 @admin.register(Tenant)
 class TenantAdmin(admin.ModelAdmin):
@@ -553,3 +554,28 @@ class NotificationAdmin(admin.ModelAdmin):
     list_filter = ['category', 'channel', 'status', 'tenant']
     search_fields = ['recipient__username', 'recipient_email', 'subject']
     readonly_fields = ['created_at', 'sent_at', 'delivered_at']
+
+@admin.register(ELDProvider)
+class ELDProviderAdmin(admin.ModelAdmin):
+    list_display = ('company', 'provider', 'status', 'sync_enabled', 'last_sync_at', 'created_at')
+    list_filter = ('provider', 'status', 'sync_enabled')
+    search_fields = ('company__name',)
+
+
+@admin.register(ELDVehicleMapping)
+class ELDVehicleMappingAdmin(admin.ModelAdmin):
+    list_display = ('truck', 'external_vehicle_id', 'external_vehicle_name', 'auto_matched')
+    list_filter = ('auto_matched', 'eld_provider__provider')
+
+
+@admin.register(ELDDriverMapping)
+class ELDDriverMappingAdmin(admin.ModelAdmin):
+    list_display = ('driver', 'external_driver_id', 'external_driver_name', 'auto_matched')
+    list_filter = ('auto_matched', 'eld_provider__provider')
+
+
+@admin.register(VehicleLocation)
+class VehicleLocationAdmin(admin.ModelAdmin):
+    list_display = ('truck', 'latitude', 'longitude', 'speed_mph', 'recorded_at', 'source_provider')
+    list_filter = ('source_provider',)
+    date_hierarchy = 'recorded_at'

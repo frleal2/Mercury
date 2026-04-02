@@ -30,7 +30,7 @@ from .alerts import (
     notify_customer_trip_started,
     notify_customer_trip_completed,
 )
-from .serializers import UserSerializer, DriverSerializer, TruckSerializer, CompanySerializer, TrailerSerializer, DriverTestSerializer, DriverHOSSerializer, DriverApplicationSerializer, MaintenanceCategorySerializer, MaintenanceTypeSerializer, MaintenanceRecordSerializer, MaintenanceAttachmentSerializer, DriverDocumentSerializer, InspectionSerializer, InspectionItemSerializer, TripsSerializer, TripDocumentSerializer, LoadDocumentSerializer, AnnualInspectionSerializer, VehicleOperationStatusSerializer, CustomerSerializer, CarrierSerializer, LoadSerializer, InvoiceSerializer, InvoicePaymentSerializer, RateLaneSerializer, AccessorialChargeSerializer, FuelSurchargeScheduleSerializer, CheckCallSerializer, LoadTrackingEventSerializer, CustomerTrackingSerializer, LoadNotificationSerializer, NotificationSerializer, NotificationPreferenceSerializer, CompanyNotificationSettingSerializer
+from .serializers import UserSerializer, DriverSerializer, TruckSerializer, CompanySerializer, TrailerSerializer, DriverTestSerializer, DriverHOSSerializer, DriverApplicationSerializer, MaintenanceCategorySerializer, MaintenanceTypeSerializer, MaintenanceRecordSerializer, MaintenanceAttachmentSerializer, DriverDocumentSerializer, InspectionSerializer, InspectionItemSerializer, TripsSerializer, TripDocumentSerializer, LoadDocumentSerializer, AnnualInspectionSerializer, VehicleOperationStatusSerializer, CustomerSerializer, CarrierSerializer, LoadSerializer, InvoiceSerializer, InvoicePaymentSerializer, RateLaneSerializer, AccessorialChargeSerializer, FuelSurchargeScheduleSerializer, CheckCallSerializer, LoadTrackingEventSerializer, CustomerTrackingSerializer, LoadNotificationSerializer, NotificationSerializer, NotificationPreferenceSerializer, CompanyNotificationSettingSerializer, ELDProviderSerializer, ELDProviderDetailSerializer, ELDVehicleMappingSerializer, ELDDriverMappingSerializer, VehicleLocationSerializer, ActiveLoadLocationSerializer
 from rest_framework.decorators import api_view, permission_classes, action
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -41,7 +41,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework_simplejwt.views import TokenObtainPairView
-from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Tenant, UserProfile, Inspection, InspectionItem, Trips, InvitationToken, TripDocument, LoadDocument, PasswordResetToken, AnnualInspection, VehicleOperationStatus, Customer, Carrier, Load, Invoice, InvoicePayment, RateLane, AccessorialCharge, FuelSurchargeSchedule, CheckCall, LoadTrackingEvent, LoadNotification, Notification, NotificationPreference, CompanyNotificationSetting
+from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Tenant, UserProfile, Inspection, InspectionItem, Trips, InvitationToken, TripDocument, LoadDocument, PasswordResetToken, AnnualInspection, VehicleOperationStatus, Customer, Carrier, Load, Invoice, InvoicePayment, RateLane, AccessorialCharge, FuelSurchargeSchedule, CheckCall, LoadTrackingEvent, LoadNotification, Notification, NotificationPreference, CompanyNotificationSetting, ELDProvider, ELDVehicleMapping, ELDDriverMapping, VehicleLocation
 from rest_framework.serializers import ValidationError
 from rest_framework import serializers
 from django.core.files.storage import default_storage
@@ -4291,6 +4291,251 @@ class CompanyNotificationSettingViewSet(ModelViewSet):
         serializer.is_valid(raise_exception=True)
         serializer.save(updated_by=request.user)
         return Response(serializer.data)
+
+
+# ─── ELD INTEGRATION VIEWS ──────────────────────────────────────────────────────
+
+class ELDProviderViewSet(CompanyFilterMixin, ModelViewSet):
+    """CRUD for ELD provider connections. Admin-only."""
+    serializer_class = ELDProviderSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        user_companies = self.request.user.profile.companies.all()
+        return ELDProvider.objects.filter(company__in=user_companies)
+
+    def get_serializer_class(self):
+        if self.action == 'retrieve':
+            return ELDProviderDetailSerializer
+        return ELDProviderSerializer
+
+    def perform_create(self, serializer):
+        serializer.save()
+
+    @action(detail=True, methods=['post'])
+    def test_connection(self, request, pk=None):
+        """Test that the stored API key connects successfully."""
+        from .eld_adapters import get_adapter
+        provider = self.get_object()
+        try:
+            adapter = get_adapter(provider.provider, provider.api_key, provider.access_token)
+            ok = adapter.test_connection()
+            if ok:
+                provider.status = 'connected'
+                provider.last_error = ''
+            else:
+                provider.status = 'error'
+                provider.last_error = 'Connection test returned false'
+            provider.save(update_fields=['status', 'last_error', 'updated_at'])
+            return Response({'connected': ok, 'status': provider.status})
+        except Exception as e:
+            provider.status = 'error'
+            provider.last_error = str(e)
+            provider.save(update_fields=['status', 'last_error', 'updated_at'])
+            return Response({'connected': False, 'error': str(e)}, status=400)
+
+    @action(detail=True, methods=['post'])
+    def sync_assets(self, request, pk=None):
+        """Fetch vehicles & drivers from ELD and auto-match to local records."""
+        from .eld_adapters import get_adapter
+        provider = self.get_object()
+        adapter = get_adapter(provider.provider, provider.api_key, provider.access_token)
+
+        # Sync vehicles — auto-match by VIN
+        eld_vehicles = adapter.fetch_vehicles()
+        company_trucks = Truck.objects.filter(company=provider.company, active=True)
+        vin_lookup = {t.vin.upper(): t for t in company_trucks if t.vin}
+        vehicles_matched = 0
+        for ev in eld_vehicles:
+            if ELDVehicleMapping.objects.filter(eld_provider=provider, external_vehicle_id=ev.external_id).exists():
+                continue
+            truck = vin_lookup.get(ev.vin.upper()) if ev.vin else None
+            if truck:
+                ELDVehicleMapping.objects.create(
+                    eld_provider=provider, truck=truck,
+                    external_vehicle_id=ev.external_id,
+                    external_vehicle_name=ev.name,
+                    auto_matched=True,
+                )
+                vehicles_matched += 1
+
+        # Sync drivers — auto-match by CDL number or first+last name
+        eld_drivers = adapter.fetch_drivers()
+        company_drivers = Driver.objects.filter(company=provider.company, active=True)
+        cdl_lookup = {d.cdl_number.upper(): d for d in company_drivers if d.cdl_number}
+        name_lookup = {f"{d.first_name.lower()} {d.last_name.lower()}": d for d in company_drivers}
+        drivers_matched = 0
+        for ed in eld_drivers:
+            if ELDDriverMapping.objects.filter(eld_provider=provider, external_driver_id=ed.external_id).exists():
+                continue
+            driver = None
+            if ed.license_number:
+                driver = cdl_lookup.get(ed.license_number.upper())
+            if not driver:
+                driver = name_lookup.get(f"{ed.first_name.lower()} {ed.last_name.lower()}")
+            if driver:
+                ELDDriverMapping.objects.create(
+                    eld_provider=provider, driver=driver,
+                    external_driver_id=ed.external_id,
+                    external_driver_name=f"{ed.first_name} {ed.last_name}",
+                    auto_matched=True,
+                )
+                drivers_matched += 1
+
+        provider.status = 'connected'
+        provider.last_sync_at = timezone.now()
+        provider.save(update_fields=['status', 'last_sync_at', 'updated_at'])
+
+        return Response({
+            'vehicles_found': len(eld_vehicles),
+            'vehicles_matched': vehicles_matched,
+            'drivers_found': len(eld_drivers),
+            'drivers_matched': drivers_matched,
+        })
+
+    @action(detail=True, methods=['post'])
+    def sync_locations(self, request, pk=None):
+        """Manually trigger a GPS location sync for this provider."""
+        from .eld_adapters import get_adapter
+        provider = self.get_object()
+        adapter = get_adapter(provider.provider, provider.api_key, provider.access_token)
+        locations = adapter.fetch_vehicle_locations()
+
+        # Resolve vehicle mappings
+        mappings = {
+            m.external_vehicle_id: m
+            for m in provider.vehicle_mappings.select_related('truck').all()
+        }
+
+        created = 0
+        for loc in locations:
+            mapping = mappings.get(loc.external_vehicle_id)
+            if not mapping:
+                continue
+
+            # Resolve driver from mapping if available
+            driver = None
+            if loc.driver_external_id:
+                dm = provider.driver_mappings.filter(external_driver_id=loc.driver_external_id).select_related('driver').first()
+                if dm:
+                    driver = dm.driver
+
+            # Find current in-transit load for this truck
+            active_load = Load.objects.filter(
+                trip__truck=mapping.truck,
+                status='in_transit',
+            ).first()
+
+            VehicleLocation.objects.create(
+                truck=mapping.truck,
+                load=active_load,
+                driver=driver,
+                latitude=loc.latitude,
+                longitude=loc.longitude,
+                speed_mph=loc.speed_mph,
+                heading=loc.heading,
+                odometer_miles=loc.odometer_miles,
+                engine_hours=loc.engine_hours,
+                recorded_at=loc.recorded_at or timezone.now(),
+                source_provider=provider.provider,
+            )
+            created += 1
+
+            # Also update the Load's last known position
+            if active_load:
+                active_load.last_known_latitude = loc.latitude
+                active_load.last_known_longitude = loc.longitude
+                active_load.save(update_fields=['last_known_latitude', 'last_known_longitude'])
+
+        provider.last_sync_at = timezone.now()
+        provider.save(update_fields=['last_sync_at', 'updated_at'])
+
+        return Response({'locations_synced': created, 'total_from_provider': len(locations)})
+
+
+class ELDVehicleMappingViewSet(CompanyFilterMixin, ModelViewSet):
+    serializer_class = ELDVehicleMappingSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        user_companies = self.request.user.profile.companies.all()
+        return ELDVehicleMapping.objects.filter(
+            eld_provider__company__in=user_companies
+        ).select_related('truck', 'eld_provider')
+
+
+class ELDDriverMappingViewSet(CompanyFilterMixin, ModelViewSet):
+    serializer_class = ELDDriverMappingSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        user_companies = self.request.user.profile.companies.all()
+        return ELDDriverMapping.objects.filter(
+            eld_provider__company__in=user_companies
+        ).select_related('driver', 'eld_provider')
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def dispatch_map_locations(request):
+    """
+    Returns active loads (dispatched + in_transit) with their latest GPS positions.
+    Used by the Dispatch Board live map.
+    """
+    user_companies = request.user.profile.companies.all()
+
+    active_loads = Load.objects.filter(
+        company__in=user_companies,
+        status__in=['dispatched', 'in_transit'],
+    ).select_related('customer', 'carrier', 'trip__driver', 'trip__truck')
+
+    results = []
+    for load in active_loads:
+        # Try to get the latest VehicleLocation for this load's truck
+        lat = load.last_known_latitude
+        lng = load.last_known_longitude
+        speed = None
+        heading = None
+        location_updated = None
+
+        if load.trip and load.trip.truck:
+            latest_loc = VehicleLocation.objects.filter(
+                truck=load.trip.truck
+            ).first()  # Already ordered by -recorded_at
+            if latest_loc:
+                lat = latest_loc.latitude
+                lng = latest_loc.longitude
+                speed = latest_loc.speed_mph
+                heading = latest_loc.heading
+                location_updated = latest_loc.recorded_at
+
+        driver_name = None
+        if load.trip and load.trip.driver:
+            driver_name = f"{load.trip.driver.first_name} {load.trip.driver.last_name}"
+
+        results.append({
+            'load_id': load.id,
+            'load_number': load.load_number,
+            'status': load.status,
+            'customer_name': load.customer.name if load.customer else '',
+            'pickup_location_display': load.pickup_location_display,
+            'delivery_location_display': load.delivery_location_display,
+            'pickup_date': load.pickup_date,
+            'delivery_date': load.delivery_date,
+            'total_revenue': load.total_revenue,
+            'trip_driver_name': driver_name,
+            'carrier_name': load.carrier.name if load.carrier else None,
+            'truck_unit_number': load.trip.truck.unit_number if load.trip and load.trip.truck else None,
+            'latitude': lat,
+            'longitude': lng,
+            'speed_mph': speed,
+            'heading': heading,
+            'location_updated_at': location_updated,
+            'current_eta': load.current_eta,
+        })
+
+    serializer = ActiveLoadLocationSerializer(results, many=True)
+    return Response(serializer.data)
 
 
 # ─── Rate Confirmation PDF Parsing ────────────────────────────────────────────

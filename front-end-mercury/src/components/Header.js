@@ -180,6 +180,16 @@ export default function Example() {
                     Settings
                   </a>
                 </MenuItem>
+                {session?.userInfo?.isCompanyAdmin && (
+                  <MenuItem>
+                    <a
+                      href="/Integrations"
+                      className="block px-4 py-2 text-sm text-gray-700 data-focus:bg-gray-100 data-focus:outline-hidden"
+                    >
+                      Integrations
+                    </a>
+                  </MenuItem>
+                )}
                 <MenuItem>
                   <a
                     href="/UserManagement"

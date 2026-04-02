@@ -22,7 +22,7 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from django.conf import settings
 from django.conf.urls.static import static
 from MercAPI import views  # Corrected to match the actual directory name
-from MercAPI.views import RegisterUserView, CustomTokenObtainPairView, DriverViewSet, TruckViewSet, CompanyViewSet, TrailerViewSet, DriverTestViewSet, DriverHOSViewSet, DriverApplicationViewSet, MaintenanceCategoryViewSet, MaintenanceTypeViewSet, MaintenanceRecordViewSet, MaintenanceAttachmentViewSet, DriverDocumentViewSet, TripDocumentViewSet, LoadDocumentViewSet, MaintenanceAttachmentUploadView, DriverDocumentUploadView, InspectionViewSet, InspectionItemViewSet, TripsViewSet, TripsManagementViewSet, TripInspectionViewSet, AnnualInspectionViewSet, VehicleOperationStatusViewSet, driver_update_dvir_review, cancel_trip, cancel_and_reassign_trip, available_trucks, CustomerViewSet, CarrierViewSet, LoadViewSet, InvoiceViewSet, InvoicePaymentViewSet, RateLaneViewSet, AccessorialChargeViewSet, FuelSurchargeScheduleViewSet, CheckCallViewSet, LoadTrackingEventViewSet, NotificationViewSet, NotificationPreferenceViewSet, CompanyNotificationSettingViewSet, parse_rate_confirmation, confirm_delivery, report_breakdown
+from MercAPI.views import RegisterUserView, CustomTokenObtainPairView, DriverViewSet, TruckViewSet, CompanyViewSet, TrailerViewSet, DriverTestViewSet, DriverHOSViewSet, DriverApplicationViewSet, MaintenanceCategoryViewSet, MaintenanceTypeViewSet, MaintenanceRecordViewSet, MaintenanceAttachmentViewSet, DriverDocumentViewSet, TripDocumentViewSet, LoadDocumentViewSet, MaintenanceAttachmentUploadView, DriverDocumentUploadView, InspectionViewSet, InspectionItemViewSet, TripsViewSet, TripsManagementViewSet, TripInspectionViewSet, AnnualInspectionViewSet, VehicleOperationStatusViewSet, driver_update_dvir_review, cancel_trip, cancel_and_reassign_trip, available_trucks, CustomerViewSet, CarrierViewSet, LoadViewSet, InvoiceViewSet, InvoicePaymentViewSet, RateLaneViewSet, AccessorialChargeViewSet, FuelSurchargeScheduleViewSet, CheckCallViewSet, LoadTrackingEventViewSet, NotificationViewSet, NotificationPreferenceViewSet, CompanyNotificationSettingViewSet, parse_rate_confirmation, confirm_delivery, report_breakdown, ELDProviderViewSet, ELDVehicleMappingViewSet, ELDDriverMappingViewSet, dispatch_map_locations
 
 router = DefaultRouter()
 router.register(r'drivers', DriverViewSet, basename='driver')  # Register DriverViewSet
@@ -62,6 +62,10 @@ router.register(r'tracking-events', LoadTrackingEventViewSet, basename='tracking
 router.register(r'notifications', NotificationViewSet, basename='notification')
 router.register(r'notification-preferences', NotificationPreferenceViewSet, basename='notification-preference')
 router.register(r'notification-settings', CompanyNotificationSettingViewSet, basename='notification-setting')
+# ELD Integrations
+router.register(r'eld-providers', ELDProviderViewSet, basename='eld-provider')
+router.register(r'eld-vehicle-mappings', ELDVehicleMappingViewSet, basename='eld-vehicle-mapping')
+router.register(r'eld-driver-mappings', ELDDriverMappingViewSet, basename='eld-driver-mapping')
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -122,6 +126,8 @@ urlpatterns = [
     path('api/carriers/<int:carrier_id>/safety/', views.carrier_safety_overview, name='carrier_safety_overview'),
     path('api/carriers/<int:carrier_id>/safety/refresh/', views.carrier_safety_refresh, name='carrier_safety_refresh'),
     path('api/carriers/safety/overview/', views.carriers_safety_list, name='carriers_safety_list'),
+    # ELD / Dispatch Map
+    path('api/dispatch/map-locations/', dispatch_map_locations, name='dispatch_map_locations'),
 ]
 
 # Serve media and static files during development

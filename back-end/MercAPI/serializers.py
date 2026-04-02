@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Inspection, InspectionItem, Trips, UserProfile, TripDocument, LoadDocument, AnnualInspection, VehicleOperationStatus, Customer, Carrier, Load, Invoice, InvoicePayment, RateLane, AccessorialCharge, FuelSurchargeSchedule, CheckCall, LoadTrackingEvent, LoadNotification, NotificationTemplate, NotificationPreference, Notification, CompanyNotificationSetting, FMCSASnapshot, ComplianceMetric
+from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Inspection, InspectionItem, Trips, UserProfile, TripDocument, LoadDocument, AnnualInspection, VehicleOperationStatus, Customer, Carrier, Load, Invoice, InvoicePayment, RateLane, AccessorialCharge, FuelSurchargeSchedule, CheckCall, LoadTrackingEvent, LoadNotification, NotificationTemplate, NotificationPreference, Notification, CompanyNotificationSetting, FMCSASnapshot, ComplianceMetric, ELDProvider, ELDVehicleMapping, ELDDriverMapping, VehicleLocation
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -875,6 +875,123 @@ class ComplianceMetricSerializer(serializers.ModelSerializer):
 
     def get_insurance_pct(self, obj):
         return self._pct(obj.trucks_insurance_current, obj.total_trucks)
+
+
+# ─── ELD INTEGRATION SERIALIZERS ────────────────────────────────────────────────
+
+class ELDProviderSerializer(serializers.ModelSerializer):
+    provider_display = serializers.CharField(source='get_provider_display', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    company_name = serializers.CharField(source='company.name', read_only=True)
+    vehicle_mapping_count = serializers.SerializerMethodField()
+    driver_mapping_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ELDProvider
+        fields = [
+            'id', 'company', 'company_name', 'provider', 'provider_display',
+            'status', 'status_display', 'api_key', 'sync_enabled',
+            'last_sync_at', 'last_error', 'vehicle_mapping_count',
+            'driver_mapping_count', 'created_at', 'updated_at',
+        ]
+        read_only_fields = ['status', 'last_sync_at', 'last_error', 'created_at', 'updated_at']
+        extra_kwargs = {
+            'api_key': {'write_only': True},
+        }
+
+    def get_vehicle_mapping_count(self, obj):
+        return obj.vehicle_mappings.count()
+
+    def get_driver_mapping_count(self, obj):
+        return obj.driver_mappings.count()
+
+
+class ELDProviderDetailSerializer(ELDProviderSerializer):
+    """Extended serializer with mappings included."""
+    vehicle_mappings = serializers.SerializerMethodField()
+    driver_mappings = serializers.SerializerMethodField()
+
+    class Meta(ELDProviderSerializer.Meta):
+        fields = ELDProviderSerializer.Meta.fields + ['vehicle_mappings', 'driver_mappings']
+
+    def get_vehicle_mappings(self, obj):
+        return ELDVehicleMappingSerializer(obj.vehicle_mappings.all(), many=True).data
+
+    def get_driver_mappings(self, obj):
+        return ELDDriverMappingSerializer(obj.driver_mappings.all(), many=True).data
+
+
+class ELDVehicleMappingSerializer(serializers.ModelSerializer):
+    truck_unit_number = serializers.CharField(source='truck.unit_number', read_only=True)
+    truck_make = serializers.CharField(source='truck.make', read_only=True)
+    truck_model = serializers.CharField(source='truck.model', read_only=True)
+
+    class Meta:
+        model = ELDVehicleMapping
+        fields = [
+            'id', 'eld_provider', 'truck', 'truck_unit_number', 'truck_make',
+            'truck_model', 'external_vehicle_id', 'external_vehicle_name',
+            'auto_matched', 'created_at',
+        ]
+        read_only_fields = ['auto_matched', 'created_at']
+
+
+class ELDDriverMappingSerializer(serializers.ModelSerializer):
+    driver_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ELDDriverMapping
+        fields = [
+            'id', 'eld_provider', 'driver', 'driver_name',
+            'external_driver_id', 'external_driver_name',
+            'auto_matched', 'created_at',
+        ]
+        read_only_fields = ['auto_matched', 'created_at']
+
+    def get_driver_name(self, obj):
+        return f"{obj.driver.first_name} {obj.driver.last_name}"
+
+
+class VehicleLocationSerializer(serializers.ModelSerializer):
+    truck_unit_number = serializers.CharField(source='truck.unit_number', read_only=True)
+    driver_name = serializers.SerializerMethodField()
+    load_number = serializers.CharField(source='load.load_number', read_only=True, default=None)
+
+    class Meta:
+        model = VehicleLocation
+        fields = [
+            'id', 'truck', 'truck_unit_number', 'load', 'load_number',
+            'driver', 'driver_name', 'latitude', 'longitude', 'speed_mph',
+            'heading', 'odometer_miles', 'engine_hours', 'recorded_at',
+            'source_provider', 'created_at',
+        ]
+
+    def get_driver_name(self, obj):
+        if obj.driver:
+            return f"{obj.driver.first_name} {obj.driver.last_name}"
+        return None
+
+
+class ActiveLoadLocationSerializer(serializers.Serializer):
+    """Serializer for the dispatch map — one entry per active load with location."""
+    load_id = serializers.IntegerField()
+    load_number = serializers.CharField()
+    status = serializers.CharField()
+    customer_name = serializers.CharField()
+    pickup_location_display = serializers.CharField()
+    delivery_location_display = serializers.CharField()
+    pickup_date = serializers.DateField()
+    delivery_date = serializers.DateField()
+    total_revenue = serializers.DecimalField(max_digits=12, decimal_places=2)
+    trip_driver_name = serializers.CharField(allow_null=True)
+    carrier_name = serializers.CharField(allow_null=True)
+    truck_unit_number = serializers.CharField(allow_null=True)
+    latitude = serializers.DecimalField(max_digits=9, decimal_places=6, allow_null=True)
+    longitude = serializers.DecimalField(max_digits=9, decimal_places=6, allow_null=True)
+    speed_mph = serializers.DecimalField(max_digits=6, decimal_places=1, allow_null=True)
+    heading = serializers.IntegerField(allow_null=True)
+    location_updated_at = serializers.DateTimeField(allow_null=True)
+    current_eta = serializers.DateTimeField(allow_null=True)
 
     def get_pre_trip_pct(self, obj):
         return self._pct(obj.trips_with_pre_trip, obj.total_trips)

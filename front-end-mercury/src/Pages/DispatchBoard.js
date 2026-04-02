@@ -5,6 +5,7 @@ import BASE_URL from '../config';
 import ViewLoadDetails from '../components/ViewLoadDetails';
 import DispatchLoadModal from '../components/DispatchLoadModal';
 import ReassignDispatchModal from '../components/ReassignDispatchModal';
+import DispatchMap from '../components/DispatchMap';
 import {
   ArrowPathIcon,
   MagnifyingGlassIcon,
@@ -295,6 +296,11 @@ function DispatchBoard() {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Live Fleet Map */}
+        <div className="my-4">
+          <DispatchMap onSelectLoad={setSelectedLoadId} />
         </div>
       </div>
 

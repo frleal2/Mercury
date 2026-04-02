@@ -2570,6 +2570,112 @@ class FuelSurchargeSchedule(models.Model):
         return f"{self.name} (Base: ${self.base_fuel_price})"
 
 
+# ─── ELD INTEGRATION MODELS ─────────────────────────────────────────────────────
+
+class ELDProvider(models.Model):
+    """
+    Stores a company's connection to an ELD provider (Motive, Samsara, Geotab).
+    Each company can have at most one active connection per provider.
+    """
+    PROVIDER_CHOICES = [
+        ('motive', 'Motive (KeepTruckin)'),
+        ('samsara', 'Samsara'),
+        ('geotab', 'Geotab'),
+    ]
+    STATUS_CHOICES = [
+        ('connected', 'Connected'),
+        ('disconnected', 'Disconnected'),
+        ('error', 'Error'),
+        ('pending', 'Pending Setup'),
+    ]
+
+    company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name='eld_providers')
+    provider = models.CharField(max_length=20, choices=PROVIDER_CHOICES)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    api_key = models.CharField(max_length=512, blank=True, help_text='Encrypted API key for this provider')
+    access_token = models.TextField(blank=True, help_text='OAuth access token (encrypted)')
+    refresh_token = models.TextField(blank=True, help_text='OAuth refresh token (encrypted)')
+    token_expires_at = models.DateTimeField(null=True, blank=True)
+    webhook_secret = models.CharField(max_length=255, blank=True)
+    last_sync_at = models.DateTimeField(null=True, blank=True)
+    last_error = models.TextField(blank=True)
+    sync_enabled = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ['company', 'provider']
+        ordering = ['-created_at']
+        verbose_name = 'ELD Provider Connection'
+
+    def __str__(self):
+        return f"{self.company.name} - {self.get_provider_display()} ({self.status})"
+
+
+class ELDVehicleMapping(models.Model):
+    """Maps an ELD provider's vehicle ID to a local Truck record."""
+    eld_provider = models.ForeignKey(ELDProvider, on_delete=models.CASCADE, related_name='vehicle_mappings')
+    truck = models.ForeignKey('Truck', on_delete=models.CASCADE, related_name='eld_mappings')
+    external_vehicle_id = models.CharField(max_length=255, help_text='Vehicle ID in the ELD system')
+    external_vehicle_name = models.CharField(max_length=255, blank=True)
+    auto_matched = models.BooleanField(default=False, help_text='True if matched by VIN automatically')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ['eld_provider', 'external_vehicle_id']
+        verbose_name = 'ELD Vehicle Mapping'
+
+    def __str__(self):
+        return f"{self.truck.unit_number} ↔ {self.external_vehicle_id}"
+
+
+class ELDDriverMapping(models.Model):
+    """Maps an ELD provider's driver ID to a local Driver record."""
+    eld_provider = models.ForeignKey(ELDProvider, on_delete=models.CASCADE, related_name='driver_mappings')
+    driver = models.ForeignKey('Driver', on_delete=models.CASCADE, related_name='eld_mappings')
+    external_driver_id = models.CharField(max_length=255, help_text='Driver ID in the ELD system')
+    external_driver_name = models.CharField(max_length=255, blank=True)
+    auto_matched = models.BooleanField(default=False, help_text='True if matched by name automatically')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ['eld_provider', 'external_driver_id']
+        verbose_name = 'ELD Driver Mapping'
+
+    def __str__(self):
+        return f"{self.driver.first_name} {self.driver.last_name} ↔ {self.external_driver_id}"
+
+
+class VehicleLocation(models.Model):
+    """
+    Stores GPS location pings from ELD providers.
+    Latest record per truck is the current position shown on the map.
+    """
+    truck = models.ForeignKey('Truck', on_delete=models.CASCADE, related_name='locations')
+    load = models.ForeignKey('Load', on_delete=models.SET_NULL, null=True, blank=True, related_name='vehicle_locations')
+    driver = models.ForeignKey('Driver', on_delete=models.SET_NULL, null=True, blank=True)
+    latitude = models.DecimalField(max_digits=9, decimal_places=6)
+    longitude = models.DecimalField(max_digits=9, decimal_places=6)
+    speed_mph = models.DecimalField(max_digits=6, decimal_places=1, null=True, blank=True)
+    heading = models.IntegerField(null=True, blank=True, help_text='Compass heading 0-360')
+    odometer_miles = models.DecimalField(max_digits=10, decimal_places=1, null=True, blank=True)
+    engine_hours = models.DecimalField(max_digits=10, decimal_places=1, null=True, blank=True)
+    recorded_at = models.DateTimeField(help_text='Timestamp from ELD device')
+    created_at = models.DateTimeField(auto_now_add=True)
+    source_provider = models.CharField(max_length=20, blank=True)
+
+    class Meta:
+        ordering = ['-recorded_at']
+        indexes = [
+            models.Index(fields=['truck', '-recorded_at']),
+            models.Index(fields=['-recorded_at']),
+        ]
+        verbose_name = 'Vehicle Location'
+
+    def __str__(self):
+        return f"{self.truck.unit_number} @ ({self.latitude}, {self.longitude})"
+
+
 # ==================== FMCSA SAFETY & COMPLIANCE ====================
 
 class FMCSASnapshot(models.Model):

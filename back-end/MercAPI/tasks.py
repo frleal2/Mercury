@@ -7,6 +7,79 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+@shared_task
+def sync_eld_locations():
+    """
+    Periodic task: Poll all connected ELD providers for GPS locations.
+    Runs every 90 seconds via Celery Beat.
+    """
+    from .models import ELDProvider, ELDVehicleMapping, VehicleLocation, Load
+    from .eld_adapters import get_adapter
+    from django.utils import timezone
+
+    providers = ELDProvider.objects.filter(status='connected', sync_enabled=True)
+    total_synced = 0
+
+    for provider in providers:
+        try:
+            adapter = get_adapter(provider.provider, provider.api_key, provider.access_token)
+            locations = adapter.fetch_vehicle_locations()
+
+            mappings = {
+                m.external_vehicle_id: m
+                for m in provider.vehicle_mappings.select_related('truck').all()
+            }
+
+            for loc in locations:
+                mapping = mappings.get(loc.external_vehicle_id)
+                if not mapping:
+                    continue
+
+                driver = None
+                if loc.driver_external_id:
+                    dm = provider.driver_mappings.filter(
+                        external_driver_id=loc.driver_external_id
+                    ).select_related('driver').first()
+                    if dm:
+                        driver = dm.driver
+
+                active_load = Load.objects.filter(
+                    trip__truck=mapping.truck,
+                    status='in_transit',
+                ).first()
+
+                VehicleLocation.objects.create(
+                    truck=mapping.truck,
+                    load=active_load,
+                    driver=driver,
+                    latitude=loc.latitude,
+                    longitude=loc.longitude,
+                    speed_mph=loc.speed_mph,
+                    heading=loc.heading,
+                    odometer_miles=loc.odometer_miles,
+                    engine_hours=loc.engine_hours,
+                    recorded_at=loc.recorded_at or timezone.now(),
+                    source_provider=provider.provider,
+                )
+                total_synced += 1
+
+                if active_load:
+                    active_load.last_known_latitude = loc.latitude
+                    active_load.last_known_longitude = loc.longitude
+                    active_load.save(update_fields=['last_known_latitude', 'last_known_longitude'])
+
+            provider.last_sync_at = timezone.now()
+            provider.last_error = ''
+            provider.save(update_fields=['last_sync_at', 'last_error', 'updated_at'])
+
+        except Exception as e:
+            logger.error(f'ELD location sync failed for {provider}: {e}')
+            provider.last_error = str(e)[:500]
+            provider.save(update_fields=['last_error', 'updated_at'])
+
+    logger.info(f'ELD location sync complete: {total_synced} positions updated from {providers.count()} providers')
+
+
 @shared_task(bind=True, max_retries=3, default_retry_delay=60)
 def send_email_task(self, subject, message, recipient_list, from_email=None, html_message=None):
     """
