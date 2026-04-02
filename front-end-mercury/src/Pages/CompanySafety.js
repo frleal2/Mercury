@@ -92,7 +92,16 @@ function CompanySafety() {
       const response = await axios.get(url, {
         headers: { 'Authorization': `Bearer ${session.accessToken}` },
       });
-      setData(response.data);
+      // Backend returns a list of companies — take the first one
+      const results = response.data;
+      if (Array.isArray(results) && results.length > 0) {
+        setData(results[0]);
+      } else if (Array.isArray(results) && results.length === 0) {
+        setError('No company with DOT number found or company not set as asset/hybrid type.');
+      } else {
+        // Single object response
+        setData(results);
+      }
     } catch (err) {
       if (err.response?.status === 401) {
         const newToken = await refreshAccessToken();

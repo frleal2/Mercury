@@ -63,9 +63,11 @@ def fetch_carrier_data(dot_number):
 
     url = f"{FMCSA_BASE_URL}/carriers/{dot_number}"
     params = {'webKey': api_key}
+    logger.info("Fetching FMCSA data for DOT %s from %s", dot_number, url)
 
     try:
         resp = requests.get(url, params=params, timeout=30, headers={'Accept': 'application/json'})
+        logger.info("FMCSA response status %s for DOT %s", resp.status_code, dot_number)
         resp.raise_for_status()
     except requests.RequestException as exc:
         logger.error("FMCSA API request failed for DOT %s: %s", dot_number, exc)
@@ -77,15 +79,18 @@ def fetch_carrier_data(dot_number):
         logger.error("FMCSA API returned non-JSON response for DOT %s: %s", dot_number, resp.text[:200])
         return None
 
+    logger.info("FMCSA response keys for DOT %s: %s", dot_number, list(data.keys()))
+
     # The FMCSA API may nest carrier under content.carrier or content[0].carrier
     content = data.get('content')
+    logger.info("FMCSA content type for DOT %s: %s", dot_number, type(content).__name__)
     if isinstance(content, list) and len(content) > 0:
         content = content[0]
     if not isinstance(content, dict):
         content = {}
     carrier = content.get('carrier', {})
     if not carrier:
-        logger.warning("No carrier data returned for DOT %s. Response keys: %s", dot_number, list(data.keys()))
+        logger.warning("No carrier data returned for DOT %s. Content keys: %s, Full response: %.500s", dot_number, list(content.keys()) if isinstance(content, dict) else 'N/A', str(data)[:500])
         return None
 
     return _parse_carrier_response(carrier, data)
