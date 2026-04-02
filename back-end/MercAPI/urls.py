@@ -22,7 +22,7 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from django.conf import settings
 from django.conf.urls.static import static
 from MercAPI import views  # Corrected to match the actual directory name
-from MercAPI.views import RegisterUserView, CustomTokenObtainPairView, DriverViewSet, TruckViewSet, CompanyViewSet, TrailerViewSet, DriverTestViewSet, DriverHOSViewSet, DriverApplicationViewSet, MaintenanceCategoryViewSet, MaintenanceTypeViewSet, MaintenanceRecordViewSet, MaintenanceAttachmentViewSet, DriverDocumentViewSet, TripDocumentViewSet, LoadDocumentViewSet, MaintenanceAttachmentUploadView, DriverDocumentUploadView, InspectionViewSet, InspectionItemViewSet, TripsViewSet, TripsManagementViewSet, TripInspectionViewSet, AnnualInspectionViewSet, VehicleOperationStatusViewSet, driver_update_dvir_review, cancel_trip, cancel_and_reassign_trip, available_trucks, CustomerViewSet, CarrierViewSet, LoadViewSet, InvoiceViewSet, InvoicePaymentViewSet, RateLaneViewSet, AccessorialChargeViewSet, FuelSurchargeScheduleViewSet, CheckCallViewSet, LoadTrackingEventViewSet, NotificationViewSet, NotificationPreferenceViewSet, CompanyNotificationSettingViewSet, parse_rate_confirmation
+from MercAPI.views import RegisterUserView, CustomTokenObtainPairView, DriverViewSet, TruckViewSet, CompanyViewSet, TrailerViewSet, DriverTestViewSet, DriverHOSViewSet, DriverApplicationViewSet, MaintenanceCategoryViewSet, MaintenanceTypeViewSet, MaintenanceRecordViewSet, MaintenanceAttachmentViewSet, DriverDocumentViewSet, TripDocumentViewSet, LoadDocumentViewSet, MaintenanceAttachmentUploadView, DriverDocumentUploadView, InspectionViewSet, InspectionItemViewSet, TripsViewSet, TripsManagementViewSet, TripInspectionViewSet, AnnualInspectionViewSet, VehicleOperationStatusViewSet, driver_update_dvir_review, cancel_trip, cancel_and_reassign_trip, available_trucks, CustomerViewSet, CarrierViewSet, LoadViewSet, InvoiceViewSet, InvoicePaymentViewSet, RateLaneViewSet, AccessorialChargeViewSet, FuelSurchargeScheduleViewSet, CheckCallViewSet, LoadTrackingEventViewSet, NotificationViewSet, NotificationPreferenceViewSet, CompanyNotificationSettingViewSet, parse_rate_confirmation, confirm_delivery, report_breakdown
 
 router = DefaultRouter()
 router.register(r'drivers', DriverViewSet, basename='driver')  # Register DriverViewSet
@@ -92,6 +92,8 @@ urlpatterns = [
     # Trip management endpoints
     path('api/trips/<int:trip_id>/start/', views.start_trip, name='start_trip'),
     path('api/trips/<int:trip_id>/complete/', views.complete_trip, name='complete_trip'),
+    path('api/trips/<int:trip_id>/confirm-delivery/', views.confirm_delivery, name='confirm_delivery'),
+    path('api/trips/<int:trip_id>/report-breakdown/', views.report_breakdown, name='report_breakdown'),
     path('api/trips/<int:trip_id>/cancel/', views.cancel_trip, name='cancel_trip'),
     path('api/driver/active-trips/', views.driver_active_trips, name='driver_active_trips'),
     path('api/driver/trips/<int:trip_id>/dvir-review/', views.driver_update_dvir_review, name='driver_update_dvir_review'),

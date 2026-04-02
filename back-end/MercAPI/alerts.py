@@ -310,6 +310,138 @@ def notify_trip_completed(trip, completed_by=None):
     pass
 
 
+# ── Trip: inspection failed → notify dispatch ───────────────────────────
+
+def notify_inspection_failed(trip, inspection=None):
+    """
+    Called when a pre-trip inspection fails. Notifies dispatchers / company
+    users so they can reassign the load/trip to another driver.
+    """
+    try:
+        company = trip.company
+        in_app, email = _get_setting(company, 'trip_started_dispatcher')
+        # Fall back to always sending in-app if no setting found
+        if not in_app and not email:
+            in_app = True
+
+        tenant = company.tenant
+        today = timezone.now().date()
+        driver_name = (
+            f"{trip.driver.first_name} {trip.driver.last_name}"
+            if trip.driver else "Unknown driver"
+        )
+
+        subject = f"⚠ Pre-trip inspection FAILED — Trip {trip.trip_number}"
+        message = (
+            f"Driver {driver_name} failed the pre-trip inspection for Trip {trip.trip_number}.\n\n"
+            f"Route: {trip.start_location or trip.origin} → {trip.end_location or trip.destination}\n"
+            f"Vehicle: Truck {trip.truck.unit_number if trip.truck else 'N/A'}"
+            f"{', Trailer ' + trip.trailer.unit_number if trip.trailer else ''}\n\n"
+            f"Action required: Reassign this trip to another driver or resolve vehicle defects.\n"
+        )
+        metadata = {
+            'trip_number': trip.trip_number,
+            'event': 'inspection_failed',
+            'driver': driver_name,
+        }
+
+        _notify_company_users_all_channels(
+            tenant, company, 'safety', subject, message,
+            'Trips', trip.id,
+            metadata=metadata, in_app=True, email=email,
+        )
+    except Exception:
+        logger.exception("notify_inspection_failed failed for trip %s", trip.id)
+
+
+# ── Trip: delivery confirmed ────────────────────────────────────────────
+
+def notify_trip_delivery_confirmed(trip, confirmed_by=None):
+    """
+    Called when a driver confirms delivery. Notifies dispatcher.
+    """
+    try:
+        company = trip.company
+        in_app, email = _get_setting(company, 'trip_started_dispatcher')
+        if not (in_app or email):
+            in_app = True
+
+        tenant = company.tenant
+        today = timezone.now().date()
+        driver_name = (
+            f"{trip.driver.first_name} {trip.driver.last_name}"
+            if trip.driver else "your driver"
+        )
+
+        subject = f"Delivery confirmed — Trip {trip.trip_number}"
+        message = (
+            f"Driver {driver_name} has confirmed delivery for Trip {trip.trip_number}.\n\n"
+            f"Route: {trip.start_location or trip.origin} → {trip.end_location or trip.destination}\n"
+            f"Delivered at: {trip.delivery_confirmed_at.strftime('%m/%d/%Y %I:%M %p') if trip.delivery_confirmed_at else 'N/A'}\n"
+            f"POD: Uploaded ✓\n"
+        )
+        metadata = {'trip_number': trip.trip_number, 'event': 'delivery_confirmed'}
+
+        dispatcher = getattr(trip, 'created_by', None)
+        if dispatcher and in_app:
+            _create_notification(
+                tenant, dispatcher, 'operations', 'in_app',
+                subject, message, 'Trips', trip.id, today, metadata,
+            )
+        if dispatcher and email and dispatcher.email:
+            _create_notification(
+                tenant, dispatcher, 'operations', 'email',
+                subject, message, 'Trips', trip.id, today, metadata,
+                recipient_email=dispatcher.email,
+            )
+    except Exception:
+        logger.exception("notify_trip_delivery_confirmed failed for trip %s", trip.id)
+
+
+# ── Trip: breakdown reported ────────────────────────────────────────────
+
+def notify_trip_breakdown(trip, reported_by=None):
+    """
+    Called when a driver reports a breakdown mid-trip. Notifies all company
+    users (dispatchers, admins, managers) with urgency.
+    """
+    try:
+        company = trip.company
+        tenant = company.tenant
+        today = timezone.now().date()
+        driver_name = (
+            f"{trip.driver.first_name} {trip.driver.last_name}"
+            if trip.driver else "Unknown driver"
+        )
+
+        subject = f"🚨 BREAKDOWN — Trip {trip.trip_number}"
+        message = (
+            f"Driver {driver_name} has reported a breakdown on Trip {trip.trip_number}.\n\n"
+            f"Location: {trip.breakdown_location or 'Not provided'}\n"
+            f"Issue: {trip.breakdown_description}\n"
+            f"Route: {trip.start_location or trip.origin} → {trip.end_location or trip.destination}\n"
+            f"Vehicle: Truck {trip.truck.unit_number if trip.truck else 'N/A'}"
+            f"{', Trailer ' + trip.trailer.unit_number if trip.trailer else ''}\n\n"
+            f"Action required: Arrange roadside assistance or reassign trip.\n"
+        )
+        metadata = {
+            'trip_number': trip.trip_number,
+            'event': 'breakdown',
+            'driver': driver_name,
+            'location': trip.breakdown_location or '',
+        }
+
+        # Notify ALL company users (this is urgent)
+        _notify_company_users_all_channels(
+            tenant, company, 'safety', subject, message,
+            'Trips', trip.id,
+            metadata=metadata, in_app=True, email=True,
+            exclude_user=reported_by,
+        )
+    except Exception:
+        logger.exception("notify_trip_breakdown failed for trip %s", trip.id)
+
+
 # ── Vehicle safety alerts ───────────────────────────────────────────────
 
 def notify_vehicle_status_change(vehicle_status, old_status=None):

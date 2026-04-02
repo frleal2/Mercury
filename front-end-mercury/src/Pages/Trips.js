@@ -106,10 +106,14 @@ function Trips() {
         return 'bg-blue-100 text-blue-800';
       case 'in_progress':
         return 'bg-yellow-100 text-yellow-800';
+      case 'delivered':
+        return 'bg-green-100 text-green-800';
       case 'failed_inspection':
         return 'bg-red-100 text-red-800';
       case 'maintenance_hold':
         return 'bg-orange-100 text-orange-800';
+      case 'breakdown':
+        return 'bg-red-100 text-red-800';
       case 'completed':
         return 'bg-green-100 text-green-800';
       case 'cancelled':
@@ -125,7 +129,11 @@ function Trips() {
         return ClockIcon;
       case 'in_progress':
         return PlayIcon;
+      case 'delivered':
+        return CheckCircleIcon;
       case 'maintenance_hold':
+        return ExclamationTriangleIcon;
+      case 'breakdown':
         return ExclamationTriangleIcon;
       case 'completed':
         return CheckCircleIcon;
@@ -188,8 +196,10 @@ function Trips() {
             <option value="all">All Trips</option>
             <option value="scheduled">Scheduled</option>
             <option value="in_progress">In Progress</option>
+            <option value="delivered">Delivered</option>
             <option value="failed_inspection">Failed Inspection</option>
             <option value="maintenance_hold">Maintenance Hold</option>
+            <option value="breakdown">Breakdown</option>
             <option value="completed">Completed</option>
             <option value="cancelled">Cancelled</option>
           </select>

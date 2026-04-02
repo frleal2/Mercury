@@ -16,7 +16,9 @@ import {
   ClipboardDocumentCheckIcon,
   DocumentTextIcon,
   ArrowRightIcon,
-  CameraIcon
+  CameraIcon,
+  WrenchScrewdriverIcon,
+  ExclamationTriangleIcon,
 } from '@heroicons/react/24/outline';
 
 function DriverDashboard() {
@@ -26,12 +28,16 @@ function DriverDashboard() {
   const [message, setMessage] = useState(null);
   const [selectedTrip, setSelectedTrip] = useState(null);
   const [inspectionModalOpen, setInspectionModalOpen] = useState(false);
-  const [inspectionType, setInspectionType] = useState(null); // 'pre_trip' or 'post_trip'
+  const [inspectionType, setInspectionType] = useState(null);
   const [dvirReviewModalOpen, setDvirReviewModalOpen] = useState(false);
   const [podUploadTrip, setPodUploadTrip] = useState(null);
   const [podFile, setPodFile] = useState(null);
   const [podUploading, setPodUploading] = useState(false);
   const [podDescription, setPodDescription] = useState('');
+  const [breakdownTrip, setBreakdownTrip] = useState(null);
+  const [breakdownDescription, setBreakdownDescription] = useState('');
+  const [breakdownLocation, setBreakdownLocation] = useState('');
+  const [breakdownSubmitting, setBreakdownSubmitting] = useState(false);
 
 
 
@@ -107,6 +113,50 @@ function DriverDashboard() {
     }
   };
 
+  const confirmDelivery = async (tripId) => {
+    try {
+      const response = await axios.post(`${BASE_URL}/api/trips/${tripId}/confirm-delivery/`, {}, {
+        headers: {
+          'Authorization': `Bearer ${session.accessToken}`,
+        },
+      });
+      
+      setMessage({ type: 'success', text: 'Delivery confirmed! You can now complete the post-trip inspection.' });
+      fetchActiveTrips();
+    } catch (error) {
+      console.error('Error confirming delivery:', error);
+      const errorMessage = error.response?.data?.error || 'Failed to confirm delivery';
+      setMessage({ type: 'error', text: errorMessage });
+    }
+  };
+
+  const submitBreakdown = async () => {
+    if (!breakdownTrip || !breakdownDescription) return;
+    setBreakdownSubmitting(true);
+    try {
+      await axios.post(`${BASE_URL}/api/trips/${breakdownTrip.id}/report-breakdown/`, {
+        description: breakdownDescription,
+        location: breakdownLocation,
+      }, {
+        headers: {
+          'Authorization': `Bearer ${session.accessToken}`,
+        },
+      });
+      
+      setMessage({ type: 'success', text: 'Breakdown reported. Dispatch has been notified.' });
+      setBreakdownTrip(null);
+      setBreakdownDescription('');
+      setBreakdownLocation('');
+      fetchActiveTrips();
+    } catch (error) {
+      console.error('Error reporting breakdown:', error);
+      const errorMessage = error.response?.data?.error || 'Failed to report breakdown';
+      setMessage({ type: 'error', text: errorMessage });
+    } finally {
+      setBreakdownSubmitting(false);
+    }
+  };
+
   const openInspectionModal = (trip, type) => {
     setSelectedTrip(trip);
     setInspectionType(type);
@@ -124,51 +174,30 @@ function DriverDashboard() {
     
     if (inspectionResult.type === 'pre_trip') {
       if (inspectionResult.passed) {
-        // Inspection passed - refresh trip data first, then start the trip
-        console.log('Pre-trip inspection passed. Refreshing trip data before starting...');
-        
-        try {
-          // Refresh the trips to get updated state from backend
-          await fetchActiveTrips();
-          
-          // Add a small delay to ensure backend has processed the inspection
-          setTimeout(() => {
-            startTrip(selectedTrip.id);
-          }, 500);
-        } catch (error) {
-          console.error('Error refreshing trips before starting:', error);
-          setMessage({ 
-            type: 'error', 
-            text: 'Failed to refresh trip data. Please try starting the trip manually.' 
-          });
-        }
+        setMessage({ 
+          type: 'success', 
+          text: 'Pre-trip inspection passed! You can now start the trip.' 
+        });
       } else {
-        // Inspection failed - show message and refresh trips to show failed_inspection status
         setMessage({ 
           type: 'error', 
-          text: `Pre-trip inspection failed due to defects. Trip cannot start until defects are resolved. Contact maintenance team.` 
+          text: 'Pre-trip inspection failed due to defects. Trip cannot start until defects are resolved. Dispatch has been notified.' 
         });
-        
-        // Refresh trips after a short delay to ensure backend has updated the status
-        setTimeout(() => {
-          fetchActiveTrips();
-        }, 500);
       }
     } else if (inspectionResult.type === 'post_trip') {
-      // Post-trip inspection completed - complete the trip
       if (inspectionResult.hasDefects) {
         setMessage({ 
           type: 'success', 
-          text: `Trip completed. Defects reported and require maintenance attention before next use.` 
+          text: 'Post-trip inspection completed. Defects reported and require maintenance attention before next use.' 
         });
       } else {
         setMessage({ 
           type: 'success', 
-          text: `Trip completed successfully with no defects found.` 
+          text: 'Post-trip inspection completed successfully with no defects found.' 
         });
       }
-      completeTrip(selectedTrip.id);
     }
+    fetchActiveTrips();
   };
 
 
@@ -203,8 +232,14 @@ function DriverDashboard() {
         return 'bg-blue-100 text-blue-800';
       case 'in_progress':
         return 'bg-yellow-100 text-yellow-800';
+      case 'delivered':
+        return 'bg-green-100 text-green-800';
       case 'completed':
         return 'bg-green-100 text-green-800';
+      case 'breakdown':
+        return 'bg-red-100 text-red-800';
+      case 'failed_inspection':
+        return 'bg-red-100 text-red-800';
       default:
         return 'bg-gray-100 text-gray-800';
     }
@@ -216,8 +251,14 @@ function DriverDashboard() {
         return ClockIcon;
       case 'in_progress':
         return PlayIcon;
+      case 'delivered':
+        return CheckCircleIcon;
       case 'completed':
         return CheckCircleIcon;
+      case 'breakdown':
+        return WrenchScrewdriverIcon;
+      case 'failed_inspection':
+        return ExclamationTriangleIcon;
       default:
         return ClockIcon;
     }
@@ -372,17 +413,65 @@ function DriverDashboard() {
                         ) : trip.status === 'failed_inspection' ? (
                           <div className="text-center py-2 px-4 bg-red-50 border border-red-200 rounded-lg">
                             <p className="text-sm text-red-700 font-medium">Inspection Failed</p>
-                            <p className="text-xs text-red-600">Contact your supervisor - vehicle cannot be operated</p>
+                            <p className="text-xs text-red-600">Dispatch has been notified — awaiting reassignment</p>
                           </div>
                         ) : trip.status === 'maintenance_hold' ? (
                           <div className="text-center py-2 px-4 bg-yellow-50 border border-yellow-200 rounded-lg">
                             <p className="text-sm text-yellow-700 font-medium">Trip on Maintenance Hold</p>
                             <p className="text-xs text-yellow-600">Vehicle requires repairs before operation</p>
                           </div>
+                        ) : trip.status === 'breakdown' ? (
+                          <div className="text-center py-2 px-4 bg-red-50 border border-red-200 rounded-lg">
+                            <p className="text-sm text-red-700 font-medium">Breakdown Reported</p>
+                            <p className="text-xs text-red-600">Dispatch has been notified — standby for instructions</p>
+                          </div>
                         ) : null}
                         
-                        {/* Post-trip Inspection */}
-                        {trip.status === 'in_progress' && !trip.post_trip_inspection_completed && (
+                        {/* In-progress trip actions (Upload POD, Confirm Delivery, Report Breakdown) */}
+                        {trip.status === 'in_progress' && (
+                          <>
+                            {/* Upload POD - primary action */}
+                            {!trip.pod_uploaded && (
+                              <button
+                                onClick={() => setPodUploadTrip(trip)}
+                                className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-3 sm:py-2 border border-green-300 rounded-lg text-sm font-medium text-green-700 bg-green-50 hover:bg-green-100 touch-manipulation"
+                              >
+                                <CameraIcon className="h-4 w-4 mr-2" />
+                                Upload POD
+                              </button>
+                            )}
+                            
+                            {/* POD uploaded indicator */}
+                            {trip.pod_uploaded && !trip.delivery_confirmed && (
+                              <span className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                POD Uploaded ✓
+                              </span>
+                            )}
+                            
+                            {/* Confirm Delivery - available once POD is uploaded */}
+                            {trip.pod_uploaded && !trip.delivery_confirmed && (
+                              <button
+                                onClick={() => confirmDelivery(trip.id)}
+                                className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-3 sm:py-2 border border-blue-300 rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 touch-manipulation"
+                              >
+                                <CheckCircleIcon className="h-4 w-4 mr-2" />
+                                Confirm Delivery
+                              </button>
+                            )}
+                            
+                            {/* Report Breakdown */}
+                            <button
+                              onClick={() => setBreakdownTrip(trip)}
+                              className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-3 sm:py-2 border border-red-300 rounded-lg text-sm font-medium text-red-700 bg-red-50 hover:bg-red-100 touch-manipulation"
+                            >
+                              <WrenchScrewdriverIcon className="h-4 w-4 mr-2" />
+                              Report Breakdown
+                            </button>
+                          </>
+                        )}
+                        
+                        {/* Delivered status — post-trip inspection + complete trip */}
+                        {trip.status === 'delivered' && !trip.post_trip_inspection_completed && (
                           <button
                             onClick={() => openInspectionModal(trip, 'post_trip')}
                             className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-3 sm:py-2 border border-orange-300 rounded-lg text-sm font-medium text-orange-700 bg-orange-50 hover:bg-orange-100 touch-manipulation"
@@ -392,25 +481,14 @@ function DriverDashboard() {
                           </button>
                         )}
                         
-                        {/* Complete Trip */}
-                        {trip.can_complete && trip.post_trip_inspection_completed && (
+                        {/* Complete Trip — delivery confirmed + post-trip done */}
+                        {trip.can_complete && (
                           <button
                             onClick={() => completeTrip(trip.id)}
-                            className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-3 sm:py-2 border border-red-300 rounded-lg text-sm font-medium text-red-700 bg-red-50 hover:bg-red-100 touch-manipulation"
+                            className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-3 sm:py-2 border border-green-300 rounded-lg text-sm font-medium text-white bg-green-600 hover:bg-green-700 touch-manipulation"
                           >
                             <StopIcon className="h-4 w-4 mr-2" />
                             Complete Trip
-                          </button>
-                        )}
-                        
-                        {/* Upload POD - available while trip is in progress */}
-                        {trip.status === 'in_progress' && (
-                          <button
-                            onClick={() => setPodUploadTrip(trip)}
-                            className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-3 sm:py-2 border border-green-300 rounded-lg text-sm font-medium text-green-700 bg-green-50 hover:bg-green-100 touch-manipulation"
-                          >
-                            <CameraIcon className="h-4 w-4 mr-2" />
-                            Upload POD
                           </button>
                         )}
                       </div>
@@ -423,6 +501,20 @@ function DriverDashboard() {
                             : 'bg-gray-100 text-gray-800'
                         }`}>
                           Pre-trip {trip.pre_trip_inspection_completed ? '✓' : '○'}
+                        </span>
+                        <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium ${
+                          trip.pod_uploaded 
+                            ? 'bg-green-100 text-green-800' 
+                            : 'bg-gray-100 text-gray-800'
+                        }`}>
+                          POD {trip.pod_uploaded ? '✓' : '○'}
+                        </span>
+                        <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium ${
+                          trip.delivery_confirmed 
+                            ? 'bg-green-100 text-green-800' 
+                            : 'bg-gray-100 text-gray-800'
+                        }`}>
+                          Delivered {trip.delivery_confirmed ? '✓' : '○'}
                         </span>
                         <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium ${
                           trip.post_trip_inspection_completed 
@@ -447,9 +539,27 @@ function DriverDashboard() {
                              'Ready to Start'}
                           </span>
                         )}
+                        {trip.status === 'in_progress' && (
+                          <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-700">
+                            {!trip.pod_uploaded ? 'Upload POD at delivery' :
+                             !trip.delivery_confirmed ? 'Confirm delivery' :
+                             'Delivery confirmed'}
+                          </span>
+                        )}
+                        {trip.status === 'delivered' && (
+                          <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-700">
+                            {!trip.post_trip_inspection_completed ? 'Post-trip inspection needed' :
+                             'Ready to complete'}
+                          </span>
+                        )}
                         {trip.status === 'maintenance_hold' && (
                           <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-red-100 text-red-800">
                             🔧 Maintenance Hold - Repairs Needed
+                          </span>
+                        )}
+                        {trip.status === 'breakdown' && (
+                          <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-red-100 text-red-800">
+                            🚨 Breakdown - Awaiting dispatch instructions
                           </span>
                         )}
                       </div>
@@ -552,10 +662,11 @@ function DriverDashboard() {
                       formData,
                       { headers: { 'Authorization': `Bearer ${session.accessToken}`, 'Content-Type': 'multipart/form-data' } }
                     );
-                    setMessage({ type: 'success', text: 'POD uploaded successfully!' });
+                    setMessage({ type: 'success', text: 'POD uploaded successfully! You can now confirm delivery.' });
                     setPodUploadTrip(null);
                     setPodFile(null);
                     setPodDescription('');
+                    fetchActiveTrips();
                   } catch (err) {
                     setMessage({ type: 'error', text: err.response?.data?.error || 'Upload failed' });
                   } finally {
@@ -566,6 +677,59 @@ function DriverDashboard() {
                 className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50"
               >
                 {podUploading ? 'Uploading...' : 'Upload POD'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Breakdown Report Modal */}
+      {breakdownTrip && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <h3 className="text-lg font-semibold text-red-700 mb-2 flex items-center">
+              <ExclamationTriangleIcon className="h-5 w-5 mr-2" />
+              Report Breakdown
+            </h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Trip: <span className="font-medium">{breakdownTrip.trip_number}</span> — Dispatch will be notified immediately.
+            </p>
+            
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">What happened? *</label>
+              <textarea
+                value={breakdownDescription}
+                onChange={(e) => setBreakdownDescription(e.target.value)}
+                placeholder="e.g. Engine overheating, flat tire, transmission failure..."
+                rows={3}
+                className="w-full text-sm border-gray-300 rounded-md"
+              />
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Current Location</label>
+              <input
+                type="text"
+                value={breakdownLocation}
+                onChange={(e) => setBreakdownLocation(e.target.value)}
+                placeholder="e.g. I-95 Mile marker 42, Exit 12 shoulder"
+                className="w-full text-sm border-gray-300 rounded-md"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => { setBreakdownTrip(null); setBreakdownDescription(''); setBreakdownLocation(''); }}
+                className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-md hover:bg-gray-100"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitBreakdown}
+                disabled={!breakdownDescription || breakdownSubmitting}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 disabled:opacity-50"
+              >
+                {breakdownSubmitting ? 'Submitting...' : 'Report Breakdown'}
               </button>
             </div>
           </div>

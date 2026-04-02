@@ -261,6 +261,7 @@ class TripsSerializer(serializers.ModelSerializer):
     total_miles = serializers.SerializerMethodField()
     can_start = serializers.SerializerMethodField()
     can_complete = serializers.SerializerMethodField()
+    can_confirm_delivery = serializers.SerializerMethodField()
     compliance_issues = serializers.SerializerMethodField()
     # Linked load info
     load_number = serializers.SerializerMethodField()
@@ -287,10 +288,12 @@ class TripsSerializer(serializers.ModelSerializer):
             'last_dvir_reviewed', 'last_dvir_reviewed_at', 'last_dvir_reviewed_by', 'last_dvir_acknowledgment',
             'mileage_start', 'mileage_end', 'created_by', 'created_at', 'updated_at',
             'cancellation_reason', 'cancelled_by', 'cancelled_at',
+            'delivery_confirmed', 'delivery_confirmed_at', 'pod_uploaded',
+            'breakdown_reported', 'breakdown_reported_at', 'breakdown_description', 'breakdown_location',
             # SerializerMethodFields (read-only)
             'driver_name', 'truck_unit_number', 'trailer_unit_number', 'company_name', 'status_display',
             'origin_display', 'destination_display', 'duration_hours', 'total_miles',
-            'can_start', 'can_complete', 'compliance_issues',
+            'can_start', 'can_complete', 'can_confirm_delivery', 'compliance_issues',
             # Linked load info
             'load_number', 'load_id', 'load_status', 'load_customer_name',
             # Write-only fields for frontend forms
@@ -308,6 +311,9 @@ class TripsSerializer(serializers.ModelSerializer):
     
     def get_can_complete(self, obj):
         return obj.can_complete_trip()
+    
+    def get_can_confirm_delivery(self, obj):
+        return obj.can_confirm_delivery()
     
     def get_compliance_issues(self, obj):
         return obj.get_compliance_issues()

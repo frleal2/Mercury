@@ -1092,6 +1092,8 @@ class Trips(models.Model):
         ('failed_inspection', 'Failed Inspection'),
         ('maintenance_hold', 'Maintenance Hold'),
         ('in_progress', 'In Progress'),
+        ('delivered', 'Delivered'),
+        ('breakdown', 'Breakdown'),
         ('completed', 'Completed'),
         ('cancelled', 'Cancelled'),
     ]
@@ -1149,6 +1151,17 @@ class Trips(models.Model):
     cancellation_reason = models.TextField(null=True, blank=True, help_text="Reason for trip cancellation")
     cancelled_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='cancelled_trips')
     cancelled_at = models.DateTimeField(null=True, blank=True)
+    
+    # Delivery tracking (separate from trip completion)
+    delivery_confirmed = models.BooleanField(default=False, help_text="Driver confirmed delivery at destination")
+    delivery_confirmed_at = models.DateTimeField(null=True, blank=True)
+    pod_uploaded = models.BooleanField(default=False, help_text="Proof of Delivery uploaded by driver")
+    
+    # Breakdown tracking
+    breakdown_reported = models.BooleanField(default=False)
+    breakdown_reported_at = models.DateTimeField(null=True, blank=True)
+    breakdown_description = models.TextField(null=True, blank=True, help_text="Driver description of breakdown")
+    breakdown_location = models.CharField(max_length=255, null=True, blank=True, help_text="Location where breakdown occurred")
     
     class Meta:
         ordering = ['-scheduled_start_date', '-start_time']
@@ -1210,7 +1223,15 @@ class Trips(models.Model):
         return True
     
     def can_complete_trip(self):
-        """Check if trip can be completed (in progress status)"""
+        """Check if trip can be completed (delivery confirmed + post-trip inspection done)"""
+        return self.status == 'delivered' and self.post_trip_inspection_completed
+    
+    def can_confirm_delivery(self):
+        """Check if delivery can be confirmed (in progress + POD uploaded)"""
+        return self.status == 'in_progress' and self.pod_uploaded
+    
+    def can_report_breakdown(self):
+        """Check if driver can report a breakdown (trip must be in progress)"""
         return self.status == 'in_progress'
     
     def get_compliance_issues(self):

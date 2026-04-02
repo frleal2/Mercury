@@ -22,6 +22,9 @@ from .alerts import (
     notify_vehicle_status_change,
     notify_trip_started,
     notify_trip_completed,
+    notify_trip_delivery_confirmed,
+    notify_trip_breakdown,
+    notify_inspection_failed,
     notify_driver_load_assigned,
     notify_customer_load_dispatched,
     notify_customer_trip_started,
@@ -2142,7 +2145,7 @@ def start_trip(request, trip_id):
 @permission_classes([IsAuthenticated])
 def complete_trip(request, trip_id):
     """
-    Complete a trip (driver can complete if post-trip inspection is done)
+    Complete a trip (driver can complete after delivery confirmed + post-trip inspection done)
     """
     try:
         trip = Trips.objects.get(id=trip_id)
@@ -2165,15 +2168,13 @@ def complete_trip(request, trip_id):
         
         # Check if trip can be completed
         if not trip.can_complete_trip():
+            error_message = 'Trip cannot be completed. '
+            if trip.status != 'delivered':
+                error_message += 'Delivery must be confirmed first. '
+            if not trip.post_trip_inspection_completed:
+                error_message += 'Post-trip inspection must be completed. '
             return Response(
-                {'error': 'Trip cannot be completed. Trip must be in progress.'}, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        # Check if post-trip inspection is completed
-        if not trip.post_trip_inspection_completed:
-            return Response(
-                {'error': 'Post-trip inspection must be completed before finishing the trip.'}, 
+                {'error': error_message}, 
                 status=status.HTTP_400_BAD_REQUEST
             )
         
@@ -2190,12 +2191,6 @@ def complete_trip(request, trip_id):
             trip.miles_driven = trip.mileage_end - trip.mileage_start
         
         trip.save()
-        
-        # Sync linked load status to delivered
-        if hasattr(trip, 'load') and trip.load and trip.load.status == 'in_transit':
-            trip.load.status = 'delivered'
-            trip.load.save(update_fields=['status'])
-            notify_load_status_change(trip.load, 'in_transit', 'delivered', changed_by=request.user)
 
         notify_trip_completed(trip, completed_by=request.user)
         notify_customer_trip_completed(trip)
@@ -2221,6 +2216,140 @@ def complete_trip(request, trip_id):
         )
 
 
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def confirm_delivery(request, trip_id):
+    """
+    Driver confirms delivery at destination. Requires POD to be uploaded first.
+    Transitions trip: in_progress → delivered, load: in_transit → delivered.
+    """
+    try:
+        trip = Trips.objects.get(id=trip_id)
+        user_role = request.user.profile.role
+
+        # Check permissions
+        if user_role == 'driver':
+            if trip.driver.user_account != request.user:
+                return Response(
+                    {'error': 'You can only confirm delivery for your own trips'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+        elif user_role in ['user', 'admin']:
+            user_companies = request.user.profile.companies.all()
+            if trip.company not in user_companies:
+                return Response(
+                    {'error': 'Trip not in your company'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+
+        if trip.status != 'in_progress':
+            return Response(
+                {'error': 'Trip must be in progress to confirm delivery.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Require POD before confirming delivery
+        if not trip.pod_uploaded:
+            return Response(
+                {'error': 'Proof of Delivery (POD) must be uploaded before confirming delivery.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Transition trip to delivered
+        trip.status = 'delivered'
+        trip.delivery_confirmed = True
+        trip.delivery_confirmed_at = timezone.now()
+        trip.save(update_fields=['status', 'delivery_confirmed', 'delivery_confirmed_at'])
+
+        # Sync linked load status to delivered
+        if hasattr(trip, 'load') and trip.load and trip.load.status == 'in_transit':
+            trip.load.status = 'delivered'
+            trip.load.save(update_fields=['status'])
+            notify_load_status_change(trip.load, 'in_transit', 'delivered', changed_by=request.user)
+
+        notify_trip_delivery_confirmed(trip, confirmed_by=request.user)
+
+        return Response({
+            'message': 'Delivery confirmed successfully',
+            'trip_id': trip.id,
+            'status': trip.status,
+            'delivery_confirmed_at': trip.delivery_confirmed_at,
+        }, status=status.HTTP_200_OK)
+
+    except Trips.DoesNotExist:
+        return Response({'error': 'Trip not found'}, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        logger.error(f"Error confirming delivery: {str(e)}")
+        return Response({'error': 'Internal server error'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def report_breakdown(request, trip_id):
+    """
+    Driver reports a breakdown mid-trip. Transitions trip to 'breakdown' status
+    and notifies dispatch.
+    """
+    try:
+        trip = Trips.objects.get(id=trip_id)
+
+        # Only the assigned driver can report a breakdown
+        if request.user.profile.role == 'driver':
+            if trip.driver.user_account != request.user:
+                return Response(
+                    {'error': 'You can only report breakdowns for your own trips'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+        elif request.user.profile.role in ['user', 'admin']:
+            user_companies = request.user.profile.companies.all()
+            if trip.company not in user_companies:
+                return Response(
+                    {'error': 'Trip not in your company'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+
+        if trip.status != 'in_progress':
+            return Response(
+                {'error': 'Breakdown can only be reported for in-progress trips.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        description = request.data.get('description', '')
+        location = request.data.get('location', '')
+
+        if not description:
+            return Response(
+                {'error': 'Please describe the issue.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        trip.status = 'breakdown'
+        trip.breakdown_reported = True
+        trip.breakdown_reported_at = timezone.now()
+        trip.breakdown_description = description
+        trip.breakdown_location = location
+        trip.save(update_fields=[
+            'status', 'breakdown_reported', 'breakdown_reported_at',
+            'breakdown_description', 'breakdown_location',
+        ])
+
+        # Notify dispatch / company users
+        notify_trip_breakdown(trip, reported_by=request.user)
+
+        return Response({
+            'message': 'Breakdown reported. Dispatch has been notified.',
+            'trip_id': trip.id,
+            'status': trip.status,
+            'breakdown_reported_at': trip.breakdown_reported_at,
+        }, status=status.HTTP_200_OK)
+
+    except Trips.DoesNotExist:
+        return Response({'error': 'Trip not found'}, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        logger.error(f"Error reporting breakdown: {str(e)}")
+        return Response({'error': 'Internal server error'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def driver_active_trips(request):
@@ -2235,10 +2364,10 @@ def driver_active_trips(request):
                 status=status.HTTP_403_FORBIDDEN
             )
         
-        # Get driver's active trips (including failed inspections that need attention)
+        # Get driver's active trips (including failed inspections and breakdowns that need attention)
         active_trips = Trips.objects.filter(
             driver__user_account=request.user,
-            status__in=['scheduled', 'in_progress', 'failed_inspection']
+            status__in=['scheduled', 'in_progress', 'delivered', 'breakdown', 'failed_inspection']
         ).order_by('-scheduled_start_date', '-start_time')
         
         serializer = TripsSerializer(active_trips, many=True)
@@ -2303,16 +2432,22 @@ def driver_upload_pod(request, trip_id):
         )
         
         # If it's a POD, also create on the linked load if one exists
-        if document_type == 'pod' and hasattr(trip, 'load') and trip.load:
-            LoadDocument.objects.create(
-                load=trip.load,
-                document_type='pod',
-                file=file,
-                file_name=file.name,
-                file_size=file.size,
-                description=description or f"POD uploaded by driver - Trip {trip.trip_number}",
-                uploaded_by=request.user,
-            )
+        if document_type == 'pod':
+            # Mark POD as uploaded on the trip
+            if not trip.pod_uploaded:
+                trip.pod_uploaded = True
+                trip.save(update_fields=['pod_uploaded'])
+            
+            if hasattr(trip, 'load') and trip.load:
+                LoadDocument.objects.create(
+                    load=trip.load,
+                    document_type='pod',
+                    file=file,
+                    file_name=file.name,
+                    file_size=file.size,
+                    description=description or f"POD uploaded by driver - Trip {trip.trip_number}",
+                    uploaded_by=request.user,
+                )
         
         serializer = TripDocumentSerializer(doc)
         return Response({
@@ -2855,6 +2990,14 @@ def submit_inspection(request, trip_id, inspection_type):
                 logger.error(f"Error updating trip inspection flags: {str(trip_update_error)}")
                 # Don't fail if trip update fails
                 pass
+            
+            # Notify dispatch if pre-trip inspection failed
+            if inspection_type == 'pre_trip' and not inspection.is_passed():
+                try:
+                    trip.refresh_from_db()
+                    notify_inspection_failed(trip, inspection=inspection)
+                except Exception as notify_error:
+                    logger.error(f"Error notifying inspection failure: {str(notify_error)}")
             
             return Response({
                 'message': f'CFR 396.11 {inspection_type.replace("_", "-").title()} inspection completed',
