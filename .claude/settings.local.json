@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python manage.py migrate)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(find /c/Mercury -type d -name src -o -type d -name front*)",
+      "Bash(grep -r account /c/Mercury/front-end-mercury/src --include=*.tsx --include=*.ts -l)",
+      "Bash(xargs grep:*)"
+    ]
+  }
+}

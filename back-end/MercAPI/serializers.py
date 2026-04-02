@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Inspection, InspectionItem, Trips, UserProfile, TripDocument, LoadDocument, AnnualInspection, VehicleOperationStatus, Customer, Carrier, Load, Invoice, InvoicePayment, RateLane, AccessorialCharge, FuelSurchargeSchedule, CheckCall, LoadTrackingEvent, LoadNotification, NotificationTemplate, NotificationPreference, Notification, CompanyNotificationSetting
+from .models import Driver, Truck, Company, Trailer, DriverTest, DriverHOS, DriverApplication, MaintenanceCategory, MaintenanceType, MaintenanceRecord, MaintenanceAttachment, DriverDocument, Inspection, InspectionItem, Trips, UserProfile, TripDocument, LoadDocument, AnnualInspection, VehicleOperationStatus, Customer, Carrier, Load, Invoice, InvoicePayment, RateLane, AccessorialCharge, FuelSurchargeSchedule, CheckCall, LoadTrackingEvent, LoadNotification, NotificationTemplate, NotificationPreference, Notification, CompanyNotificationSetting, FMCSASnapshot, ComplianceMetric
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -803,6 +803,103 @@ class LoadTrackingEventSerializer(serializers.ModelSerializer):
         if obj.created_by:
             return obj.created_by.get_full_name()
         return 'System'
+
+
+# ==================== FMCSA SAFETY & COMPLIANCE ====================
+
+class FMCSASnapshotSerializer(serializers.ModelSerializer):
+    authority_status_display = serializers.CharField(source='get_authority_status_display', read_only=True)
+    safety_rating_display = serializers.CharField(source='get_safety_rating_display', read_only=True)
+    owner_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = FMCSASnapshot
+        fields = '__all__'
+        read_only_fields = ['fetched_at', 'raw_response']
+
+    def get_owner_name(self, obj):
+        if obj.company:
+            return obj.company.name
+        if obj.carrier:
+            return obj.carrier.name
+        return ''
+
+
+class ComplianceMetricSerializer(serializers.ModelSerializer):
+    company_name = serializers.CharField(source='company.name', read_only=True)
+
+    # Computed percentages for the frontend
+    cdl_compliance_pct = serializers.SerializerMethodField()
+    medical_compliance_pct = serializers.SerializerMethodField()
+    mvr_compliance_pct = serializers.SerializerMethodField()
+    drug_test_compliance_pct = serializers.SerializerMethodField()
+    annual_inspection_pct = serializers.SerializerMethodField()
+    registration_pct = serializers.SerializerMethodField()
+    insurance_pct = serializers.SerializerMethodField()
+    pre_trip_pct = serializers.SerializerMethodField()
+    post_trip_pct = serializers.SerializerMethodField()
+    maintenance_on_time_pct = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ComplianceMetric
+        fields = '__all__'
+
+    def _pct(self, numerator, denominator):
+        if not denominator:
+            return None
+        return round(numerator * 100 / denominator, 1)
+
+    def get_cdl_compliance_pct(self, obj):
+        return self._pct(obj.drivers_cdl_current, obj.total_drivers)
+
+    def get_medical_compliance_pct(self, obj):
+        return self._pct(obj.drivers_medical_current, obj.total_drivers)
+
+    def get_mvr_compliance_pct(self, obj):
+        return self._pct(obj.drivers_mvr_current, obj.total_drivers)
+
+    def get_drug_test_compliance_pct(self, obj):
+        return self._pct(obj.drug_tests_compliant, obj.drug_tests_required)
+
+    def get_annual_inspection_pct(self, obj):
+        return self._pct(obj.trucks_annual_inspection_current, obj.total_trucks)
+
+    def get_registration_pct(self, obj):
+        return self._pct(obj.trucks_registration_current, obj.total_trucks)
+
+    def get_insurance_pct(self, obj):
+        return self._pct(obj.trucks_insurance_current, obj.total_trucks)
+
+    def get_pre_trip_pct(self, obj):
+        return self._pct(obj.trips_with_pre_trip, obj.total_trips)
+
+    def get_post_trip_pct(self, obj):
+        return self._pct(obj.trips_with_post_trip, obj.total_trips)
+
+    def get_maintenance_on_time_pct(self, obj):
+        total = obj.maintenance_on_time + obj.maintenance_overdue
+        return self._pct(obj.maintenance_on_time, total)
+
+
+class CompanySafetyOverviewSerializer(serializers.Serializer):
+    """Combined view of FMCSA snapshot + internal compliance for a company."""
+    company_id = serializers.IntegerField()
+    company_name = serializers.CharField()
+    company_type = serializers.CharField()
+    dot_number = serializers.CharField()
+    mc_number = serializers.CharField()
+    fmcsa = FMCSASnapshotSerializer(allow_null=True)
+    compliance = ComplianceMetricSerializer(allow_null=True)
+
+
+class CarrierSafetyOverviewSerializer(serializers.Serializer):
+    """Combined view of carrier info + FMCSA snapshot for broker view."""
+    carrier_id = serializers.IntegerField()
+    carrier_name = serializers.CharField()
+    dot_number = serializers.CharField()
+    mc_number = serializers.CharField()
+    status = serializers.CharField()
+    fmcsa = FMCSASnapshotSerializer(allow_null=True)
 
 
 class CustomerTrackingSerializer(serializers.ModelSerializer):

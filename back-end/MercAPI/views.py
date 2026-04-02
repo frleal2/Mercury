@@ -4300,3 +4300,197 @@ Rate Confirmation text:
         logger.error(f'Anthropic API error: {e}')
         return Response({'error': 'AI processing failed. Please try again or fill the form manually.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
+# ==================== FMCSA SAFETY & COMPLIANCE ====================
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def company_safety_overview(request):
+    """
+    Get the combined FMCSA + internal compliance overview for the user's company.
+    For asset-based or hybrid companies that have a DOT number.
+    """
+    if not hasattr(request.user, 'profile'):
+        return Response({'error': 'User profile not found'}, status=status.HTTP_403_FORBIDDEN)
+
+    user_companies = request.user.profile.companies.all()
+    # Get companies with DOT numbers (asset or hybrid)
+    companies_with_dot = user_companies.filter(company_type__in=['asset', 'hybrid']).exclude(dot_number='')
+
+    results = []
+    for company in companies_with_dot:
+        from MercAPI.models import FMCSASnapshot, ComplianceMetric
+        fmcsa_snapshot = FMCSASnapshot.objects.filter(company=company).first()
+        compliance_metric = ComplianceMetric.objects.filter(company=company).first()
+
+        from MercAPI.serializers import FMCSASnapshotSerializer, ComplianceMetricSerializer
+        results.append({
+            'company_id': company.id,
+            'company_name': company.name,
+            'company_type': company.company_type,
+            'dot_number': company.dot_number,
+            'mc_number': company.mc_number,
+            'fmcsa': FMCSASnapshotSerializer(fmcsa_snapshot).data if fmcsa_snapshot else None,
+            'compliance': ComplianceMetricSerializer(compliance_metric).data if compliance_metric else None,
+        })
+
+    return Response(results)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def company_safety_refresh(request):
+    """
+    Force a fresh FMCSA data fetch for the user's companies.
+    Also recomputes internal compliance metrics.
+    """
+    if not hasattr(request.user, 'profile'):
+        return Response({'error': 'User profile not found'}, status=status.HTTP_403_FORBIDDEN)
+
+    # Only admins can trigger a refresh
+    if request.user.profile.role != 'admin':
+        return Response({'error': 'Admin access required'}, status=status.HTTP_403_FORBIDDEN)
+
+    user_companies = request.user.profile.companies.filter(
+        company_type__in=['asset', 'hybrid']
+    ).exclude(dot_number='')
+
+    refreshed = []
+    for company in user_companies:
+        from MercAPI.fmcsa_client import fetch_and_store as fmcsa_fetch
+        from MercAPI.compliance_metrics import compute_and_store
+
+        snapshot = fmcsa_fetch(dot_number=company.dot_number, company=company)
+        metric = compute_and_store(company)
+        refreshed.append({
+            'company': company.name,
+            'fmcsa_fetched': snapshot is not None,
+            'metrics_computed': metric is not None,
+        })
+
+    return Response({'refreshed': refreshed})
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def company_compliance_history(request):
+    """
+    Get historical compliance metrics for trend charts.
+    Query params: company_id (optional), limit (default 12).
+    """
+    if not hasattr(request.user, 'profile'):
+        return Response({'error': 'User profile not found'}, status=status.HTTP_403_FORBIDDEN)
+
+    user_companies = request.user.profile.companies.all()
+    company_id = request.query_params.get('company_id')
+    limit = min(int(request.query_params.get('limit', 12)), 52)
+
+    from MercAPI.models import ComplianceMetric
+    from MercAPI.serializers import ComplianceMetricSerializer
+
+    qs = ComplianceMetric.objects.filter(company__in=user_companies)
+    if company_id:
+        qs = qs.filter(company_id=company_id)
+
+    metrics = qs.order_by('-period_end')[:limit]
+    return Response(ComplianceMetricSerializer(metrics, many=True).data)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def carrier_safety_overview(request, carrier_id):
+    """
+    Get FMCSA safety data for a specific carrier (broker view).
+    """
+    if not hasattr(request.user, 'profile'):
+        return Response({'error': 'User profile not found'}, status=status.HTTP_403_FORBIDDEN)
+
+    user_companies = request.user.profile.companies.all()
+
+    from MercAPI.models import Carrier, FMCSASnapshot
+    try:
+        carrier = Carrier.objects.get(id=carrier_id, company__in=user_companies)
+    except Carrier.DoesNotExist:
+        return Response({'error': 'Carrier not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    fmcsa_snapshot = FMCSASnapshot.objects.filter(carrier=carrier).first()
+
+    from MercAPI.serializers import FMCSASnapshotSerializer
+    return Response({
+        'carrier_id': carrier.id,
+        'carrier_name': carrier.name,
+        'dot_number': carrier.dot_number,
+        'mc_number': carrier.mc_number,
+        'status': carrier.status,
+        'fmcsa': FMCSASnapshotSerializer(fmcsa_snapshot).data if fmcsa_snapshot else None,
+    })
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def carrier_safety_refresh(request, carrier_id):
+    """
+    Force a fresh FMCSA data fetch for a specific carrier.
+    """
+    if not hasattr(request.user, 'profile'):
+        return Response({'error': 'User profile not found'}, status=status.HTTP_403_FORBIDDEN)
+
+    user_companies = request.user.profile.companies.all()
+
+    from MercAPI.models import Carrier
+    try:
+        carrier = Carrier.objects.get(id=carrier_id, company__in=user_companies)
+    except Carrier.DoesNotExist:
+        return Response({'error': 'Carrier not found'}, status=status.HTTP_404_NOT_FOUND)
+
+    if not carrier.dot_number:
+        return Response({'error': 'Carrier has no DOT number on file'}, status=status.HTTP_400_BAD_REQUEST)
+
+    from MercAPI.fmcsa_client import fetch_and_store as fmcsa_fetch
+    snapshot = fmcsa_fetch(dot_number=carrier.dot_number, carrier=carrier)
+
+    if snapshot is None:
+        return Response({'error': 'Failed to fetch FMCSA data'}, status=status.HTTP_502_BAD_GATEWAY)
+
+    from MercAPI.serializers import FMCSASnapshotSerializer
+    return Response({
+        'carrier_id': carrier.id,
+        'carrier_name': carrier.name,
+        'fmcsa': FMCSASnapshotSerializer(snapshot).data,
+    })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def carriers_safety_list(request):
+    """
+    Get all carriers with their latest FMCSA snapshot (list view for broker dashboard).
+    Includes safety highlights for quick scanning.
+    """
+    if not hasattr(request.user, 'profile'):
+        return Response({'error': 'User profile not found'}, status=status.HTTP_403_FORBIDDEN)
+
+    user_companies = request.user.profile.companies.all()
+
+    from MercAPI.models import Carrier, FMCSASnapshot
+    from MercAPI.serializers import FMCSASnapshotSerializer
+
+    carriers = Carrier.objects.filter(
+        company__in=user_companies, status='active'
+    ).order_by('name')
+
+    results = []
+    for carrier in carriers:
+        snapshot = FMCSASnapshot.objects.filter(carrier=carrier).first()
+        results.append({
+            'carrier_id': carrier.id,
+            'carrier_name': carrier.name,
+            'dot_number': carrier.dot_number,
+            'mc_number': carrier.mc_number,
+            'status': carrier.status,
+            'has_dot': bool(carrier.dot_number),
+            'fmcsa': FMCSASnapshotSerializer(snapshot).data if snapshot else None,
+        })
+
+    return Response(results)
+

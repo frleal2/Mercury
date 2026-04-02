@@ -11,7 +11,8 @@ import {
   MapPinIcon,
   PencilIcon,
   EyeIcon,
-  UserGroupIcon
+  UserGroupIcon,
+  ShieldCheckIcon
 } from '@heroicons/react/24/outline';
 
 function Companies() {
@@ -79,7 +80,9 @@ function Companies() {
     const matchesSearch = searchTerm === '' || 
       company.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (company.email && company.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (company.phone && company.phone.includes(searchTerm));
+      (company.phone && company.phone.includes(searchTerm)) ||
+      (company.dot_number && company.dot_number.includes(searchTerm)) ||
+      (company.mc_number && company.mc_number.toLowerCase().includes(searchTerm.toLowerCase()));
     
     return matchesFilter && matchesSearch;
   });
@@ -102,7 +105,7 @@ function Companies() {
         <div className="flex-1">
           <input
             type="text"
-            placeholder="Search by company name, email, or phone..."
+            placeholder="Search by name, email, phone, DOT#, or MC#..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -156,10 +159,13 @@ function Companies() {
                     Company
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Contact Info
+                    Type
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Address
+                    DOT# / MC#
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Contact Info
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Status
@@ -190,6 +196,28 @@ function Companies() {
                         </div>
                       </div>
                     </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                        company.company_type === 'asset' ? 'bg-blue-100 text-blue-800' :
+                        company.company_type === 'broker' ? 'bg-purple-100 text-purple-800' :
+                        company.company_type === 'hybrid' ? 'bg-indigo-100 text-indigo-800' :
+                        'bg-gray-100 text-gray-600'
+                      }`}>
+                        {company.company_type === 'asset' ? 'Asset' :
+                         company.company_type === 'broker' ? 'Broker' :
+                         company.company_type === 'hybrid' ? 'Hybrid' : '—'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      {company.dot_number ? (
+                        <div className="text-gray-900">DOT: {company.dot_number}</div>
+                      ) : (
+                        <span className="text-gray-400">—</span>
+                      )}
+                      {company.mc_number && (
+                        <div className="text-xs text-gray-500">MC: {company.mc_number}</div>
+                      )}
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       <div className="space-y-1">
                         {company.email && (
@@ -213,16 +241,7 @@ function Companies() {
                         )}
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {company.address ? (
-                        <div className="flex items-center">
-                          <MapPinIcon className="h-4 w-4 text-gray-400 mr-2" />
-                          <span className="truncate max-w-xs">{company.address}</span>
-                        </div>
-                      ) : (
-                        <span className="text-gray-400">No address</span>
-                      )}
-                    </td>
+
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                         company.active 

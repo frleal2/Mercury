@@ -25,7 +25,8 @@
 - [ ] 14. Accounting Integration
 - [ ] 15. Accessorial & Detention Tracking
 
-Phase 1 — Core TMS (Build First)
+## Phase 1 — Core TMS (Build First)
+
 1. Load/Order Management (the heartbeat of any TMS)
 Load model: shipper, consignee, pickup/delivery locations, commodity, weight, dimensions, equipment type, temperature requirements, reference numbers (PO#, BOL#)
 Load statuses: quoted → booked → dispatched → in_transit → delivered → invoiced → paid
@@ -54,7 +55,7 @@ Aging reports (AR/AP)
 Visual board showing today's loads, driver/carrier assignments, status
 Drag-and-drop assignment of drivers or carriers to loads
 You already have trip assignment logic — this extends it with a dedicated UI
-Phase 2 — Operational Efficiency
+## Phase 2 — Operational Efficiency
 7. Document Management (BOL/POD)
 You already have TripDocument — extend it with document types that are TMS-specific: Rate Confirmation, Bill of Lading, Proof of Delivery, Carrier Packet, Lumper Receipt
 E-signature for rate confirmations

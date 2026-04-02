@@ -113,6 +113,13 @@ urlpatterns = [
     path('api/tracking/<uuid:tracking_token>/', views.customer_tracking_portal, name='customer_tracking_portal'),
     # Rate Confirmation PDF parsing
     path('api/parse-rate-confirmation/', views.parse_rate_confirmation, name='parse_rate_confirmation'),
+    # FMCSA Safety & Compliance
+    path('api/company-safety/', views.company_safety_overview, name='company_safety_overview'),
+    path('api/company-safety/refresh/', views.company_safety_refresh, name='company_safety_refresh'),
+    path('api/company-safety/metrics/history/', views.company_compliance_history, name='company_compliance_history'),
+    path('api/carriers/<int:carrier_id>/safety/', views.carrier_safety_overview, name='carrier_safety_overview'),
+    path('api/carriers/<int:carrier_id>/safety/refresh/', views.carrier_safety_refresh, name='carrier_safety_refresh'),
+    path('api/carriers/safety/overview/', views.carriers_safety_list, name='carriers_safety_list'),
 ]
 
 # Serve media and static files during development

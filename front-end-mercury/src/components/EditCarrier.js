@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { XMarkIcon, TruckIcon, PencilIcon } from '@heroicons/react/24/outline';
+import CarrierSafety from './CarrierSafety';
 import axios from 'axios';
 import { useSession } from '../providers/SessionProvider';
 import BASE_URL from '../config';
@@ -517,6 +518,13 @@ const EditCarrier = ({ carrierId, isOpen, onClose }) => {
                           </p>
                         )}
                       </div>
+
+                      {/* FMCSA Safety Data */}
+                      {carrier?.dot_number && (
+                        <div className="border-t border-gray-200 pt-4">
+                          <CarrierSafety carrierId={carrierId} />
+                        </div>
+                      )}
 
                       {/* Metadata */}
                       {carrier?.created_at && (

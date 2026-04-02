@@ -21,6 +21,7 @@ import LandingPage from './Pages/LandingPage';
 import Settings from './Pages/Settings';
 import VehicleCompliancePage from './Pages/VehicleCompliancePage';
 import AnnualInspectionPage from './Pages/AnnualInspectionPage';
+import CompanySafety from './Pages/CompanySafety';
 import Loads from './Pages/Loads';
 import Customers from './Pages/Customers';
 import Invoices from './Pages/Invoices';
@@ -52,6 +53,7 @@ function AppContent() {
                             <Route path="/ActiveTrailers" element={<Navigate to="/DriverDashboard" />} />
                             <Route path="/ActiveTrucks" element={<Navigate to="/DriverDashboard" />} />
                             <Route path="/Maintenance" element={<Navigate to="/DriverDashboard" />} />
+                            <Route path="/CompanySafety" element={<Navigate to="/DriverDashboard" />} />
                             <Route path="/Loads" element={<Navigate to="/DriverDashboard" />} />
                             <Route path="/Customers" element={<Navigate to="/DriverDashboard" />} />
                             <Route path="/Invoices" element={<Navigate to="/DriverDashboard" />} />
@@ -84,6 +86,7 @@ function AppContent() {
                             <Route path="/VehicleCompliance" element={<><Header /><VehicleCompliancePage /></>} />
 
                             <Route path="/AnnualInspection" element={<><Header /><AnnualInspectionPage /></>} />
+                            <Route path="/CompanySafety" element={<><Header /><CompanySafety /></>} />
                             <Route path="/Settings" element={<><Header /><Settings /></>} />
                         </>
                     )}

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useSession } from '../providers/SessionProvider';
 import axios from 'axios';
 import BASE_URL from '../config';
-import { XMarkIcon, BuildingOfficeIcon } from '@heroicons/react/24/outline';
+import { XMarkIcon, BuildingOfficeIcon, InformationCircleIcon } from '@heroicons/react/24/outline';
 
 function AddCompany({ onClose }) {
   const { session } = useSession();
@@ -13,6 +13,9 @@ function AddCompany({ onClose }) {
     phone: '',
     email: '',
     active: true,
+    company_type: 'asset',
+    dot_number: '',
+    mc_number: '',
   });
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
@@ -60,6 +63,12 @@ function AddCompany({ onClose }) {
     if (!formData.slug.trim()) newErrors.slug = 'Slug is required';
     if (formData.email && !/\S+@\S+\.\S+/.test(formData.email)) {
       newErrors.email = 'Please enter a valid email address';
+    }
+    if ((formData.company_type === 'asset' || formData.company_type === 'hybrid') && !formData.dot_number.trim()) {
+      newErrors.dot_number = 'DOT number is required for asset-based and hybrid companies';
+    }
+    if (formData.dot_number && !/^\d+$/.test(formData.dot_number.trim())) {
+      newErrors.dot_number = 'DOT number must contain only digits';
     }
 
     setErrors(newErrors);
@@ -183,6 +192,68 @@ function AddCompany({ onClose }) {
               placeholder="Enter company address"
             />
             {errors.address && <p className="text-red-500 text-xs mt-1">{errors.address}</p>}
+          </div>
+
+          {/* Company Type & FMCSA */}
+          <div className="border-t border-gray-200 pt-4">
+            <h4 className="text-sm font-semibold text-gray-800 mb-3 flex items-center">
+              <InformationCircleIcon className="h-5 w-5 mr-1 text-blue-500" />
+              Company Type & FMCSA Registration
+            </h4>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Company Type</label>
+                <select
+                  name="company_type"
+                  value={formData.company_type}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="asset">Asset-Based</option>
+                  <option value="broker">Freight Broker</option>
+                  <option value="hybrid">Hybrid (Asset + Broker)</option>
+                </select>
+                <p className="text-gray-500 text-xs mt-1">
+                  {formData.company_type === 'asset' && 'Owns trucks, hauls own freight'}
+                  {formData.company_type === 'broker' && 'Brokers loads to external carriers'}
+                  {formData.company_type === 'hybrid' && 'Owns assets and brokers loads'}
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  USDOT Number
+                  {(formData.company_type === 'asset' || formData.company_type === 'hybrid') && (
+                    <span className="text-orange-500 ml-1">*</span>
+                  )}
+                </label>
+                <input
+                  type="text"
+                  name="dot_number"
+                  value={formData.dot_number}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="e.g., 1234567"
+                  maxLength={20}
+                />
+                {errors.dot_number && <p className="text-red-500 text-xs mt-1">{errors.dot_number}</p>}
+                <p className="text-gray-500 text-xs mt-1">Required for FMCSA safety monitoring</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">MC Number</label>
+                <input
+                  type="text"
+                  name="mc_number"
+                  value={formData.mc_number}
+                  onChange={handleChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="e.g., MC-987654"
+                  maxLength={20}
+                />
+                {errors.mc_number && <p className="text-red-500 text-xs mt-1">{errors.mc_number}</p>}
+              </div>
+            </div>
           </div>
 
           {/* Status */}

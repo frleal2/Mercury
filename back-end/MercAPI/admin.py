@@ -6,7 +6,8 @@ from .models import (Driver, Company, DriverTest, Truck, Trailer, Inspection, In
                      TripDocument, LoadDocument, DriverDocument, MaintenanceCategory, 
                      MaintenanceType, MaintenanceRecord, MaintenanceAttachment, PasswordResetToken,
                      TripInspectionRepairCertification, AnnualInspection, VehicleOperationStatus,
-                     Customer, Carrier, Load, Invoice, InvoicePayment)
+                     Customer, Carrier, Load, Invoice, InvoicePayment,
+                     FMCSASnapshot, ComplianceMetric)
 
 @admin.register(Tenant)
 class TenantAdmin(admin.ModelAdmin):
@@ -33,14 +34,17 @@ class TenantAdmin(admin.ModelAdmin):
 
 @admin.register(Company)
 class CompanyAdmin(admin.ModelAdmin):
-    list_display = ('name', 'slug', 'tenant', 'phone', 'email', 'active')
-    list_filter = ('tenant', 'active')
-    search_fields = ('name', 'slug', 'email', 'phone')
+    list_display = ('name', 'slug', 'tenant', 'company_type', 'dot_number', 'mc_number', 'phone', 'email', 'active')
+    list_filter = ('tenant', 'active', 'company_type')
+    search_fields = ('name', 'slug', 'email', 'phone', 'dot_number', 'mc_number')
     prepopulated_fields = {'slug': ('name',)}  # Auto-generate slug from name
     
     fieldsets = (
         ('Basic Information', {
             'fields': ('tenant', 'name', 'slug', 'email', 'phone')
+        }),
+        ('Company Type & FMCSA', {
+            'fields': ('company_type', 'dot_number', 'mc_number')
         }),
         ('Address', {
             'fields': ('address',)
@@ -485,6 +489,32 @@ class VehicleOperationStatusAdmin(admin.ModelAdmin):
             return f"Trailer: {obj.trailer.unit_number}"
         return "Unknown"
     get_vehicle.short_description = 'Vehicle'
+
+
+@admin.register(FMCSASnapshot)
+class FMCSASnapshotAdmin(admin.ModelAdmin):
+    list_display = ('dot_number', 'get_owner', 'authority_status', 'safety_rating', 'vehicle_oos_rate', 'fetched_at')
+    list_filter = ('authority_status', 'safety_rating', 'fetched_at')
+    search_fields = ('dot_number', 'legal_name', 'company__name', 'carrier__name')
+    date_hierarchy = 'fetched_at'
+    readonly_fields = ('fetched_at', 'raw_response')
+
+    def get_owner(self, obj):
+        if obj.company:
+            return f"Company: {obj.company.name}"
+        if obj.carrier:
+            return f"Carrier: {obj.carrier.name}"
+        return "—"
+    get_owner.short_description = 'Owner'
+
+
+@admin.register(ComplianceMetric)
+class ComplianceMetricAdmin(admin.ModelAdmin):
+    list_display = ('company', 'period_start', 'period_end', 'total_drivers', 'total_trucks', 'defect_rate', 'hos_violations', 'computed_at')
+    list_filter = ('company', 'period_end')
+    search_fields = ('company__name',)
+    date_hierarchy = 'period_end'
+    readonly_fields = ('computed_at',)
 
 # Register admin classes that were converted from simple registrations
 admin.site.register(DriverTest, DriverTestAdmin)

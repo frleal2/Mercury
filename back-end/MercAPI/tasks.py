@@ -176,3 +176,64 @@ def dispatch_pending_notifications(self):
             failed += 1
     logger.info("Dispatched %d notifications (%d queue failures)", sent, failed)
     return {'dispatched': sent, 'failed': failed}
+
+
+# ==================== FMCSA SAFETY & COMPLIANCE TASKS ====================
+
+@shared_task(bind=True, max_retries=2, default_retry_delay=300)
+def fetch_all_fmcsa_data(self):
+    """
+    Nightly task: fetch FMCSA data for all companies with DOT numbers
+    and all active carriers with DOT numbers.
+    """
+    from MercAPI.models import Company, Carrier
+    from MercAPI.fmcsa_client import fetch_and_store
+
+    fetched = 0
+    failed = 0
+
+    # Companies (asset/hybrid with DOT numbers)
+    companies = Company.objects.filter(
+        active=True, company_type__in=['asset', 'hybrid']
+    ).exclude(dot_number='')
+    for company in companies.iterator():
+        try:
+            result = fetch_and_store(dot_number=company.dot_number, company=company)
+            if result:
+                fetched += 1
+            else:
+                failed += 1
+        except Exception:
+            logger.exception("FMCSA fetch failed for company %s (DOT %s)", company.name, company.dot_number)
+            failed += 1
+
+    # Carriers (active with DOT numbers)
+    carriers = Carrier.objects.filter(status='active').exclude(dot_number='')
+    for carrier in carriers.iterator():
+        try:
+            result = fetch_and_store(dot_number=carrier.dot_number, carrier=carrier)
+            if result:
+                fetched += 1
+            else:
+                failed += 1
+        except Exception:
+            logger.exception("FMCSA fetch failed for carrier %s (DOT %s)", carrier.name, carrier.dot_number)
+            failed += 1
+
+    logger.info("FMCSA fetch complete: %d fetched, %d failed", fetched, failed)
+    return {'fetched': fetched, 'failed': failed}
+
+
+@shared_task(bind=True, max_retries=1, default_retry_delay=300)
+def compute_all_compliance_metrics(self):
+    """
+    Nightly task: compute internal compliance metrics for all active companies.
+    """
+    from MercAPI.compliance_metrics import compute_all
+    try:
+        count = compute_all()
+        logger.info("Compliance metrics computed for %d companies", count)
+        return {'companies_processed': count}
+    except Exception as exc:
+        logger.error("Compliance metrics computation failed: %s", exc)
+        raise self.retry(exc=exc)

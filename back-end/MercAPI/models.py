@@ -53,6 +53,12 @@ class Company(models.Model):
         blank=True,
         help_text="The business/organization this company belongs to"
     )
+    COMPANY_TYPE_CHOICES = [
+        ('asset', 'Asset-Based'),
+        ('broker', 'Freight Broker'),
+        ('hybrid', 'Hybrid'),
+    ]
+
     name = models.CharField(max_length=255)
     slug = models.SlugField(
         max_length=100,
@@ -65,6 +71,14 @@ class Company(models.Model):
     phone = models.CharField(max_length=20, null=True, blank=True)
     email = models.EmailField(null=True, blank=True)
     active = models.BooleanField(default=True)
+    dot_number = models.CharField(max_length=20, blank=True, help_text="USDOT number for this company")
+    mc_number = models.CharField(max_length=20, blank=True, help_text="Motor Carrier number (MC-XXXXXX)")
+    company_type = models.CharField(
+        max_length=10,
+        choices=COMPANY_TYPE_CHOICES,
+        default='asset',
+        help_text="Asset-based (owns trucks), Broker (brokers loads), or Hybrid (both)"
+    )
 
     def __str__(self):
         return self.name
@@ -2533,6 +2547,176 @@ class FuelSurchargeSchedule(models.Model):
 
     def __str__(self):
         return f"{self.name} (Base: ${self.base_fuel_price})"
+
+
+# ==================== FMCSA SAFETY & COMPLIANCE ====================
+
+class FMCSASnapshot(models.Model):
+    """
+    Point-in-time snapshot of FMCSA data for a Company or Carrier.
+    Fetched nightly from the FMCSA QCMobile API by DOT number.
+    Only one of company/carrier should be set per record.
+    """
+    AUTHORITY_STATUS_CHOICES = [
+        ('active', 'Active'),
+        ('inactive', 'Inactive'),
+        ('revoked', 'Revoked'),
+        ('not_authorized', 'Not Authorized'),
+    ]
+    SAFETY_RATING_CHOICES = [
+        ('satisfactory', 'Satisfactory'),
+        ('conditional', 'Conditional'),
+        ('unsatisfactory', 'Unsatisfactory'),
+        ('not_rated', 'Not Rated'),
+    ]
+
+    # Polymorphic link — one of these is set
+    company = models.ForeignKey(
+        Company, on_delete=models.CASCADE, null=True, blank=True,
+        related_name='fmcsa_snapshots',
+        help_text="Company this snapshot belongs to (for asset/hybrid companies)"
+    )
+    carrier = models.ForeignKey(
+        Carrier, on_delete=models.CASCADE, null=True, blank=True,
+        related_name='fmcsa_snapshots',
+        help_text="Carrier this snapshot belongs to (for broker carrier monitoring)"
+    )
+    dot_number = models.CharField(max_length=20, help_text="USDOT number queried")
+
+    # Legal entity info from FMCSA
+    legal_name = models.CharField(max_length=255, blank=True)
+    dba_name = models.CharField(max_length=255, blank=True)
+    entity_type = models.CharField(max_length=50, blank=True, help_text="e.g., CARRIER, BROKER, or both")
+    phy_city = models.CharField(max_length=100, blank=True)
+    phy_state = models.CharField(max_length=2, blank=True)
+
+    # Authority
+    authority_status = models.CharField(
+        max_length=20, choices=AUTHORITY_STATUS_CHOICES, default='not_authorized'
+    )
+    common_authority = models.BooleanField(default=False)
+    contract_authority = models.BooleanField(default=False)
+    broker_authority = models.BooleanField(default=False)
+
+    # Safety rating
+    safety_rating = models.CharField(
+        max_length=20, choices=SAFETY_RATING_CHOICES, default='not_rated'
+    )
+    safety_rating_date = models.DateField(null=True, blank=True)
+
+    # Insurance filings (from FMCSA, not self-reported)
+    bipd_insurance_on_file = models.BooleanField(default=False, help_text="Bodily Injury/Property Damage")
+    bipd_insurance_amount = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    cargo_insurance_on_file = models.BooleanField(default=False)
+    cargo_insurance_amount = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    bond_surety_on_file = models.BooleanField(default=False)
+
+    # Fleet info
+    total_power_units = models.IntegerField(null=True, blank=True)
+    total_drivers = models.IntegerField(null=True, blank=True)
+
+    # Inspection / OOS stats
+    vehicle_oos_rate = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True,
+        help_text="Vehicle out-of-service rate (%)"
+    )
+    driver_oos_rate = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True,
+        help_text="Driver out-of-service rate (%)"
+    )
+    hazmat_oos_rate = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True,
+        help_text="Hazmat out-of-service rate (%)"
+    )
+    vehicle_inspections_count = models.IntegerField(null=True, blank=True)
+    driver_inspections_count = models.IntegerField(null=True, blank=True)
+
+    # Crash data (24-month rolling)
+    fatal_crashes = models.IntegerField(default=0)
+    injury_crashes = models.IntegerField(default=0)
+    towaway_crashes = models.IntegerField(default=0)
+    total_crashes = models.IntegerField(default=0)
+
+    # Metadata
+    fetched_at = models.DateTimeField(auto_now_add=True)
+    data_as_of = models.DateField(null=True, blank=True, help_text="FMCSA 'data as of' date")
+    raw_response = models.JSONField(default=dict, help_text="Full FMCSA API response for reference")
+
+    class Meta:
+        ordering = ['-fetched_at']
+        verbose_name = "FMCSA Snapshot"
+        verbose_name_plural = "FMCSA Snapshots"
+        indexes = [
+            models.Index(fields=['dot_number', '-fetched_at']),
+            models.Index(fields=['company', '-fetched_at']),
+            models.Index(fields=['carrier', '-fetched_at']),
+        ]
+
+    def __str__(self):
+        owner = self.company or self.carrier
+        return f"FMCSA {self.dot_number} — {owner} ({self.fetched_at:%Y-%m-%d})"
+
+
+class ComplianceMetric(models.Model):
+    """
+    Periodic snapshot of internal compliance health computed from Fleetly data.
+    Generated nightly by the compliance_metrics service.
+    Tracks trends over time — one record per company per period.
+    """
+    company = models.ForeignKey(
+        Company, on_delete=models.CASCADE, related_name='compliance_metrics'
+    )
+    computed_at = models.DateTimeField(auto_now_add=True)
+    period_start = models.DateField(help_text="Start of measurement period")
+    period_end = models.DateField(help_text="End of measurement period")
+
+    # Driver compliance
+    total_drivers = models.IntegerField(default=0)
+    drivers_cdl_current = models.IntegerField(default=0)
+    drivers_medical_current = models.IntegerField(default=0)
+    drivers_mvr_current = models.IntegerField(default=0)
+    drug_tests_compliant = models.IntegerField(default=0)
+    drug_tests_required = models.IntegerField(default=0)
+
+    # Vehicle compliance
+    total_trucks = models.IntegerField(default=0)
+    total_trailers = models.IntegerField(default=0)
+    trucks_annual_inspection_current = models.IntegerField(default=0)
+    trucks_registration_current = models.IntegerField(default=0)
+    trucks_insurance_current = models.IntegerField(default=0)
+    vehicles_safe_status = models.IntegerField(default=0)
+    vehicles_conditional_status = models.IntegerField(default=0)
+    vehicles_prohibited_status = models.IntegerField(default=0)
+    vehicles_oos_status = models.IntegerField(default=0)
+
+    # Inspection results (internal)
+    total_inspections = models.IntegerField(default=0)
+    inspections_with_defects = models.IntegerField(default=0)
+    defect_rate = models.DecimalField(max_digits=5, decimal_places=2, default=0, help_text="Percentage")
+
+    # Trip compliance
+    total_trips = models.IntegerField(default=0)
+    trips_with_pre_trip = models.IntegerField(default=0)
+    trips_with_post_trip = models.IntegerField(default=0)
+    dvir_review_rate = models.DecimalField(max_digits=5, decimal_places=2, default=0, help_text="Percentage")
+
+    # Maintenance health
+    maintenance_on_time = models.IntegerField(default=0)
+    maintenance_overdue = models.IntegerField(default=0)
+    maintenance_total_cost = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+
+    # HOS
+    total_hos_records = models.IntegerField(default=0)
+    hos_violations = models.IntegerField(default=0)
+
+    class Meta:
+        ordering = ['-period_end']
+        verbose_name = "Compliance Metric"
+        verbose_name_plural = "Compliance Metrics"
+        unique_together = ['company', 'period_start', 'period_end']
+
+    def __str__(self):
+        return f"{self.company.name} compliance {self.period_start} — {self.period_end}"
 
 
 

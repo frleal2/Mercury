@@ -18,6 +18,7 @@ const getNavigationItems = (userRole) => {
   return [
     // { name: 'Dashboard', href: '/Dashboard', current: false }, // Hidden - not ready for production
     { name: 'Safety Compliance', href: '#', current: false, dropdown: true, options: [
+        { name: 'FMCSA Safety', href: '/CompanySafety' },
         { name: 'Vehicle Status', href: '/VehicleCompliance' },
         { name: 'Annual Inspections', href: '/AnnualInspection' },
         { name: 'Companies', href: '/ActiveCompanies' },
