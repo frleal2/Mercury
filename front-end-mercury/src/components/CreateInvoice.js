@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { Dialog, Transition } from '@headlessui/react';
 import { XMarkIcon, DocumentTextIcon, CubeIcon, CheckIcon } from '@heroicons/react/24/outline';
 import axios from 'axios';
 import { useSession } from '../providers/SessionProvider';
@@ -153,51 +152,33 @@ const CreateInvoice = ({ isOpen, onClose }) => {
 
   const selectedCustomer = customers.find(c => c.id === parseInt(selectedCustomerId));
 
-  const inputClass = "mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm";
-  const labelClass = "block text-sm font-medium text-gray-700";
-  const errorClass = "mt-1 text-sm text-red-600";
+  const inputClass = "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500";
+  const labelClass = "block text-sm font-medium text-gray-700 mb-1";
+  const errorClass = "text-red-500 text-xs mt-1";
+
+  if (!isOpen) return null;
 
   return (
-    <Transition show={isOpen} as={React.Fragment}>
-      <Dialog as="div" className="relative z-50" onClose={onClose}>
-        <Transition.Child
-          as={React.Fragment}
-          enter="ease-out duration-300" enterFrom="opacity-0" enterTo="opacity-100"
-          leave="ease-in duration-200" leaveFrom="opacity-100" leaveTo="opacity-0"
-        >
-          <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" />
-        </Transition.Child>
+    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+      <div className="relative top-10 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-2/3 xl:w-2/3 shadow-lg rounded-md bg-white max-h-[90vh] overflow-y-auto">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-lg font-medium text-gray-900 flex items-center">
+            <DocumentTextIcon className="h-6 w-6 mr-2 text-blue-600" />
+            Create Invoice — Step {step} of 3
+          </h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <XMarkIcon className="h-6 w-6" />
+          </button>
+        </div>
 
-        <div className="fixed inset-0 z-10 overflow-y-auto">
-          <div className="flex min-h-full items-center justify-center p-4">
-            <Transition.Child
-              as={React.Fragment}
-              enter="ease-out duration-300" enterFrom="opacity-0 translate-y-4" enterTo="opacity-100 translate-y-0"
-              leave="ease-in duration-200" leaveFrom="opacity-100 translate-y-0" leaveTo="opacity-0 translate-y-4"
-            >
-              <Dialog.Panel className="relative w-full max-w-3xl transform overflow-hidden rounded-lg bg-white shadow-xl transition-all">
-                {/* Header */}
-                <div className="bg-blue-600 px-6 py-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center">
-                      <DocumentTextIcon className="h-6 w-6 text-white mr-2" />
-                      <Dialog.Title className="text-lg font-semibold text-white">
-                        Create Invoice — Step {step} of 3
-                      </Dialog.Title>
-                    </div>
-                    <button onClick={onClose} className="text-white hover:text-gray-200">
-                      <XMarkIcon className="h-6 w-6" />
-                    </button>
-                  </div>
-                  {/* Progress bar */}
-                  <div className="mt-3 flex space-x-2">
-                    {[1, 2, 3].map(s => (
-                      <div key={s} className={`flex-1 h-1 rounded-full ${s <= step ? 'bg-white' : 'bg-blue-400'}`} />
-                    ))}
-                  </div>
-                </div>
+        {/* Progress bar */}
+        <div className="flex mb-1 space-x-2">
+          {[1, 2, 3].map(s => (
+            <div key={s} className={`flex-1 h-1 rounded-full ${s <= step ? 'bg-blue-600' : 'bg-gray-200'}`} />
+          ))}
+        </div>
 
-                <div className="px-6 py-4 max-h-[65vh] overflow-y-auto">
+        <div className="space-y-6">
                   {/* Step 1: Select Customer */}
                   {step === 1 && (
                     <div className="space-y-4">
@@ -357,13 +338,13 @@ const CreateInvoice = ({ isOpen, onClose }) => {
                 </div>
 
                 {/* Footer with navigation */}
-                <div className="bg-gray-50 px-6 py-4 flex justify-between">
+                <div className="flex justify-between pt-4">
                   <div>
                     {step > 1 && (
                       <button
                         type="button"
                         onClick={() => setStep(step - 1)}
-                        className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+                        className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                       >
                         Back
                       </button>
@@ -373,7 +354,7 @@ const CreateInvoice = ({ isOpen, onClose }) => {
                     <button
                       type="button"
                       onClick={onClose}
-                      className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+                      className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                     >
                       Cancel
                     </button>
@@ -392,7 +373,7 @@ const CreateInvoice = ({ isOpen, onClose }) => {
                           setErrors({});
                           setStep(step + 1);
                         }}
-                        className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700"
+                        className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                       >
                         Next
                       </button>
@@ -401,19 +382,15 @@ const CreateInvoice = ({ isOpen, onClose }) => {
                         type="button"
                         onClick={handleSubmit}
                         disabled={loading}
-                        className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 disabled:opacity-50"
+                        className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {loading ? 'Creating...' : 'Create Invoice'}
                       </button>
                     )}
                   </div>
                 </div>
-              </Dialog.Panel>
-            </Transition.Child>
-          </div>
-        </div>
-      </Dialog>
-    </Transition>
+      </div>
+    </div>
   );
 };
 

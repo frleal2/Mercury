@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { Dialog, Transition } from '@headlessui/react';
 import { XMarkIcon, CubeIcon, PlusIcon, MagnifyingGlassIcon, DocumentArrowUpIcon } from '@heroicons/react/24/outline';
 import axios from 'axios';
 import { useSession } from '../providers/SessionProvider';
@@ -320,96 +319,79 @@ const AddLoad = ({ isOpen, onClose }) => {
     }
   };
 
-  const inputClass = "mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm";
-  const labelClass = "block text-sm font-medium text-gray-700";
-  const errorClass = "mt-1 text-sm text-red-600";
+  const inputClass = "w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500";
+  const labelClass = "block text-sm font-medium text-gray-700 mb-1";
+  const errorClass = "text-red-500 text-xs mt-1";
+
+  if (!isOpen) return null;
 
   return (
     <>
-      <Transition show={isOpen} as={React.Fragment}>
-        <Dialog as="div" className="relative z-50" onClose={onClose}>
-          <Transition.Child
-            as={React.Fragment}
-            enter="ease-out duration-300" enterFrom="opacity-0" enterTo="opacity-100"
-            leave="ease-in duration-200" leaveFrom="opacity-100" leaveTo="opacity-0"
-          >
-            <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" />
-          </Transition.Child>
+    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+      <div className="relative top-10 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-2/3 xl:w-2/3 shadow-lg rounded-md bg-white max-h-[90vh] overflow-y-auto">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-lg font-medium text-gray-900 flex items-center">
+            <CubeIcon className="h-6 w-6 mr-2 text-blue-600" />
+            New Load
+          </h3>
+          <div className="flex items-center space-x-2">
+            <input
+              type="file"
+              ref={pdfInputRef}
+              accept=".pdf"
+              onChange={handlePdfUpload}
+              className="hidden"
+            />
+            <button
+              type="button"
+              onClick={() => pdfInputRef.current?.click()}
+              disabled={pdfParsing}
+              className="flex items-center px-3 py-1.5 text-sm text-blue-600 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 transition disabled:opacity-50"
+            >
+              {pdfParsing ? (
+                <>
+                  <svg className="animate-spin h-4 w-4 mr-1.5 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  Parsing PDF...
+                </>
+              ) : (
+                <>
+                  <DocumentArrowUpIcon className="h-4 w-4 mr-1.5" />
+                  Import Rate Con
+                </>
+              )}
+            </button>
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+              <XMarkIcon className="h-6 w-6" />
+            </button>
+          </div>
+        </div>
 
-          <div className="fixed inset-0 z-10 overflow-y-auto">
-            <div className="flex min-h-full items-center justify-center p-4">
-              <Transition.Child
-                as={React.Fragment}
-                enter="ease-out duration-300" enterFrom="opacity-0 translate-y-4" enterTo="opacity-100 translate-y-0"
-                leave="ease-in duration-200" leaveFrom="opacity-100 translate-y-0" leaveTo="opacity-0 translate-y-4"
-              >
-                <Dialog.Panel className="relative w-full max-w-3xl transform overflow-hidden rounded-lg bg-white shadow-xl transition-all">
-                  {/* Header */}
-                  <div className="bg-blue-600 px-6 py-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center">
-                        <CubeIcon className="h-6 w-6 text-white mr-2" />
-                        <Dialog.Title className="text-lg font-semibold text-white">
-                          New Load
-                        </Dialog.Title>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <input
-                          type="file"
-                          ref={pdfInputRef}
-                          accept=".pdf"
-                          onChange={handlePdfUpload}
-                          className="hidden"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => pdfInputRef.current?.click()}
-                          disabled={pdfParsing}
-                          className="flex items-center px-3 py-1.5 text-sm bg-white bg-opacity-20 text-white rounded-md hover:bg-opacity-30 transition disabled:opacity-50"
-                        >
-                          {pdfParsing ? (
-                            <>
-                              <svg className="animate-spin h-4 w-4 mr-1.5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                              </svg>
-                              Parsing PDF...
-                            </>
-                          ) : (
-                            <>
-                              <DocumentArrowUpIcon className="h-4 w-4 mr-1.5" />
-                              Import Rate Con
-                            </>
-                          )}
-                        </button>
-                        <button onClick={onClose} className="text-white hover:text-gray-200">
-                          <XMarkIcon className="h-6 w-6" />
-                        </button>
-                      </div>
-                    </div>
-                    {/* PDF parsing feedback */}
-                    {pdfError && (
-                      <div className="mt-2 bg-red-500 bg-opacity-30 text-white text-sm px-3 py-2 rounded">
-                        {pdfError}
-                      </div>
-                    )}
-                    {pdfParsing && (
-                      <div className="mt-2 bg-white bg-opacity-20 text-white text-sm px-3 py-2 rounded">
-                        Extracting data from Rate Confirmation PDF... This may take a few seconds.
-                      </div>
-                    )}
-                    {/* Step indicator */}
-                    <div className="flex mt-3 space-x-2">
-                      {[1, 2, 3].map((s) => (
-                        <div key={s} className={`flex-1 h-1 rounded-full ${s <= step ? 'bg-white' : 'bg-blue-400'}`} />
-                      ))}
-                    </div>
-                    <div className="flex mt-1 text-xs text-blue-100">
-                      <span className="flex-1">Customer & Refs</span>
-                      <span className="flex-1 text-center">Pickup & Delivery</span>
-                      <span className="flex-1 text-right">Cargo & Rate</span>
-                    </div>
-                  </div>
+        {/* PDF parsing feedback */}
+        {pdfError && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-700">
+            {pdfError}
+          </div>
+        )}
+        {pdfParsing && (
+          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md text-sm text-blue-700">
+            Extracting data from Rate Confirmation PDF... This may take a few seconds.
+          </div>
+        )}
+
+        {/* Step indicator */}
+        <div className="flex mb-1 space-x-2">
+          {[1, 2, 3].map((s) => (
+            <div key={s} className={`flex-1 h-1 rounded-full ${s <= step ? 'bg-blue-600' : 'bg-gray-200'}`} />
+          ))}
+        </div>
+        <div className="flex mb-4 text-xs text-gray-500">
+          <span className="flex-1">Customer & Refs</span>
+          <span className="flex-1 text-center">Pickup & Delivery</span>
+          <span className="flex-1 text-right">Cargo & Rate</span>
+        </div>
 
                   <form
                     onSubmit={(e) => e.preventDefault()}
@@ -419,8 +401,8 @@ const AddLoad = ({ isOpen, onClose }) => {
                         if (step < 3) handleNext();
                       }
                     }}
+                    className="space-y-6"
                   >
-                    <div className="px-6 py-4 max-h-[60vh] overflow-y-auto">
 
                       {/* Step 1: Customer & References */}
                       {step === 1 && (
@@ -721,39 +703,33 @@ const AddLoad = ({ isOpen, onClose }) => {
                           </div>
                         </div>
                       )}
-                    </div>
-
                     {/* Footer */}
-                    <div className="bg-gray-50 px-6 py-4 flex justify-between">
+                    <div className="flex justify-between pt-4">
                       <div>
                         {step > 1 && (
-                          <button type="button" onClick={handleBack} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
+                          <button type="button" onClick={handleBack} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
                             Back
                           </button>
                         )}
                       </div>
                       <div className="flex space-x-3">
-                        <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
+                        <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
                           Cancel
                         </button>
                         {step < 3 ? (
-                          <button type="button" onClick={handleNext} className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700">
+                          <button type="button" onClick={handleNext} className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
                             Next
                           </button>
                         ) : (
-                          <button type="button" onClick={handleSubmit} disabled={loading} className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 disabled:opacity-50">
+                          <button type="button" onClick={handleSubmit} disabled={loading} className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed">
                             {loading ? 'Creating...' : 'Create Load'}
                           </button>
                         )}
                       </div>
                     </div>
                   </form>
-                </Dialog.Panel>
-              </Transition.Child>
-            </div>
-          </div>
-        </Dialog>
-      </Transition>
+      </div>
+    </div>
 
       {/* Add Customer Modal */}
       {isAddCustomerOpen && (

@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { Dialog, Transition } from '@headlessui/react';
 import { ArrowPathIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import axios from 'axios';
 import { useSession } from '../providers/SessionProvider';
@@ -133,42 +132,25 @@ const ReassignDispatchModal = ({ isOpen, onClose, load, trip, onReassigned }) =>
   const displayTitle = load?.load_number || (trip?.load_number ? trip.load_number : trip?.trip_number);
   const currentDriverName = load?.trip_driver_name || trip?.driver_name || 'Unknown';
 
+  if (!isOpen) return null;
+
   return (
-    <Transition show={isOpen} as={React.Fragment}>
-      <Dialog as="div" className="relative z-50" onClose={handleClose}>
-        <Transition.Child
-          as={React.Fragment}
-          enter="ease-out duration-300" enterFrom="opacity-0" enterTo="opacity-100"
-          leave="ease-in duration-200" leaveFrom="opacity-100" leaveTo="opacity-0"
-        >
-          <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" />
-        </Transition.Child>
+    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+      <div className="relative top-10 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-2/3 xl:w-1/2 shadow-lg rounded-md bg-white max-h-[90vh] overflow-y-auto">
+        <div className="flex justify-between items-center mb-4">
+          <div>
+            <h3 className="text-lg font-medium text-gray-900 flex items-center">
+              <ArrowPathIcon className="h-6 w-6 mr-2 text-blue-600" />
+              Reassign Driver & Equipment
+            </h3>
+            <p className="text-sm text-gray-500 ml-8">{displayTitle} — Currently: {currentDriverName}</p>
+          </div>
+          <button onClick={handleClose} className="text-gray-400 hover:text-gray-600">
+            <XMarkIcon className="h-6 w-6" />
+          </button>
+        </div>
 
-        <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div className="flex min-h-full items-center justify-center p-4">
-            <Transition.Child
-              as={React.Fragment}
-              enter="ease-out duration-300" enterFrom="opacity-0 scale-95" enterTo="opacity-100 scale-100"
-              leave="ease-in duration-200" leaveFrom="opacity-100 scale-100" leaveTo="opacity-0 scale-95"
-            >
-              <Dialog.Panel className="relative w-full max-w-lg transform overflow-hidden rounded-xl bg-white shadow-2xl transition-all">
-                {/* Header */}
-                <div className="bg-amber-600 px-6 py-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <ArrowPathIcon className="h-6 w-6 text-amber-200" />
-                      <div>
-                        <Dialog.Title className="text-lg font-semibold text-white">Reassign Driver & Equipment</Dialog.Title>
-                        <p className="text-sm text-amber-200">{displayTitle} — Currently: {currentDriverName}</p>
-                      </div>
-                    </div>
-                    <button onClick={handleClose} className="text-amber-200 hover:text-white">
-                      <XMarkIcon className="h-5 w-5" />
-                    </button>
-                  </div>
-                </div>
-
-                <div className="p-6 space-y-5">
+        <div className="space-y-5">
                   {/* Current Assignment Info */}
                   <div className="bg-gray-50 rounded-lg p-4">
                     <h4 className="text-sm font-medium text-gray-500 mb-2">Current Assignment</h4>
@@ -274,11 +256,11 @@ const ReassignDispatchModal = ({ isOpen, onClose, load, trip, onReassigned }) =>
                 </div>
 
                 {/* Footer */}
-                <div className="bg-gray-50 px-6 py-4 flex justify-end gap-3">
+                <div className="flex justify-end space-x-3 pt-4">
                   <button
                     type="button"
                     onClick={handleClose}
-                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                   >
                     Cancel
                   </button>
@@ -286,17 +268,13 @@ const ReassignDispatchModal = ({ isOpen, onClose, load, trip, onReassigned }) =>
                     type="button"
                     onClick={handleReassign}
                     disabled={loading || fetchingData}
-                    className="px-4 py-2 text-sm font-medium text-white bg-amber-600 rounded-lg hover:bg-amber-700 disabled:opacity-50"
+                    className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {loading ? 'Reassigning...' : 'Reassign'}
                   </button>
                 </div>
-              </Dialog.Panel>
-            </Transition.Child>
-          </div>
-        </div>
-      </Dialog>
-    </Transition>
+      </div>
+    </div>
   );
 };
 

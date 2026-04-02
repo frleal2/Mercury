@@ -3,13 +3,9 @@ import axios from 'axios';
 import { useSession } from '../providers/SessionProvider';
 import BASE_URL from '../config';
 import { 
-  Dialog,
-  Transition 
-} from '@headlessui/react';
-import { Fragment } from 'react';
-import { 
   ExclamationTriangleIcon,
-  XCircleIcon 
+  XCircleIcon,
+  XMarkIcon
 } from '@heroicons/react/24/outline';
 
 function CancelTripModal({ isOpen, onClose, trip, onTripCancelled }) {
@@ -74,42 +70,20 @@ function CancelTripModal({ isOpen, onClose, trip, onTripCancelled }) {
   };
 
   if (!trip) return null;
+  if (!isOpen) return null;
 
   return (
-    <Transition appear show={isOpen} as={Fragment}>
-      <Dialog as="div" className="relative z-10" onClose={handleClose}>
-        <Transition.Child
-          as={Fragment}
-          enter="ease-out duration-300"
-          enterFrom="opacity-0"
-          enterTo="opacity-100"
-          leave="ease-in duration-200"
-          leaveFrom="opacity-100"
-          leaveTo="opacity-0"
-        >
-          <div className="fixed inset-0 bg-black bg-opacity-25" />
-        </Transition.Child>
-
-        <div className="fixed inset-0 overflow-y-auto">
-          <div className="flex min-h-full items-center justify-center p-4 text-center">
-            <Transition.Child
-              as={Fragment}
-              enter="ease-out duration-300"
-              enterFrom="opacity-0 scale-95"
-              enterTo="opacity-100 scale-100"
-              leave="ease-in duration-200"
-              leaveFrom="opacity-100 scale-100"
-              leaveTo="opacity-0 scale-95"
-            >
-              <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all">
-                <div className="flex items-center space-x-3 mb-4">
-                  <div className="flex-shrink-0">
-                    <ExclamationTriangleIcon className="h-8 w-8 text-red-600" />
-                  </div>
-                  <Dialog.Title as="h3" className="text-lg font-medium text-gray-900">
-                    Cancel Trip
-                  </Dialog.Title>
-                </div>
+    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+      <div className="relative top-10 mx-auto p-5 border w-11/12 md:w-2/3 lg:w-1/2 xl:w-1/3 shadow-lg rounded-md bg-white max-h-[90vh] overflow-y-auto">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-lg font-medium text-gray-900 flex items-center">
+            <ExclamationTriangleIcon className="h-6 w-6 mr-2 text-red-600" />
+            Cancel Trip
+          </h3>
+          <button onClick={handleClose} className="text-gray-400 hover:text-gray-600">
+            <XMarkIcon className="h-6 w-6" />
+          </button>
+        </div>
 
                 {/* Trip Information */}
                 <div className="bg-gray-50 rounded-lg p-4 mb-6">
@@ -167,10 +141,10 @@ function CancelTripModal({ isOpen, onClose, trip, onTripCancelled }) {
                     </div>
                   )}
 
-                  <div className="flex justify-end space-x-3">
+                  <div className="flex justify-end space-x-3 pt-4">
                     <button
                       type="button"
-                      className="inline-flex justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                      className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                       onClick={handleClose}
                       disabled={loading}
                     >
@@ -178,7 +152,7 @@ function CancelTripModal({ isOpen, onClose, trip, onTripCancelled }) {
                     </button>
                     <button
                       type="submit"
-                      className="inline-flex justify-center rounded-md border border-transparent bg-red-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:opacity-50"
+                      className="px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
                       disabled={loading}
                     >
                       {loading ? (
@@ -192,12 +166,8 @@ function CancelTripModal({ isOpen, onClose, trip, onTripCancelled }) {
                     </button>
                   </div>
                 </form>
-              </Dialog.Panel>
-            </Transition.Child>
-          </div>
-        </div>
-      </Dialog>
-    </Transition>
+      </div>
+    </div>
   );
 }
 

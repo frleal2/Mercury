@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from '@headlessui/react';
+
 import { useSession } from '../providers/SessionProvider';
 import axios from 'axios';
 import BASE_URL from '../config';
@@ -81,23 +81,20 @@ function InspectionHistory({ truck, trailer, onClose }) {
   const failedCount = inspections.filter(i => !i.is_inspection_passed).length;
 
   return (
-    <Dialog open={true} onClose={onClose} className="relative z-50">
-      <DialogBackdrop className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" />
-      <div className="fixed inset-0 z-10 overflow-y-auto">
-        <div className="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
-          <DialogPanel className="relative transform overflow-hidden rounded-lg bg-white px-4 pt-5 pb-4 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-3xl sm:p-6 max-h-[90vh] overflow-y-auto">
-            <div className="absolute top-0 right-0 hidden pt-4 pr-4 sm:block">
-              <button type="button" onClick={onClose} className="rounded-md bg-white text-gray-400 hover:text-gray-500">
-                <XMarkIcon className="h-6 w-6" />
-              </button>
-            </div>
-
-            <div className="sm:flex sm:items-start">
-              <div className="mt-3 text-center sm:mt-0 sm:text-left w-full">
-                <DialogTitle className="text-lg font-medium leading-6 text-gray-900 mb-1">
-                  Inspection History — {vehicleType}
-                </DialogTitle>
-                <p className="text-sm text-gray-500 mb-6">{vehicleLabel}</p>
+    <>
+    <div className="fixed inset-0 z-50 overflow-y-auto">
+      <div className="fixed inset-0 bg-gray-600 bg-opacity-50" onClick={onClose}></div>
+      <div className="relative top-10 mx-auto p-5 border w-11/12 xl:w-2/3 shadow-lg rounded-md bg-white max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-medium text-gray-900 flex items-center">
+            <ClipboardDocumentCheckIcon className="h-6 w-6 text-blue-600 mr-2" />
+            Inspection History — {vehicleType}
+          </h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <XMarkIcon className="h-6 w-6" />
+          </button>
+        </div>
+        <p className="text-sm text-gray-500 mb-6">{vehicleLabel}</p>
 
                 {loading ? (
                   <div className="flex justify-center items-center h-48">
@@ -197,28 +194,23 @@ function InspectionHistory({ truck, trailer, onClose }) {
                 )}
 
                 {/* Close Button */}
-                <div className="mt-6 sm:flex sm:flex-row-reverse">
+                <div className="flex justify-end pt-4">
                   <button
                     type="button"
                     onClick={onClose}
-                    className="inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 sm:w-auto"
+                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                   >
                     Close
                   </button>
                 </div>
-              </div>
-            </div>
-          </DialogPanel>
-        </div>
       </div>
-
-      {/* Inspection Detail Modal */}
-      <InspectionDetailModal
-        isOpen={detailModalOpen}
-        onClose={() => { setDetailModalOpen(false); setSelectedInspection(null); }}
-        inspection={selectedInspection}
-      />
-    </Dialog>
+    </div>
+    <InspectionDetailModal
+      isOpen={detailModalOpen}
+      onClose={() => { setDetailModalOpen(false); setSelectedInspection(null); }}
+      inspection={selectedInspection}
+    />
+    </>
   );
 }
 

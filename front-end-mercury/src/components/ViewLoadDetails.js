@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { Dialog, Transition } from '@headlessui/react';
 import { XMarkIcon, CubeIcon, PencilIcon, CheckIcon, DocumentTextIcon, MapPinIcon } from '@heroicons/react/24/outline';
 import axios from 'axios';
 import { useSession } from '../providers/SessionProvider';
@@ -157,66 +156,52 @@ const ViewLoadDetails = ({ loadId, isOpen, onClose }) => {
   const detailLabel = "text-xs text-gray-500";
   const detailValue = "text-sm text-gray-900";
 
-  return (
-    <Transition show={isOpen} as={React.Fragment}>
-      <Dialog as="div" className="relative z-50" onClose={onClose}>
-        <Transition.Child
-          as={React.Fragment}
-          enter="ease-out duration-300" enterFrom="opacity-0" enterTo="opacity-100"
-          leave="ease-in duration-200" leaveFrom="opacity-100" leaveTo="opacity-0"
-        >
-          <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" />
-        </Transition.Child>
+  if (!isOpen) return null;
 
-        <div className="fixed inset-0 z-10 overflow-y-auto">
-          <div className="flex min-h-full items-center justify-center p-4">
-            <Transition.Child
-              as={React.Fragment}
-              enter="ease-out duration-300" enterFrom="opacity-0 translate-y-4" enterTo="opacity-100 translate-y-0"
-              leave="ease-in duration-200" leaveFrom="opacity-100 translate-y-0" leaveTo="opacity-0 translate-y-4"
-            >
-              <Dialog.Panel className="relative w-full max-w-4xl transform overflow-hidden rounded-lg bg-white shadow-xl transition-all">
+  return (
+    <>
+    <div className="fixed inset-0 z-50 overflow-y-auto">
+      <div className="fixed inset-0 bg-gray-600 bg-opacity-50" onClick={onClose}></div>
+      <div className="relative top-10 mx-auto p-5 border w-11/12 xl:w-2/3 shadow-lg rounded-md bg-white max-h-[90vh] overflow-y-auto">
                 {loading ? (
-                  <div className="p-12 text-center">
+                  <div className="text-center py-12">
                     <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
                     <p className="mt-3 text-gray-600">Loading load details...</p>
                   </div>
                 ) : load ? (
                   <>
                     {/* Header */}
-                    <div className="bg-blue-600 px-6 py-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center">
-                          <CubeIcon className="h-6 w-6 text-white mr-2" />
-                          <div>
-                            <Dialog.Title className="text-lg font-semibold text-white">
-                              {load.load_number}
-                            </Dialog.Title>
-                            <p className="text-blue-100 text-sm">{load.customer_name}</p>
-                          </div>
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center">
+                        <CubeIcon className="h-6 w-6 text-blue-600 mr-2" />
+                        <div>
+                          <h3 className="text-lg font-medium text-gray-900">
+                            {load.load_number}
+                          </h3>
+                          <p className="text-sm text-gray-500">{load.customer_name}</p>
                         </div>
-                        <div className="flex items-center space-x-3">
-                          <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(load.status)}`}>
-                            {load.status_display}
-                          </span>
-                          {!isEditing && (
-                            <button onClick={() => setIsEditing(true)} className="text-white hover:text-gray-200 p-1">
-                              <PencilIcon className="h-5 w-5" />
-                            </button>
-                          )}
-                          {isEditing && (
-                            <button onClick={handleSave} disabled={saving} className="text-white hover:text-gray-200 p-1">
-                              <CheckIcon className="h-5 w-5" />
-                            </button>
-                          )}
-                          <button onClick={onClose} className="text-white hover:text-gray-200">
-                            <XMarkIcon className="h-6 w-6" />
+                      </div>
+                      <div className="flex items-center space-x-3">
+                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(load.status)}`}>
+                          {load.status_display}
+                        </span>
+                        {!isEditing && (
+                          <button onClick={() => setIsEditing(true)} className="text-gray-400 hover:text-gray-600 p-1">
+                            <PencilIcon className="h-5 w-5" />
                           </button>
-                        </div>
+                        )}
+                        {isEditing && (
+                          <button onClick={handleSave} disabled={saving} className="text-blue-600 hover:text-blue-800 p-1">
+                            <CheckIcon className="h-5 w-5" />
+                          </button>
+                        )}
+                        <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+                          <XMarkIcon className="h-6 w-6" />
+                        </button>
                       </div>
                     </div>
 
-                    <div className="px-6 py-4 max-h-[70vh] overflow-y-auto">
+                    <div className="px-0 py-4">
                       {/* Tabs */}
                       <div className="flex border-b border-gray-200 mb-4">
                         <button
@@ -548,33 +533,30 @@ const ViewLoadDetails = ({ loadId, isOpen, onClose }) => {
                     </div>
 
                     {/* Footer */}
-                    <div className="bg-gray-50 px-6 py-4 flex justify-end">
-                      <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
+                    <div className="flex justify-end pt-4">
+                      <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
                         Close
                       </button>
                     </div>
                   </>
                 ) : (
-                  <div className="p-12 text-center">
+                  <div className="text-center py-12">
                     <p className="text-gray-600">Load not found.</p>
                   </div>
                 )}
-              </Dialog.Panel>
-            </Transition.Child>
-          </div>
-        </div>
-      </Dialog>
+      </div>
+    </div>
 
-      {/* Dispatch Modal */}
-      {load && (
-        <DispatchLoadModal
-          isOpen={isDispatchModalOpen}
-          onClose={() => setIsDispatchModalOpen(false)}
-          load={load}
-          onDispatched={handleLoadDispatched}
-        />
-      )}
-    </Transition>
+    {/* Dispatch Modal */}
+    {load && (
+      <DispatchLoadModal
+        isOpen={isDispatchModalOpen}
+        onClose={() => setIsDispatchModalOpen(false)}
+        load={load}
+        onDispatched={handleLoadDispatched}
+      />
+    )}
+    </>
   );
 };
 

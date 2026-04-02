@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { Dialog, Transition } from '@headlessui/react';
 import { XMarkIcon, DocumentTextIcon, CurrencyDollarIcon, CubeIcon } from '@heroicons/react/24/outline';
 import axios from 'axios';
 import { useSession } from '../providers/SessionProvider';
@@ -114,39 +113,21 @@ const ViewInvoice = ({ invoiceId, isOpen, onClose }) => {
   const inputClass = "mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm";
   const labelClass = "block text-sm font-medium text-gray-700";
 
-  return (
-    <Transition show={isOpen} as={React.Fragment}>
-      <Dialog as="div" className="relative z-50" onClose={onClose}>
-        <Transition.Child
-          as={React.Fragment}
-          enter="ease-out duration-300" enterFrom="opacity-0" enterTo="opacity-100"
-          leave="ease-in duration-200" leaveFrom="opacity-100" leaveTo="opacity-0"
-        >
-          <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" />
-        </Transition.Child>
+  if (!isOpen) return null;
 
-        <div className="fixed inset-0 z-10 overflow-y-auto">
-          <div className="flex min-h-full items-center justify-center p-4">
-            <Transition.Child
-              as={React.Fragment}
-              enter="ease-out duration-300" enterFrom="opacity-0 translate-y-4" enterTo="opacity-100 translate-y-0"
-              leave="ease-in duration-200" leaveFrom="opacity-100 translate-y-0" leaveTo="opacity-0 translate-y-4"
-            >
-              <Dialog.Panel className="relative w-full max-w-3xl transform overflow-hidden rounded-lg bg-white shadow-xl transition-all">
-                {/* Header */}
-                <div className="bg-blue-600 px-6 py-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center">
-                      <DocumentTextIcon className="h-6 w-6 text-white mr-2" />
-                      <Dialog.Title className="text-lg font-semibold text-white">
-                        {loading ? 'Loading...' : invoice?.invoice_number || 'Invoice'}
-                      </Dialog.Title>
-                    </div>
-                    <button onClick={onClose} className="text-white hover:text-gray-200">
-                      <XMarkIcon className="h-6 w-6" />
-                    </button>
-                  </div>
-                </div>
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto">
+      <div className="fixed inset-0 bg-gray-600 bg-opacity-50" onClick={onClose}></div>
+      <div className="relative top-10 mx-auto p-5 border w-11/12 xl:w-2/3 shadow-lg rounded-md bg-white max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-medium text-gray-900 flex items-center">
+            <DocumentTextIcon className="h-6 w-6 text-blue-600 mr-2" />
+            {loading ? 'Loading...' : invoice?.invoice_number || 'Invoice'}
+          </h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <XMarkIcon className="h-6 w-6" />
+          </button>
+        </div>
 
                 {loading ? (
                   <div className="flex justify-center items-center py-16">
@@ -155,7 +136,7 @@ const ViewInvoice = ({ invoiceId, isOpen, onClose }) => {
                   </div>
                 ) : invoice ? (
                   <>
-                    <div className="px-6 py-4 max-h-[65vh] overflow-y-auto space-y-5">
+                    <div className="space-y-5">
                       {/* Status & Customer row */}
                       <div className="flex items-start justify-between">
                         <div>
@@ -376,7 +357,7 @@ const ViewInvoice = ({ invoiceId, isOpen, onClose }) => {
                     </div>
 
                     {/* Footer */}
-                    <div className="bg-gray-50 px-6 py-4 flex justify-between">
+                    <div className="flex justify-between pt-4">
                       <div className="flex space-x-2">
                         {getStatusActions().map(action => (
                           <button
@@ -395,7 +376,7 @@ const ViewInvoice = ({ invoiceId, isOpen, onClose }) => {
                       <button
                         type="button"
                         onClick={onClose}
-                        className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+                        className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                       >
                         Close
                       </button>
@@ -406,12 +387,8 @@ const ViewInvoice = ({ invoiceId, isOpen, onClose }) => {
                     <p className="text-gray-500">Invoice not found</p>
                   </div>
                 )}
-              </Dialog.Panel>
-            </Transition.Child>
-          </div>
-        </div>
-      </Dialog>
-    </Transition>
+      </div>
+    </div>
   );
 };
 

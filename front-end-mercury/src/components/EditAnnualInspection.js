@@ -1,6 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { Dialog, Transition } from '@headlessui/react';
-import { Fragment } from 'react';
 import axios from 'axios';
 import { useSession } from '../providers/SessionProvider';
 import BASE_URL from '../config';
@@ -126,66 +124,33 @@ function EditAnnualInspection({ isOpen, onClose, inspection, onInspectionUpdated
     }
   };
 
+  if (!isOpen) return null;
+
   if (dataLoading) {
     return (
-      <Transition appear show={isOpen} as={Fragment}>
-        <Dialog as="div" className="relative z-50" onClose={onClose}>
-          <div className="fixed inset-0 bg-black bg-opacity-25" />
-          <div className="fixed inset-0 overflow-y-auto">
-            <div className="flex min-h-full items-center justify-center p-4">
-              <Dialog.Panel className="w-full max-w-2xl bg-white rounded-2xl p-6">
-                <div className="flex justify-center items-center h-32">
-                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                  <p className="ml-3 text-gray-600">Loading form data...</p>
-                </div>
-              </Dialog.Panel>
-            </div>
+      <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+        <div className="relative top-10 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-2/3 xl:w-1/2 shadow-lg rounded-md bg-white">
+          <div className="flex justify-center items-center h-32">
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <p className="ml-3 text-gray-600">Loading form data...</p>
           </div>
-        </Dialog>
-      </Transition>
+        </div>
+      </div>
     );
   }
 
   return (
-    <Transition appear show={isOpen} as={Fragment}>
-      <Dialog as="div" className="relative z-50" onClose={onClose}>
-        <Transition.Child
-          as={Fragment}
-          enter="ease-out duration-300"
-          enterFrom="opacity-0"
-          enterTo="opacity-100"
-          leave="ease-in duration-200"
-          leaveFrom="opacity-100"
-          leaveTo="opacity-0"
-        >
-          <div className="fixed inset-0 bg-black bg-opacity-25" />
-        </Transition.Child>
-
-        <div className="fixed inset-0 overflow-y-auto">
-          <div className="flex min-h-full items-center justify-center p-4 text-center">
-            <Transition.Child
-              as={Fragment}
-              enter="ease-out duration-300"
-              enterFrom="opacity-0 scale-95"
-              enterTo="opacity-100 scale-100"
-              leave="ease-in duration-200"
-              leaveFrom="opacity-100 scale-100"
-              leaveTo="opacity-0 scale-95"
-            >
-              <Dialog.Panel className="w-full max-w-2xl transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all">
-                <Dialog.Title as="h3" className="text-lg font-medium leading-6 text-gray-900 flex items-center justify-between mb-6">
-                  <span className="flex items-center">
-                    <PencilIcon className="h-6 w-6 mr-2" />
-                    Edit Annual Inspection
-                  </span>
-                  <button
-                    type="button"
-                    className="text-gray-400 hover:text-gray-600"
-                    onClick={onClose}
-                  >
-                    <XMarkIcon className="h-6 w-6" />
-                  </button>
-                </Dialog.Title>
+    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+      <div className="relative top-10 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-2/3 xl:w-1/2 shadow-lg rounded-md bg-white max-h-[90vh] overflow-y-auto">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-lg font-medium text-gray-900 flex items-center">
+            <PencilIcon className="h-6 w-6 mr-2 text-blue-600" />
+            Edit Annual Inspection
+          </h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <XMarkIcon className="h-6 w-6" />
+          </button>
+        </div>
 
                 <form onSubmit={handleSubmit} className="space-y-6">
                   {/* Vehicle Selection */}
@@ -371,12 +336,8 @@ function EditAnnualInspection({ isOpen, onClose, inspection, onInspectionUpdated
                     </button>
                   </div>
                 </form>
-              </Dialog.Panel>
-            </Transition.Child>
-          </div>
-        </div>
-      </Dialog>
-    </Transition>
+      </div>
+    </div>
   );
 }
 
