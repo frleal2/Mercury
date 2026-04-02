@@ -18,6 +18,7 @@ const AddLoad = ({ isOpen, onClose }) => {
   const [quoteLooking, setQuoteLooking] = useState(false);
   const [pdfParsing, setPdfParsing] = useState(false);
   const [pdfError, setPdfError] = useState('');
+  const [rateConFile, setRateConFile] = useState(null);
   const pdfInputRef = React.useRef(null);
 
   const [formData, setFormData] = useState({
@@ -170,9 +171,28 @@ const AddLoad = ({ isOpen, onClose }) => {
         notes: formData.notes,
       };
 
-      await axios.post(`${BASE_URL}/api/loads/`, payload, {
+      const loadRes = await axios.post(`${BASE_URL}/api/loads/`, payload, {
         headers: { 'Authorization': `Bearer ${session.accessToken}` }
       });
+
+      // If a rate confirmation PDF was uploaded, save it as a LoadDocument
+      if (rateConFile && loadRes.data?.id) {
+        try {
+          const docPayload = new FormData();
+          docPayload.append('file', rateConFile);
+          docPayload.append('load', loadRes.data.id);
+          docPayload.append('document_type', 'rate_confirmation');
+          docPayload.append('description', 'Rate Confirmation (auto-imported)');
+          await axios.post(`${BASE_URL}/api/load-documents/`, docPayload, {
+            headers: {
+              'Authorization': `Bearer ${session.accessToken}`,
+              'Content-Type': 'multipart/form-data',
+            },
+          });
+        } catch (docErr) {
+          console.error('Failed to save rate confirmation document:', docErr);
+        }
+      }
 
       onClose();
     } catch (error) {
@@ -247,6 +267,7 @@ const AddLoad = ({ isOpen, onClose }) => {
 
     setPdfParsing(true);
     setPdfError('');
+    setRateConFile(file);
     try {
       const formPayload = new FormData();
       formPayload.append('file', file);
