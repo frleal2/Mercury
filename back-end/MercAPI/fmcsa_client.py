@@ -65,17 +65,27 @@ def fetch_carrier_data(dot_number):
     params = {'webKey': api_key}
 
     try:
-        resp = requests.get(url, params=params, timeout=30)
+        resp = requests.get(url, params=params, timeout=30, headers={'Accept': 'application/json'})
         resp.raise_for_status()
     except requests.RequestException as exc:
         logger.error("FMCSA API request failed for DOT %s: %s", dot_number, exc)
         return None
 
-    data = resp.json()
-    content = data.get('content', {})
+    try:
+        data = resp.json()
+    except ValueError:
+        logger.error("FMCSA API returned non-JSON response for DOT %s: %s", dot_number, resp.text[:200])
+        return None
+
+    # The FMCSA API may nest carrier under content.carrier or content[0].carrier
+    content = data.get('content')
+    if isinstance(content, list) and len(content) > 0:
+        content = content[0]
+    if not isinstance(content, dict):
+        content = {}
     carrier = content.get('carrier', {})
     if not carrier:
-        logger.warning("No carrier data returned for DOT %s", dot_number)
+        logger.warning("No carrier data returned for DOT %s. Response keys: %s", dot_number, list(data.keys()))
         return None
 
     return _parse_carrier_response(carrier, data)
@@ -101,13 +111,15 @@ def _parse_carrier_response(carrier, raw_response):
     }
     safety_rating = safety_map.get(safety_rating_raw, 'not_rated')
 
-    # OOS rates
-    oos = carrier.get('oosRateCarrier', {}) or {}
+    # Safely extract nested dicts (FMCSA may return None for any of these)
+    oos = carrier.get('oosRateCarrier') or {}
+    crash_total = carrier.get('crashTotal') or {}
+    carrier_op = carrier.get('carrierOperation') or {}
 
     return {
         'legal_name': carrier.get('legalName', ''),
         'dba_name': carrier.get('dbaName', ''),
-        'entity_type': carrier.get('carrierOperation', {}).get('carrierOperationDesc', ''),
+        'entity_type': carrier_op.get('carrierOperationDesc', ''),
         'phy_city': carrier.get('phyCity', ''),
         'phy_state': carrier.get('phyState', ''),
         'authority_status': authority_status,
@@ -132,10 +144,10 @@ def _parse_carrier_response(carrier, raw_response):
         'vehicle_inspections_count': _safe_int(oos.get('vehicleInsp')),
         'driver_inspections_count': _safe_int(oos.get('driverInsp')),
         # Crashes
-        'fatal_crashes': _safe_int(carrier.get('crashTotal', {}).get('fatalCrash'), 0),
-        'injury_crashes': _safe_int(carrier.get('crashTotal', {}).get('injCrash'), 0),
-        'towaway_crashes': _safe_int(carrier.get('crashTotal', {}).get('towawayCrash'), 0),
-        'total_crashes': _safe_int(carrier.get('crashTotal', {}).get('totalCrash'), 0),
+        'fatal_crashes': _safe_int(crash_total.get('fatalCrash'), 0),
+        'injury_crashes': _safe_int(crash_total.get('injCrash'), 0),
+        'towaway_crashes': _safe_int(crash_total.get('towawayCrash'), 0),
+        'total_crashes': _safe_int(crash_total.get('totalCrash'), 0),
         # Meta
         'raw_response': raw_response,
     }

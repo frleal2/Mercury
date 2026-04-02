@@ -4360,8 +4360,18 @@ def company_safety_refresh(request):
         from MercAPI.fmcsa_client import fetch_and_store as fmcsa_fetch
         from MercAPI.compliance_metrics import compute_and_store
 
-        snapshot = fmcsa_fetch(dot_number=company.dot_number, company=company)
-        metric = compute_and_store(company)
+        try:
+            snapshot = fmcsa_fetch(dot_number=company.dot_number, company=company)
+        except Exception as e:
+            logger.exception("FMCSA fetch failed for %s (DOT %s)", company.name, company.dot_number)
+            snapshot = None
+
+        try:
+            metric = compute_and_store(company)
+        except Exception as e:
+            logger.exception("Compliance metrics failed for %s", company.name)
+            metric = None
+
         refreshed.append({
             'company': company.name,
             'fmcsa_fetched': snapshot is not None,
@@ -4447,10 +4457,14 @@ def carrier_safety_refresh(request, carrier_id):
         return Response({'error': 'Carrier has no DOT number on file'}, status=status.HTTP_400_BAD_REQUEST)
 
     from MercAPI.fmcsa_client import fetch_and_store as fmcsa_fetch
-    snapshot = fmcsa_fetch(dot_number=carrier.dot_number, carrier=carrier)
+    try:
+        snapshot = fmcsa_fetch(dot_number=carrier.dot_number, carrier=carrier)
+    except Exception:
+        logger.exception("FMCSA fetch failed for carrier %s (DOT %s)", carrier.name, carrier.dot_number)
+        return Response({'error': 'Failed to fetch FMCSA data due to a server error'}, status=status.HTTP_502_BAD_GATEWAY)
 
     if snapshot is None:
-        return Response({'error': 'Failed to fetch FMCSA data'}, status=status.HTTP_502_BAD_GATEWAY)
+        return Response({'error': 'Failed to fetch FMCSA data — check DOT number or try again later'}, status=status.HTTP_502_BAD_GATEWAY)
 
     from MercAPI.serializers import FMCSASnapshotSerializer
     return Response({
