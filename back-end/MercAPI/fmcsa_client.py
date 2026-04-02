@@ -111,10 +111,17 @@ def _parse_carrier_response(carrier, raw_response):
     }
     safety_rating = safety_map.get(safety_rating_raw, 'not_rated')
 
-    # Safely extract nested dicts (FMCSA may return None for any of these)
-    oos = carrier.get('oosRateCarrier') or {}
-    crash_total = carrier.get('crashTotal') or {}
-    carrier_op = carrier.get('carrierOperation') or {}
+    # Safely extract nested dicts (FMCSA may return None, int, or dict for any of these)
+    oos = carrier.get('oosRateCarrier')
+    oos = oos if isinstance(oos, dict) else {}
+    crash_total = carrier.get('crashTotal')
+    crash_total = crash_total if isinstance(crash_total, dict) else {}
+    carrier_op = carrier.get('carrierOperation')
+    carrier_op = carrier_op if isinstance(carrier_op, dict) else {}
+
+    # FMCSA sometimes returns crashTotal as a plain int (total count)
+    # and individual crash fields at the carrier level
+    total_crashes_fallback = _safe_int(carrier.get('crashTotal'), 0)
 
     return {
         'legal_name': carrier.get('legalName', ''),
@@ -143,11 +150,11 @@ def _parse_carrier_response(carrier, raw_response):
         'hazmat_oos_rate': _safe_decimal(oos.get('hazmatOosRate')),
         'vehicle_inspections_count': _safe_int(oos.get('vehicleInsp')),
         'driver_inspections_count': _safe_int(oos.get('driverInsp')),
-        # Crashes
-        'fatal_crashes': _safe_int(crash_total.get('fatalCrash'), 0),
-        'injury_crashes': _safe_int(crash_total.get('injCrash'), 0),
-        'towaway_crashes': _safe_int(crash_total.get('towawayCrash'), 0),
-        'total_crashes': _safe_int(crash_total.get('totalCrash'), 0),
+        # Crashes — handle both nested dict and flat int formats
+        'fatal_crashes': _safe_int(crash_total.get('fatalCrash') if crash_total else carrier.get('fatalCrash'), 0),
+        'injury_crashes': _safe_int(crash_total.get('injCrash') if crash_total else carrier.get('injCrash'), 0),
+        'towaway_crashes': _safe_int(crash_total.get('towawayCrash') if crash_total else carrier.get('towawayCrash'), 0),
+        'total_crashes': _safe_int(crash_total.get('totalCrash'), 0) if crash_total else total_crashes_fallback,
         # Meta
         'raw_response': raw_response,
     }
