@@ -303,6 +303,9 @@ EMAIL_DEBUG = os.getenv('EMAIL_DEBUG', 'False').lower() == 'true'
 if EMAIL_DEBUG:
     EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
+# Anthropic Claude Configuration (for Rate Confirmation PDF parsing)
+ANTHROPIC_API_KEY = os.getenv('ANTHROPIC_API_KEY', '')
+
 # Celery Configuration
 CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', 'redis://localhost:6379/0')
 CELERY_RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND', 'redis://localhost:6379/0')

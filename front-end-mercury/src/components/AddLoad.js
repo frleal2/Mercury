@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
-import { XMarkIcon, CubeIcon, PlusIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
+import { XMarkIcon, CubeIcon, PlusIcon, MagnifyingGlassIcon, DocumentArrowUpIcon } from '@heroicons/react/24/outline';
 import axios from 'axios';
 import { useSession } from '../providers/SessionProvider';
 import BASE_URL from '../config';
@@ -16,6 +16,9 @@ const AddLoad = ({ isOpen, onClose }) => {
   const [step, setStep] = useState(1); // Multi-step form: 1=basics, 2=locations, 3=details & rate
   const [quoteResults, setQuoteResults] = useState([]);
   const [quoteLooking, setQuoteLooking] = useState(false);
+  const [pdfParsing, setPdfParsing] = useState(false);
+  const [pdfError, setPdfError] = useState('');
+  const pdfInputRef = React.useRef(null);
 
   const [formData, setFormData] = useState({
     company: '',
@@ -227,6 +230,75 @@ const AddLoad = ({ isOpen, onClose }) => {
     setQuoteResults([]);
   };
 
+  const handlePdfUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    // Reset the file input so the same file can be re-selected
+    e.target.value = '';
+
+    if (!file.name.toLowerCase().endsWith('.pdf')) {
+      setPdfError('Please upload a PDF file.');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setPdfError('File size must be under 10 MB.');
+      return;
+    }
+
+    setPdfParsing(true);
+    setPdfError('');
+    try {
+      const formPayload = new FormData();
+      formPayload.append('file', file);
+      const res = await axios.post(`${BASE_URL}/api/parse-rate-confirmation/`, formPayload, {
+        headers: {
+          'Authorization': `Bearer ${session.accessToken}`,
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      const parsed = res.data.parsed_data;
+      setFormData(prev => ({
+        ...prev,
+        customer_reference: parsed.customer_reference || prev.customer_reference,
+        bol_number: parsed.bol_number || prev.bol_number,
+        pickup_name: parsed.pickup_name || prev.pickup_name,
+        pickup_address: parsed.pickup_address || prev.pickup_address,
+        pickup_city: parsed.pickup_city || prev.pickup_city,
+        pickup_state: parsed.pickup_state || prev.pickup_state,
+        pickup_zip: parsed.pickup_zip || prev.pickup_zip,
+        pickup_date: parsed.pickup_date || prev.pickup_date,
+        pickup_notes: parsed.pickup_notes || prev.pickup_notes,
+        delivery_name: parsed.delivery_name || prev.delivery_name,
+        delivery_address: parsed.delivery_address || prev.delivery_address,
+        delivery_city: parsed.delivery_city || prev.delivery_city,
+        delivery_state: parsed.delivery_state || prev.delivery_state,
+        delivery_zip: parsed.delivery_zip || prev.delivery_zip,
+        delivery_date: parsed.delivery_date || prev.delivery_date,
+        delivery_notes: parsed.delivery_notes || prev.delivery_notes,
+        commodity: parsed.commodity || prev.commodity,
+        weight: parsed.weight || prev.weight,
+        pieces: parsed.pieces || prev.pieces,
+        equipment_type: parsed.equipment_type || prev.equipment_type,
+        temperature_requirement: parsed.temperature_requirement || prev.temperature_requirement,
+        temperature_value: parsed.temperature_value || prev.temperature_value,
+        hazmat: parsed.hazmat === true ? true : prev.hazmat,
+        customer_rate: parsed.customer_rate || prev.customer_rate,
+        carrier_cost: parsed.carrier_cost || prev.carrier_cost,
+        fuel_surcharge: parsed.fuel_surcharge || prev.fuel_surcharge,
+        accessorial_charges: parsed.accessorial_charges || prev.accessorial_charges,
+        estimated_miles: parsed.estimated_miles || prev.estimated_miles,
+        notes: parsed.notes || prev.notes,
+      }));
+      setErrors({});
+    } catch (error) {
+      console.error('PDF parsing error:', error);
+      const msg = error.response?.data?.error || 'Failed to parse the Rate Confirmation. Please try again or fill the form manually.';
+      setPdfError(msg);
+    } finally {
+      setPdfParsing(false);
+    }
+  };
+
   const inputClass = "mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm";
   const labelClass = "block text-sm font-medium text-gray-700";
   const errorClass = "mt-1 text-sm text-red-600";
@@ -260,10 +332,51 @@ const AddLoad = ({ isOpen, onClose }) => {
                           New Load
                         </Dialog.Title>
                       </div>
-                      <button onClick={onClose} className="text-white hover:text-gray-200">
-                        <XMarkIcon className="h-6 w-6" />
-                      </button>
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="file"
+                          ref={pdfInputRef}
+                          accept=".pdf"
+                          onChange={handlePdfUpload}
+                          className="hidden"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => pdfInputRef.current?.click()}
+                          disabled={pdfParsing}
+                          className="flex items-center px-3 py-1.5 text-sm bg-white bg-opacity-20 text-white rounded-md hover:bg-opacity-30 transition disabled:opacity-50"
+                        >
+                          {pdfParsing ? (
+                            <>
+                              <svg className="animate-spin h-4 w-4 mr-1.5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                              </svg>
+                              Parsing PDF...
+                            </>
+                          ) : (
+                            <>
+                              <DocumentArrowUpIcon className="h-4 w-4 mr-1.5" />
+                              Import Rate Con
+                            </>
+                          )}
+                        </button>
+                        <button onClick={onClose} className="text-white hover:text-gray-200">
+                          <XMarkIcon className="h-6 w-6" />
+                        </button>
+                      </div>
                     </div>
+                    {/* PDF parsing feedback */}
+                    {pdfError && (
+                      <div className="mt-2 bg-red-500 bg-opacity-30 text-white text-sm px-3 py-2 rounded">
+                        {pdfError}
+                      </div>
+                    )}
+                    {pdfParsing && (
+                      <div className="mt-2 bg-white bg-opacity-20 text-white text-sm px-3 py-2 rounded">
+                        Extracting data from Rate Confirmation PDF... This may take a few seconds.
+                      </div>
+                    )}
                     {/* Step indicator */}
                     <div className="flex mt-3 space-x-2">
                       {[1, 2, 3].map((s) => (

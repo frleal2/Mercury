@@ -4149,3 +4149,154 @@ class CompanyNotificationSettingViewSet(ModelViewSet):
         serializer.save(updated_by=request.user)
         return Response(serializer.data)
 
+
+# ─── Rate Confirmation PDF Parsing ────────────────────────────────────────────
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def parse_rate_confirmation(request):
+    """
+    Accept a Rate Confirmation PDF upload, extract text via pdfplumber,
+    and use OpenAI to parse it into structured load fields.
+    """
+    pdf_file = request.FILES.get('file')
+    if not pdf_file:
+        return Response({'error': 'No file uploaded'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if not pdf_file.name.lower().endswith('.pdf'):
+        return Response({'error': 'Only PDF files are accepted'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Limit file size to 10 MB
+    if pdf_file.size > 10 * 1024 * 1024:
+        return Response({'error': 'File size must be under 10 MB'}, status=status.HTTP_400_BAD_REQUEST)
+
+    api_key = settings.ANTHROPIC_API_KEY
+    if not api_key:
+        return Response(
+            {'error': 'Anthropic API key is not configured. Please set the ANTHROPIC_API_KEY environment variable.'},
+            status=status.HTTP_503_SERVICE_UNAVAILABLE
+        )
+
+    # Extract text from PDF
+    try:
+        import PyPDF2
+        import io
+        extracted_text = ''
+        reader = PyPDF2.PdfReader(io.BytesIO(pdf_file.read()))
+        for page in reader.pages:
+            page_text = page.extract_text()
+            if page_text:
+                extracted_text += page_text + '\n'
+    except Exception as e:
+        logger.error(f'PDF extraction error: {e}')
+        return Response({'error': 'Failed to read PDF file. Please ensure it is a valid PDF.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if not extracted_text.strip():
+        return Response({'error': 'Could not extract any text from the PDF. It may be a scanned image — please upload a text-based PDF.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Truncate to avoid token limits (keep first ~12000 chars)
+    extracted_text = extracted_text[:12000]
+
+    # Send to Anthropic Claude for structured extraction
+    import requests as http_requests
+
+    prompt = """You are a logistics data extraction assistant. Extract load/shipment information from this Rate Confirmation document text and return it as a JSON object.
+
+Return ONLY a valid JSON object with these exact keys (use empty string "" for missing values, do not omit keys):
+{
+  "customer_reference": "PO number or customer reference number",
+  "bol_number": "Bill of Lading number",
+  "pickup_name": "Pickup facility/shipper name",
+  "pickup_address": "Pickup street address",
+  "pickup_city": "Pickup city",
+  "pickup_state": "Pickup state (2-letter code)",
+  "pickup_zip": "Pickup ZIP code",
+  "pickup_date": "Pickup date/time in YYYY-MM-DDTHH:MM format or empty string",
+  "pickup_notes": "Any pickup instructions or appointment notes",
+  "delivery_name": "Delivery facility/consignee name",
+  "delivery_address": "Delivery street address",
+  "delivery_city": "Delivery city",
+  "delivery_state": "Delivery state (2-letter code)",
+  "delivery_zip": "Delivery ZIP code",
+  "delivery_date": "Delivery date/time in YYYY-MM-DDTHH:MM format or empty string",
+  "delivery_notes": "Any delivery instructions or appointment notes",
+  "commodity": "Description of freight/commodity",
+  "weight": "Weight in lbs (number only, no commas or units)",
+  "pieces": "Number of pieces/pallets (number only)",
+  "equipment_type": "One of: dry_van, reefer, flatbed, step_deck, lowboy, tanker, power_only, box_truck, hotshot, other",
+  "temperature_requirement": "One of: none, frozen, cold, cool, custom",
+  "temperature_value": "Temperature value if specified (e.g. 35°F)",
+  "hazmat": false,
+  "customer_rate": "Total rate/linehaul amount (number only, no $ or commas)",
+  "carrier_cost": "Carrier pay amount if shown (number only)",
+  "fuel_surcharge": "Fuel surcharge amount if shown (number only)",
+  "accessorial_charges": "Any detention, lumper, or other accessorial total (number only)",
+  "estimated_miles": "Total miles if shown (number only)",
+  "notes": "Any other relevant notes, special instructions, or reference numbers"
+}
+
+Important rules:
+- For equipment_type, infer from context (e.g. "53' Dry Van" = "dry_van", "Reefer" = "reefer", "Flatbed" = "flatbed")
+- For temperature_requirement, if temp is specified set to "custom" and put value in temperature_value
+- If temp indicates frozen (<0°F or <-18°C) set to "frozen", cold (32-36°F) = "cold", cool (36-50°F) = "cool"  
+- Convert all dates to YYYY-MM-DDTHH:MM format
+- For numeric fields (weight, pieces, rates, miles), return just the number as a string, no currency symbols or commas
+- Set hazmat to true only if document explicitly mentions hazardous materials
+- Return ONLY the JSON object, no markdown, no explanation
+
+Rate Confirmation text:
+"""
+
+    try:
+        response = http_requests.post(
+            'https://api.anthropic.com/v1/messages',
+            headers={
+                'x-api-key': api_key,
+                'anthropic-version': '2023-06-01',
+                'Content-Type': 'application/json',
+            },
+            json={
+                'model': 'claude-3-5-haiku-20241022',
+                'max_tokens': 1500,
+                'system': 'You are a precise data extraction assistant. Return only valid JSON.',
+                'messages': [
+                    {'role': 'user', 'content': prompt + extracted_text},
+                ],
+            },
+            timeout=60,
+        )
+
+        if response.status_code == 401:
+            return Response({'error': 'Invalid Anthropic API key. Please check configuration.'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        if response.status_code == 429:
+            return Response({'error': 'AI service rate limit reached. Please try again in a moment.'}, status=status.HTTP_429_TOO_MANY_REQUESTS)
+        if response.status_code != 200:
+            logger.error(f'Anthropic API error {response.status_code}: {response.text[:500]}')
+            return Response({'error': 'AI processing failed. Please try again or fill the form manually.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        result_data = response.json()
+        result_text = result_data['content'][0]['text'].strip()
+
+        # Clean up response — remove markdown code fences if present
+        if result_text.startswith('```'):
+            result_text = result_text.split('\n', 1)[1] if '\n' in result_text else result_text[3:]
+        if result_text.endswith('```'):
+            result_text = result_text[:-3].strip()
+
+        import json
+        parsed_data = json.loads(result_text)
+
+        return Response({
+            'parsed_data': parsed_data,
+            'extracted_text_preview': extracted_text[:500] + ('...' if len(extracted_text) > 500 else ''),
+        })
+
+    except json.JSONDecodeError:
+        logger.error(f'Claude returned invalid JSON: {result_text[:500]}')
+        return Response({'error': 'Failed to parse extracted data. Please try again or fill the form manually.'}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+    except http_requests.exceptions.Timeout:
+        return Response({'error': 'AI processing timed out. Please try again.'}, status=status.HTTP_504_GATEWAY_TIMEOUT)
+    except Exception as e:
+        logger.error(f'Anthropic API error: {e}')
+        return Response({'error': 'AI processing failed. Please try again or fill the form manually.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
