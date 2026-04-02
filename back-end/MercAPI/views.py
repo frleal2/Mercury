@@ -4256,7 +4256,7 @@ Rate Confirmation text:
                 'Content-Type': 'application/json',
             },
             json={
-                'model': 'claude-3-5-haiku-20241022',
+                'model': 'claude-haiku-4-5',
                 'max_tokens': 1500,
                 'system': 'You are a precise data extraction assistant. Return only valid JSON.',
                 'messages': [
