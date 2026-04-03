@@ -5182,13 +5182,12 @@ def onboard_driver_from_application(request, application_id):
         last_name=application.last_name,
     )
 
-    # Step 5: Create UserProfile linking to tenant + company with driver role
+    # Step 5: Update the auto-created UserProfile (signal creates it) with tenant + driver role
     tenant = request.user.profile.tenant
-    profile = UserProfile.objects.create(
-        user=user_account,
-        tenant=tenant,
-        role='driver',
-    )
+    profile = user_account.profile  # Already created by post_save signal
+    profile.tenant = tenant
+    profile.role = 'driver'
+    profile.save(update_fields=['tenant', 'role'])
     profile.companies.add(application.company)
 
     # Step 6: Link user account to driver
