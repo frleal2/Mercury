@@ -876,6 +876,16 @@ class ComplianceMetricSerializer(serializers.ModelSerializer):
     def get_insurance_pct(self, obj):
         return self._pct(obj.trucks_insurance_current, obj.total_trucks)
 
+    def get_pre_trip_pct(self, obj):
+        return self._pct(obj.trips_with_pre_trip, obj.total_trips)
+
+    def get_post_trip_pct(self, obj):
+        return self._pct(obj.trips_with_post_trip, obj.total_trips)
+
+    def get_maintenance_on_time_pct(self, obj):
+        total = obj.maintenance_on_time + obj.maintenance_overdue
+        return self._pct(obj.maintenance_on_time, total)
+
 
 # ─── ELD INTEGRATION SERIALIZERS ────────────────────────────────────────────────
 
@@ -992,16 +1002,6 @@ class ActiveLoadLocationSerializer(serializers.Serializer):
     heading = serializers.IntegerField(allow_null=True)
     location_updated_at = serializers.DateTimeField(allow_null=True)
     current_eta = serializers.DateTimeField(allow_null=True)
-
-    def get_pre_trip_pct(self, obj):
-        return self._pct(obj.trips_with_pre_trip, obj.total_trips)
-
-    def get_post_trip_pct(self, obj):
-        return self._pct(obj.trips_with_post_trip, obj.total_trips)
-
-    def get_maintenance_on_time_pct(self, obj):
-        total = obj.maintenance_on_time + obj.maintenance_overdue
-        return self._pct(obj.maintenance_on_time, total)
 
 
 class CompanySafetyOverviewSerializer(serializers.Serializer):
