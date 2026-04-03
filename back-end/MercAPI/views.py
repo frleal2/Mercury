@@ -5042,3 +5042,177 @@ def ai_dispatch_recommend(request, load_id):
 
     return Response(result)
 
+
+# ============================================================
+# ONE-CLICK DRIVER ONBOARDING
+# ============================================================
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def onboard_driver_from_application(request, application_id):
+    """
+    One-Click Driver Onboarding: AI-extract CDL + medical data from the application's
+    uploaded documents, then create a Driver record, User account, and UserProfile
+    in a single operation.
+
+    POST body (optional overrides):
+      - extracted_data: pre-extracted fields (skip AI if provided)
+
+    Returns the created Driver and any extraction results.
+    """
+    from .ai_services import extract_driver_documents
+
+    # Verify user access
+    if not hasattr(request.user, 'profile') or not request.user.profile.companies.exists():
+        return Response({'error': 'Access denied.'}, status=status.HTTP_403_FORBIDDEN)
+
+    user_companies = request.user.profile.companies.all()
+
+    try:
+        application = DriverApplication.objects.get(id=application_id, company__in=user_companies)
+    except DriverApplication.DoesNotExist:
+        return Response({'error': 'Application not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    if not application.company:
+        return Response({'error': 'Application has no company assigned.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Check if driver already exists with same name + company
+    existing = Driver.objects.filter(
+        first_name__iexact=application.first_name,
+        last_name__iexact=application.last_name,
+        company=application.company,
+    ).first()
+    if existing:
+        return Response(
+            {'error': f'Driver {existing.first_name} {existing.last_name} already exists in this company (ID: {existing.id}).'},
+            status=status.HTTP_409_CONFLICT,
+        )
+
+    # Step 1: AI-extract data from uploaded documents (if not pre-provided)
+    extracted = request.data.get('extracted_data')
+    extraction_results = {}
+
+    if not extracted:
+        cdl_file = None
+        medical_file = None
+
+        # Download files from storage to pass to AI
+        if application.drivers_license:
+            try:
+                cdl_file = application.drivers_license.open('rb')
+            except Exception as e:
+                logger.warning(f'Could not open CDL file: {e}')
+
+        if application.medical_certificate:
+            try:
+                medical_file = application.medical_certificate.open('rb')
+            except Exception as e:
+                logger.warning(f'Could not open medical file: {e}')
+
+        if cdl_file or medical_file:
+            extraction_results = extract_driver_documents(request.user, cdl_file, medical_file)
+
+            # Close files
+            if cdl_file:
+                cdl_file.close()
+            if medical_file:
+                medical_file.close()
+
+            if 'error' in extraction_results:
+                # Non-fatal: continue with application data only
+                logger.warning(f'AI extraction warning: {extraction_results["error"]}')
+                extraction_results = {'warning': extraction_results['error']}
+
+        # Merge extracted data
+        cdl = extraction_results.get('cdl_data', {}).get('extracted_data', {})
+        med = extraction_results.get('medical_data', {}).get('extracted_data', {})
+    else:
+        cdl = extracted.get('cdl_data', {})
+        med = extracted.get('medical_data', {})
+
+    # Step 2: Build driver fields (application data + AI-extracted data)
+    from datetime import date as date_type
+
+    def parse_date(val, default=None):
+        if not val:
+            return default
+        try:
+            return datetime.strptime(val, '%Y-%m-%d').date()
+        except (ValueError, TypeError):
+            return default
+
+    driver_data = {
+        'company': application.company,
+        'first_name': application.first_name,
+        'last_name': application.last_name,
+        'phone': application.phone_number or '',
+        'state': cdl.get('state', '') or application.state or '',
+        'cdl_number': cdl.get('cdl_number', ''),
+        'cdl_expiration_date': parse_date(cdl.get('expiration_date'), date_type(2000, 1, 1)),
+        'dob': parse_date(cdl.get('date_of_birth'), date_type(1990, 1, 1)),
+        'physical_date': parse_date(
+            med.get('medical_expiration_date') or med.get('medical_exam_date'),
+            date_type(2000, 1, 1),
+        ),
+        'hire_date': timezone.now().date(),
+        'active': True,
+        'employee_verification': False,
+    }
+
+    # Step 3: Create the Driver
+    driver = Driver.objects.create(**driver_data)
+
+    # Step 4: Create a User account for driver portal access
+    base_username = f"{application.first_name.lower()}.{application.last_name.lower()}"
+    username = base_username
+    counter = 1
+    while User.objects.filter(username=username).exists():
+        username = f"{base_username}{counter}"
+        counter += 1
+
+    # Generate a temporary password (driver will reset on first login)
+    import secrets
+    temp_password = secrets.token_urlsafe(12)
+
+    user_account = User.objects.create_user(
+        username=username,
+        email=application.email,
+        password=temp_password,
+        first_name=application.first_name,
+        last_name=application.last_name,
+    )
+
+    # Step 5: Create UserProfile linking to tenant + company with driver role
+    tenant = request.user.profile.tenant
+    profile = UserProfile.objects.create(
+        user=user_account,
+        tenant=tenant,
+        role='driver',
+    )
+    profile.companies.add(application.company)
+
+    # Step 6: Link user account to driver
+    driver.user_account = user_account
+    driver.save(update_fields=['user_account'])
+
+    # Step 7: Mark application as approved
+    application.status = 'approved'
+    application.notes = (application.notes or '') + f'\n[Auto-onboarded] Driver ID: {driver.id}, User: {username}'
+    application.save(update_fields=['status', 'notes'])
+
+    # Build response
+    response_data = {
+        'driver': DriverSerializer(driver).data,
+        'username': username,
+        'temp_password': temp_password,
+        'extraction': {
+            'cdl_data': extraction_results.get('cdl_data', {}),
+            'medical_data': extraction_results.get('medical_data', {}),
+            'processing_time_ms': extraction_results.get('processing_time_ms'),
+            'warning': extraction_results.get('warning'),
+        },
+        'message': f'Driver {driver.first_name} {driver.last_name} onboarded successfully.',
+    }
+
+    return Response(response_data, status=status.HTTP_201_CREATED)
+

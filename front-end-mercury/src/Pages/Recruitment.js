@@ -10,7 +10,10 @@ import {
   XCircleIcon,
   ClockIcon,
   MapPinIcon,
-  DocumentIcon
+  DocumentIcon,
+  SparklesIcon,
+  UserPlusIcon,
+  ClipboardDocumentIcon
 } from '@heroicons/react/24/outline';
 
 const Recruitment = () => {
@@ -368,9 +371,15 @@ const Recruitment = () => {
 
 // Application Detail Modal Component
 const ApplicationDetailModal = ({ application, onClose, onStatusUpdate, session, handleFileDownload }) => {
+  const { refreshAccessToken } = useSession();
   const [status, setStatus] = useState(application.status || 'new');
   const [notes, setNotes] = useState(application.notes || '');
   const [updating, setUpdating] = useState(false);
+
+  // Onboarding state
+  const [onboarding, setOnboarding] = useState(false);
+  const [onboardResult, setOnboardResult] = useState(null);
+  const [onboardError, setOnboardError] = useState('');
 
   const updateApplicationStatus = async () => {
     setUpdating(true);
@@ -390,6 +399,57 @@ const ApplicationDetailModal = ({ application, onClose, onStatusUpdate, session,
     } finally {
       setUpdating(false);
     }
+  };
+
+  const handleOnboard = async () => {
+    if (!window.confirm(
+      `This will:\n` +
+      `• AI-scan CDL & medical card documents\n` +
+      `• Create a Driver record for ${application.first_name} ${application.last_name}\n` +
+      `• Create a user account with driver portal access\n` +
+      `• Mark this application as approved\n\n` +
+      `Continue?`
+    )) return;
+
+    setOnboarding(true);
+    setOnboardError('');
+    setOnboardResult(null);
+
+    try {
+      const res = await axios.post(
+        `${BASE_URL}/api/applications/${application.id}/onboard/`,
+        {},
+        { headers: { Authorization: `Bearer ${session.accessToken}` } }
+      );
+      setOnboardResult(res.data);
+    } catch (err) {
+      if (err.response?.status === 401) {
+        const newToken = await refreshAccessToken();
+        if (newToken) {
+          try {
+            const res = await axios.post(
+              `${BASE_URL}/api/applications/${application.id}/onboard/`,
+              {},
+              { headers: { Authorization: `Bearer ${newToken}` } }
+            );
+            setOnboardResult(res.data);
+            setOnboarding(false);
+            return;
+          } catch (retryErr) {
+            setOnboardError(retryErr.response?.data?.error || 'Onboarding failed.');
+          }
+        }
+      }
+      setOnboardError(err.response?.data?.error || 'Onboarding failed. Please try again.');
+    } finally {
+      setOnboarding(false);
+    }
+  };
+
+  const copyCredentials = () => {
+    if (!onboardResult) return;
+    const text = `Username: ${onboardResult.username}\nTemporary Password: ${onboardResult.temp_password}`;
+    navigator.clipboard.writeText(text).then(() => alert('Credentials copied!'));
   };
 
   return (
@@ -552,7 +612,7 @@ const ApplicationDetailModal = ({ application, onClose, onStatusUpdate, session,
             {/* Quick Actions */}
             <div>
               <h4 className="text-md font-medium text-gray-900 mb-3">Quick Actions</h4>
-              <div className="flex space-x-3">
+              <div className="flex flex-wrap gap-3">
                 <a
                   href={`mailto:${application.email}?subject=Driver Application - ${application.first_name || 'Unknown'} ${application.last_name || ''}`}
                   className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
@@ -569,23 +629,148 @@ const ApplicationDetailModal = ({ application, onClose, onStatusUpdate, session,
                 </a>
               </div>
             </div>
+
+            {/* One-Click Onboard */}
+            {application.status !== 'approved' && !onboardResult && (
+              <div className="border-t border-gray-200 pt-4">
+                <h4 className="text-md font-medium text-gray-900 mb-2 flex items-center">
+                  <SparklesIcon className="h-5 w-5 mr-2 text-indigo-500" />
+                  One-Click Driver Onboarding
+                </h4>
+                <p className="text-sm text-gray-500 mb-3">
+                  AI will scan the uploaded CDL and medical certificate to auto-create a fully populated driver record, user account, and company assignment.
+                </p>
+                {onboardError && (
+                  <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-700">
+                    {onboardError}
+                  </div>
+                )}
+                <button
+                  onClick={handleOnboard}
+                  disabled={onboarding}
+                  className="inline-flex items-center px-4 py-2.5 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {onboarding ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                      Scanning documents & creating driver...
+                    </>
+                  ) : (
+                    <>
+                      <UserPlusIcon className="h-5 w-5 mr-2" />
+                      Onboard Driver Now
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
+
+            {/* Onboard Success Result */}
+            {onboardResult && (
+              <div className="border-t border-gray-200 pt-4">
+                <div className="rounded-lg bg-green-50 border border-green-200 p-4">
+                  <div className="flex items-center mb-3">
+                    <CheckCircleIcon className="h-6 w-6 text-green-600 mr-2" />
+                    <h4 className="text-md font-semibold text-green-800">Driver Onboarded Successfully</h4>
+                  </div>
+                  <p className="text-sm text-green-700 mb-4">{onboardResult.message}</p>
+
+                  {/* Driver Summary */}
+                  <div className="bg-white rounded-md p-3 mb-3 space-y-2 text-sm">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <span className="text-gray-500">Name:</span>{' '}
+                        <span className="font-medium">{onboardResult.driver?.first_name} {onboardResult.driver?.last_name}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Driver ID:</span>{' '}
+                        <span className="font-medium">{onboardResult.driver?.id}</span>
+                      </div>
+                      {onboardResult.driver?.cdl_number && (
+                        <div>
+                          <span className="text-gray-500">CDL #:</span>{' '}
+                          <span className="font-medium">{onboardResult.driver.cdl_number}</span>
+                        </div>
+                      )}
+                      {onboardResult.driver?.cdl_expiration_date && onboardResult.driver.cdl_expiration_date !== '2000-01-01' && (
+                        <div>
+                          <span className="text-gray-500">CDL Expires:</span>{' '}
+                          <span className="font-medium">{onboardResult.driver.cdl_expiration_date}</span>
+                        </div>
+                      )}
+                      {onboardResult.driver?.dob && onboardResult.driver.dob !== '1990-01-01' && (
+                        <div>
+                          <span className="text-gray-500">DOB:</span>{' '}
+                          <span className="font-medium">{onboardResult.driver.dob}</span>
+                        </div>
+                      )}
+                      {onboardResult.driver?.physical_date && onboardResult.driver.physical_date !== '2000-01-01' && (
+                        <div>
+                          <span className="text-gray-500">Medical Cert:</span>{' '}
+                          <span className="font-medium">{onboardResult.driver.physical_date}</span>
+                        </div>
+                      )}
+                      {onboardResult.driver?.state && (
+                        <div>
+                          <span className="text-gray-500">State:</span>{' '}
+                          <span className="font-medium">{onboardResult.driver.state}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Credentials */}
+                  <div className="bg-indigo-50 border border-indigo-200 rounded-md p-3 mb-3">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="text-sm font-medium text-indigo-800 mb-1">Driver Portal Credentials</p>
+                        <p className="text-sm text-indigo-700">Username: <span className="font-mono font-medium">{onboardResult.username}</span></p>
+                        <p className="text-sm text-indigo-700">Temp Password: <span className="font-mono font-medium">{onboardResult.temp_password}</span></p>
+                        <p className="text-xs text-indigo-500 mt-1">Driver should change password on first login.</p>
+                      </div>
+                      <button
+                        onClick={copyCredentials}
+                        className="inline-flex items-center px-2 py-1 text-xs font-medium rounded text-indigo-700 bg-indigo-100 hover:bg-indigo-200"
+                      >
+                        <ClipboardDocumentIcon className="h-4 w-4 mr-1" />
+                        Copy
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* AI Extraction Info */}
+                  {onboardResult.extraction?.warning && (
+                    <div className="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-md p-2 mb-2">
+                      AI note: {onboardResult.extraction.warning}
+                    </div>
+                  )}
+                  {onboardResult.extraction?.processing_time_ms && (
+                    <p className="text-xs text-gray-400">
+                      AI extraction took {(onboardResult.extraction.processing_time_ms / 1000).toFixed(1)}s
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Modal Actions */}
           <div className="mt-6 flex justify-end space-x-3">
             <button
-              onClick={onClose}
+              onClick={onboardResult ? onStatusUpdate : onClose}
               className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
             >
-              Cancel
+              {onboardResult ? 'Done' : 'Cancel'}
             </button>
-            <button
-              onClick={updateApplicationStatus}
-              disabled={updating}
-              className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
-            >
-              {updating ? 'Updating...' : 'Save Changes'}
-            </button>
+            {!onboardResult && (
+              <button
+                onClick={updateApplicationStatus}
+                disabled={updating}
+                className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+              >
+                {updating ? 'Updating...' : 'Save Changes'}
+              </button>
+            )}
           </div>
         </div>
       </div>

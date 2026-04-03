@@ -427,6 +427,156 @@ def extract_document_data(user, pdf_file, document_type_hint='auto'):
 
 
 # ============================================================
+# 2b. DRIVER ONBOARDING — Extract CDL & Medical Card data
+# ============================================================
+
+CDL_EXTRACTION_SYSTEM = """You are a driver document extraction AI. You analyze CDL (Commercial Driver's License) and medical certificate images/PDFs to extract structured data for fleet management onboarding.
+
+Return ONLY valid JSON with the extracted fields. Include a "confidence" object with 0.0–1.0 scores for each field.
+
+For CDL (Commercial Driver's License):
+{
+  "document_type": "cdl",
+  "cdl_number": "",
+  "cdl_class": "",
+  "endorsements": "",
+  "restrictions": "",
+  "expiration_date": "",
+  "date_of_birth": "",
+  "first_name": "",
+  "last_name": "",
+  "state": "",
+  "address": "",
+  "confidence": { "cdl_number": 0.95, ... }
+}
+
+For Medical Certificate (DOT Physical):
+{
+  "document_type": "medical_certificate",
+  "medical_examiner_name": "",
+  "medical_exam_date": "",
+  "medical_expiration_date": "",
+  "first_name": "",
+  "last_name": "",
+  "date_of_birth": "",
+  "determination": "",
+  "confidence": { "medical_exam_date": 0.90, ... }
+}
+
+Rules:
+- Return ONLY valid JSON, no markdown fences, no explanation
+- Use empty string "" for missing fields, never null
+- Dates in YYYY-MM-DD format
+- CDL class should be one of: A, B, C
+- Endorsements as comma-separated codes (e.g., "H, N, T, P, X")
+- State as two-letter abbreviation (e.g., "TX", "CA")
+- confidence values 0.0 to 1.0 per field
+- Extract exactly what's on the document, do not infer missing data
+"""
+
+
+def extract_driver_documents(user, cdl_file=None, medical_file=None):
+    """
+    Extract structured data from CDL and/or medical certificate files using AI.
+    Supports both images (PNG, JPG) and PDFs.
+    Returns dict with 'cdl_data', 'medical_data', 'error'.
+    """
+    if not hasattr(user, 'profile'):
+        return {'error': 'User profile not configured.'}
+
+    tenant = user.profile.tenant
+    start = time.time()
+    results = {}
+
+    for doc_label, doc_file, doc_type in [
+        ('cdl_data', cdl_file, 'cdl'),
+        ('medical_data', medical_file, 'medical_certificate'),
+    ]:
+        if not doc_file:
+            continue
+
+        filename = doc_file.name.lower()
+        file_content = doc_file.read()
+        doc_file.seek(0)
+
+        if len(file_content) > 10 * 1024 * 1024:
+            return {'error': f'{doc_type} file must be under 10 MB.'}
+
+        # Build the message content based on file type
+        if filename.endswith('.pdf'):
+            # Extract text from PDF
+            try:
+                import PyPDF2
+                import io
+                extracted_text = ''
+                reader = PyPDF2.PdfReader(io.BytesIO(file_content))
+                for page in reader.pages:
+                    page_text = page.extract_text()
+                    if page_text:
+                        extracted_text += page_text + '\n'
+            except Exception as e:
+                logger.error(f'PDF extraction error for {doc_type}: {e}')
+                return {'error': f'Failed to read {doc_type} PDF.'}
+
+            if not extracted_text.strip():
+                return {'error': f'Could not extract text from {doc_type} PDF. It may be a scanned image — try uploading as an image instead.'}
+
+            user_msg = [{'type': 'text', 'text': f'Document type: {doc_type}\n\nExtracted text:\n{extracted_text[:8000]}'}]
+        elif filename.endswith(('.png', '.jpg', '.jpeg', '.gif', '.webp')):
+            # Use Claude vision for images
+            ext = filename.rsplit('.', 1)[-1]
+            media_types = {'png': 'image/png', 'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'gif': 'image/gif', 'webp': 'image/webp'}
+            media_type = media_types.get(ext, 'image/jpeg')
+            b64 = base64.b64encode(file_content).decode('utf-8')
+
+            user_msg = [
+                {'type': 'image', 'source': {'type': 'base64', 'media_type': media_type, 'data': b64}},
+                {'type': 'text', 'text': f'Extract all data from this {doc_type} document.'},
+            ]
+        else:
+            return {'error': f'Unsupported file type for {doc_type}. Use PDF, PNG, or JPG.'}
+
+        response_text, error = _call_claude(
+            CDL_EXTRACTION_SYSTEM,
+            [{'role': 'user', 'content': user_msg}],
+            max_tokens=1500,
+        )
+
+        if error:
+            return {'error': f'{doc_type} extraction failed: {error}'}
+
+        # Parse JSON response
+        try:
+            clean = response_text
+            if clean.startswith('```'):
+                clean = clean.split('\n', 1)[1] if '\n' in clean else clean[3:]
+            if clean.endswith('```'):
+                clean = clean[:-3].strip()
+            parsed = json.loads(clean)
+        except json.JSONDecodeError:
+            logger.error(f'AI returned invalid JSON for {doc_type}: {response_text[:500]}')
+            return {'error': f'Failed to parse {doc_type} data. Try again.'}
+
+        confidence = parsed.pop('confidence', {})
+
+        # Save extraction record
+        AIDocumentExtraction.objects.create(
+            user=user,
+            tenant=tenant,
+            document_type=doc_type,
+            source_filename=doc_file.name,
+            extracted_data=parsed,
+            confidence_scores=confidence,
+            processing_time_ms=int((time.time() - start) * 1000),
+        )
+
+        results[doc_label] = {'extracted_data': parsed, 'confidence_scores': confidence}
+
+    results['processing_time_ms'] = int((time.time() - start) * 1000)
+    return results
+
+
+# ============================================================
 # 3. DISPATCH RECOMMENDATIONS — AI-powered driver/truck suggestions
 # ============================================================
 
