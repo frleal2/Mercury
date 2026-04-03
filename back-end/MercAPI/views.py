@@ -2464,8 +2464,8 @@ def driver_upload_pod(request, trip_id):
 @permission_classes([IsAuthenticated])
 def download_document(request, document_source, document_id):
     """
-    Generate a presigned S3 URL for downloading a trip or load document.
-    document_source: 'trip' or 'load'
+    Generate a presigned S3 URL for downloading a trip, load, or driver document.
+    document_source: 'trip', 'load', or 'driver'
     """
     try:
         if not hasattr(request.user, 'profile'):
@@ -2482,6 +2482,11 @@ def download_document(request, document_source, document_id):
             try:
                 doc = LoadDocument.objects.get(id=document_id, load__company__in=user_companies)
             except LoadDocument.DoesNotExist:
+                return Response({'error': 'Document not found'}, status=status.HTTP_404_NOT_FOUND)
+        elif document_source == 'driver':
+            try:
+                doc = DriverDocument.objects.get(id=document_id, driver__company__in=user_companies)
+            except DriverDocument.DoesNotExist:
                 return Response({'error': 'Document not found'}, status=status.HTTP_404_NOT_FOUND)
         else:
             return Response({'error': 'Invalid document source'}, status=status.HTTP_400_BAD_REQUEST)
@@ -5194,16 +5199,55 @@ def onboard_driver_from_application(request, application_id):
     driver.user_account = user_account
     driver.save(update_fields=['user_account'])
 
-    # Step 7: Mark application as approved
+    # Step 7: Copy application documents to DriverDocument records
+    from django.core.files.base import ContentFile
+    docs_copied = []
+    if application.drivers_license:
+        try:
+            content = application.drivers_license.read()
+            application.drivers_license.seek(0)
+            doc = DriverDocument(
+                driver=driver,
+                document_type='cdl_license',
+                file_name=application.drivers_license.name.split('/')[-1],
+                description='CDL License (from application)',
+                uploaded_by=request.user.username,
+                expiration_date=parse_date(cdl.get('expiration_date')),
+            )
+            doc.file.save(application.drivers_license.name.split('/')[-1], ContentFile(content), save=True)
+            docs_copied.append('cdl_license')
+        except Exception as e:
+            logger.warning(f'Could not copy CDL document: {e}')
+
+    if application.medical_certificate:
+        try:
+            content = application.medical_certificate.read()
+            application.medical_certificate.seek(0)
+            doc = DriverDocument(
+                driver=driver,
+                document_type='medical_certificate',
+                file_name=application.medical_certificate.name.split('/')[-1],
+                description='Medical Certificate (from application)',
+                uploaded_by=request.user.username,
+                expiration_date=parse_date(med.get('medical_expiration_date')),
+            )
+            doc.file.save(application.medical_certificate.name.split('/')[-1], ContentFile(content), save=True)
+            docs_copied.append('medical_certificate')
+        except Exception as e:
+            logger.warning(f'Could not copy medical document: {e}')
+
+    # Step 8: Mark application as approved
     application.status = 'approved'
     application.notes = (application.notes or '') + f'\n[Auto-onboarded] Driver ID: {driver.id}, User: {username}'
     application.save(update_fields=['status', 'notes'])
 
-    # Build response
+    # Build response — refetch driver to include documents
+    driver.refresh_from_db()
     response_data = {
         'driver': DriverSerializer(driver).data,
         'username': username,
         'temp_password': temp_password,
+        'documents_copied': docs_copied,
         'extraction': {
             'cdl_data': extraction_results.get('cdl_data', {}),
             'medical_data': extraction_results.get('medical_data', {}),

@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { useSession } from '../providers/SessionProvider';
 import BASE_URL from '../config';
-import { XMarkIcon, IdentificationIcon } from '@heroicons/react/24/outline';
+import { XMarkIcon, IdentificationIcon, DocumentIcon, ArrowDownTrayIcon, TrashIcon, ArrowUpTrayIcon } from '@heroicons/react/24/outline';
 
 function EditDriver({ driver, onClose, onDriverUpdated }) {
   const { session, refreshAccessToken } = useSession();
@@ -26,6 +26,86 @@ function EditDriver({ driver, onClose, onDriverUpdated }) {
   });
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
+
+  // Document management state
+  const [documents, setDocuments] = useState(driver.documents || []);
+  const [uploadingDoc, setUploadingDoc] = useState(false);
+  const [docUploadType, setDocUploadType] = useState('cdl_license');
+
+  const DOCUMENT_TYPES = [
+    { value: 'cdl_license', label: 'CDL License' },
+    { value: 'medical_certificate', label: 'Medical Certificate' },
+    { value: 'mvr_report', label: 'Motor Vehicle Record' },
+    { value: 'employment_verification', label: 'Employment Verification' },
+    { value: 'drug_test_results', label: 'Drug Test Results' },
+    { value: 'background_check', label: 'Background Check' },
+    { value: 'training_certificate', label: 'Training Certificate' },
+    { value: 'other', label: 'Other Document' },
+  ];
+
+  const fetchDocuments = useCallback(async () => {
+    try {
+      const res = await axios.get(`${BASE_URL}/api/driver-documents/?driver_id=${driver.id}`, {
+        headers: { Authorization: `Bearer ${session.accessToken}` },
+      });
+      setDocuments(res.data);
+    } catch (err) {
+      console.error('Error fetching driver documents:', err);
+    }
+  }, [driver.id, session.accessToken]);
+
+  const handleDocUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setUploadingDoc(true);
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('driver_id', driver.id);
+    formData.append('document_type', docUploadType);
+
+    try {
+      await axios.post(`${BASE_URL}/api/upload/driver-document/`, formData, {
+        headers: {
+          Authorization: `Bearer ${session.accessToken}`,
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      fetchDocuments();
+    } catch (err) {
+      console.error('Error uploading document:', err);
+      alert('Failed to upload document.');
+    } finally {
+      setUploadingDoc(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleDocDownload = async (doc) => {
+    try {
+      const res = await axios.get(
+        `${BASE_URL}/api/documents/driver/${doc.id}/download/`,
+        { headers: { Authorization: `Bearer ${session.accessToken}` } }
+      );
+      window.open(res.data.download_url, '_blank');
+    } catch (err) {
+      console.error('Error downloading document:', err);
+      alert('Failed to download document.');
+    }
+  };
+
+  const handleDocDelete = async (doc) => {
+    if (!window.confirm(`Delete "${doc.document_type_display || doc.file_name}"?`)) return;
+    try {
+      await axios.delete(`${BASE_URL}/api/driver-documents/${doc.id}/`, {
+        headers: { Authorization: `Bearer ${session.accessToken}` },
+      });
+      fetchDocuments();
+    } catch (err) {
+      console.error('Error deleting document:', err);
+      alert('Failed to delete document.');
+    }
+  };
 
   // US States for dropdown
   const US_STATES = [
@@ -62,7 +142,8 @@ function EditDriver({ driver, onClose, onDriverUpdated }) {
       }
     };
     fetchCompanies();
-  }, [session]);
+    fetchDocuments();
+  }, [session, fetchDocuments]);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -386,6 +467,80 @@ function EditDriver({ driver, onClose, onDriverUpdated }) {
                   className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                 />
                 <span className="ml-2 text-sm text-gray-700">Random test required this year</span>
+              </label>
+            </div>
+          </div>
+
+          {/* Documents */}
+          <div>
+            <h4 className="text-md font-medium text-gray-900 mb-3">Documents</h4>
+
+            {/* Document List */}
+            {documents.length > 0 ? (
+              <div className="space-y-2 mb-4">
+                {documents.map((doc) => (
+                  <div key={doc.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg bg-gray-50 hover:bg-gray-100">
+                    <div className="flex items-center space-x-3 min-w-0">
+                      <DocumentIcon className="h-6 w-6 text-blue-500 flex-shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">
+                          {doc.document_type_display || doc.document_type}
+                        </p>
+                        <p className="text-xs text-gray-500 truncate">
+                          {doc.file_name}
+                          {doc.expiration_date && ` · Expires ${doc.expiration_date}`}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-1 flex-shrink-0 ml-2">
+                      <button
+                        type="button"
+                        onClick={() => handleDocDownload(doc)}
+                        className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded"
+                        title="Download"
+                      >
+                        <ArrowDownTrayIcon className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDocDelete(doc)}
+                        className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded"
+                        title="Delete"
+                      >
+                        <TrashIcon className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-4 mb-4 border-2 border-dashed border-gray-300 rounded-lg">
+                <DocumentIcon className="mx-auto h-8 w-8 text-gray-400" />
+                <p className="mt-1 text-sm text-gray-500">No documents uploaded</p>
+              </div>
+            )}
+
+            {/* Upload */}
+            <div className="flex items-center gap-2">
+              <select
+                value={docUploadType}
+                onChange={(e) => setDocUploadType(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                {DOCUMENT_TYPES.map((dt) => (
+                  <option key={dt.value} value={dt.value}>{dt.label}</option>
+                ))}
+              </select>
+              <label className={`inline-flex items-center px-3 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium cursor-pointer ${uploadingDoc ? 'opacity-50 cursor-not-allowed' : 'text-gray-700 bg-white hover:bg-gray-50'}`}>
+                <ArrowUpTrayIcon className="h-4 w-4 mr-1.5" />
+                {uploadingDoc ? 'Uploading...' : 'Upload'}
+                <input
+                  type="file"
+                  className="hidden"
+                  accept=".pdf,.png,.jpg,.jpeg,.gif,.doc,.docx"
+                  onChange={handleDocUpload}
+                  disabled={uploadingDoc}
+                />
               </label>
             </div>
           </div>
