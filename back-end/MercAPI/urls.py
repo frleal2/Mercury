@@ -22,7 +22,7 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from django.conf import settings
 from django.conf.urls.static import static
 from MercAPI import views  # Corrected to match the actual directory name
-from MercAPI.views import RegisterUserView, CustomTokenObtainPairView, DriverViewSet, TruckViewSet, CompanyViewSet, TrailerViewSet, DriverTestViewSet, DriverHOSViewSet, DriverApplicationViewSet, MaintenanceCategoryViewSet, MaintenanceTypeViewSet, MaintenanceRecordViewSet, MaintenanceAttachmentViewSet, DriverDocumentViewSet, TripDocumentViewSet, LoadDocumentViewSet, MaintenanceAttachmentUploadView, DriverDocumentUploadView, InspectionViewSet, InspectionItemViewSet, TripsViewSet, TripsManagementViewSet, TripInspectionViewSet, AnnualInspectionViewSet, VehicleOperationStatusViewSet, driver_update_dvir_review, cancel_trip, cancel_and_reassign_trip, available_trucks, CustomerViewSet, CarrierViewSet, LoadViewSet, InvoiceViewSet, InvoicePaymentViewSet, RateLaneViewSet, AccessorialChargeViewSet, FuelSurchargeScheduleViewSet, CheckCallViewSet, LoadTrackingEventViewSet, NotificationViewSet, NotificationPreferenceViewSet, CompanyNotificationSettingViewSet, parse_rate_confirmation, confirm_delivery, report_breakdown, ELDProviderViewSet, ELDVehicleMappingViewSet, ELDDriverMappingViewSet, dispatch_map_locations
+from MercAPI.views import RegisterUserView, CustomTokenObtainPairView, DriverViewSet, TruckViewSet, CompanyViewSet, TrailerViewSet, DriverTestViewSet, DriverHOSViewSet, DriverApplicationViewSet, MaintenanceCategoryViewSet, MaintenanceTypeViewSet, MaintenanceRecordViewSet, MaintenanceAttachmentViewSet, DriverDocumentViewSet, TripDocumentViewSet, LoadDocumentViewSet, MaintenanceAttachmentUploadView, DriverDocumentUploadView, InspectionViewSet, InspectionItemViewSet, TripsViewSet, TripsManagementViewSet, TripInspectionViewSet, AnnualInspectionViewSet, VehicleOperationStatusViewSet, driver_update_dvir_review, cancel_trip, cancel_and_reassign_trip, available_trucks, CustomerViewSet, CarrierViewSet, LoadViewSet, InvoiceViewSet, InvoicePaymentViewSet, RateLaneViewSet, AccessorialChargeViewSet, FuelSurchargeScheduleViewSet, CheckCallViewSet, LoadTrackingEventViewSet, NotificationViewSet, NotificationPreferenceViewSet, CompanyNotificationSettingViewSet, parse_rate_confirmation, confirm_delivery, report_breakdown, ELDProviderViewSet, ELDVehicleMappingViewSet, ELDDriverMappingViewSet, dispatch_map_locations, ai_chat, ai_chat_history, ai_chat_messages, ai_chat_delete, ai_extract_document, ai_dispatch_recommend
 
 router = DefaultRouter()
 router.register(r'drivers', DriverViewSet, basename='driver')  # Register DriverViewSet
@@ -128,6 +128,13 @@ urlpatterns = [
     path('api/carriers/safety/overview/', views.carriers_safety_list, name='carriers_safety_list'),
     # ELD / Dispatch Map
     path('api/dispatch/map-locations/', dispatch_map_locations, name='dispatch_map_locations'),
+    # AI Features
+    path('api/ai/chat/', ai_chat, name='ai_chat'),
+    path('api/ai/chat/history/', ai_chat_history, name='ai_chat_history'),
+    path('api/ai/chat/<int:conversation_id>/', ai_chat_messages, name='ai_chat_messages'),
+    path('api/ai/chat/<int:conversation_id>/delete/', ai_chat_delete, name='ai_chat_delete'),
+    path('api/ai/extract-document/', ai_extract_document, name='ai_extract_document'),
+    path('api/ai/dispatch-recommend/<int:load_id>/', ai_dispatch_recommend, name='ai_dispatch_recommend'),
 ]
 
 # Serve media and static files during development

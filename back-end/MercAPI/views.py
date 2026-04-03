@@ -4896,3 +4896,149 @@ def carriers_safety_list(request):
 
     return Response(results)
 
+
+# ==================== AI FEATURES ====================
+
+from .ai_services import fleet_assistant_chat, extract_document_data, get_dispatch_recommendations
+from .models import AIConversation, AIMessage
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def ai_chat(request):
+    """
+    AI Fleet Assistant — send a message and get an AI response.
+    Body: { "message": "...", "conversation_id": null | int }
+    """
+    message = request.data.get('message', '').strip()
+    if not message:
+        return Response({'error': 'Message is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Limit message length to prevent abuse
+    if len(message) > 2000:
+        return Response({'error': 'Message too long (max 2000 characters).'}, status=status.HTTP_400_BAD_REQUEST)
+
+    conversation_id = request.data.get('conversation_id')
+
+    result = fleet_assistant_chat(request.user, message, conversation_id)
+
+    if 'error' in result and 'conversation_id' not in result:
+        return Response({'error': result['error']}, status=status.HTTP_400_BAD_REQUEST)
+    if 'error' in result:
+        return Response(result, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    return Response(result)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def ai_chat_history(request):
+    """
+    Get the user's AI chat conversations list.
+    """
+    if not hasattr(request.user, 'profile'):
+        return Response({'error': 'User profile not configured.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    conversations = AIConversation.objects.filter(
+        user=request.user, tenant=request.user.profile.tenant
+    ).order_by('-updated_at')[:50]
+
+    data = [
+        {
+            'id': c.id,
+            'title': c.title,
+            'created_at': c.created_at.isoformat(),
+            'updated_at': c.updated_at.isoformat(),
+            'message_count': c.messages.count(),
+        }
+        for c in conversations
+    ]
+    return Response(data)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def ai_chat_messages(request, conversation_id):
+    """
+    Get messages for a specific AI conversation.
+    """
+    try:
+        conversation = AIConversation.objects.get(
+            id=conversation_id, user=request.user
+        )
+    except AIConversation.DoesNotExist:
+        return Response({'error': 'Conversation not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    messages = conversation.messages.order_by('created_at')
+    data = [
+        {
+            'id': m.id,
+            'role': m.role,
+            'content': m.content,
+            'created_at': m.created_at.isoformat(),
+            'metadata': m.metadata,
+        }
+        for m in messages
+    ]
+    return Response({
+        'conversation_id': conversation.id,
+        'title': conversation.title,
+        'messages': data,
+    })
+
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def ai_chat_delete(request, conversation_id):
+    """Delete an AI conversation."""
+    try:
+        conversation = AIConversation.objects.get(
+            id=conversation_id, user=request.user
+        )
+    except AIConversation.DoesNotExist:
+        return Response({'error': 'Conversation not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    conversation.delete()
+    return Response({'status': 'deleted'})
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def ai_extract_document(request):
+    """
+    AI Document Intelligence — extract structured data from an uploaded PDF.
+    Body: multipart form with 'file' and optional 'document_type' (bol/pod/invoice/auto)
+    """
+    pdf_file = request.FILES.get('file')
+    if not pdf_file:
+        return Response({'error': 'No file uploaded.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    document_type = request.data.get('document_type', 'auto')
+    allowed_types = ('auto', 'bol', 'pod', 'invoice', 'rate_confirmation')
+    if document_type not in allowed_types:
+        return Response(
+            {'error': f'Invalid document_type. Use: {", ".join(allowed_types)}'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    result = extract_document_data(request.user, pdf_file, document_type)
+
+    if 'error' in result:
+        return Response({'error': result['error']}, status=status.HTTP_400_BAD_REQUEST)
+
+    return Response(result)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def ai_dispatch_recommend(request, load_id):
+    """
+    AI Dispatch Recommendations — get ranked driver/truck suggestions for a load.
+    """
+    result = get_dispatch_recommendations(request.user, load_id)
+
+    if 'error' in result:
+        return Response({'error': result['error']}, status=status.HTTP_400_BAD_REQUEST)
+
+    return Response(result)
+

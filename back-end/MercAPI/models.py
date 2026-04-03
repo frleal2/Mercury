@@ -2846,4 +2846,96 @@ class ComplianceMetric(models.Model):
         return f"{self.company.name} compliance {self.period_start} — {self.period_end}"
 
 
+# ==================== AI FEATURES ====================
+
+class AIConversation(models.Model):
+    """
+    Stores AI chat conversations per user for the Fleet Assistant.
+    Each conversation has a thread of messages with role (user/assistant).
+    """
+    user = models.ForeignKey(
+        'auth.User', on_delete=models.CASCADE, related_name='ai_conversations'
+    )
+    tenant = models.ForeignKey(
+        Tenant, on_delete=models.CASCADE, related_name='ai_conversations'
+    )
+    title = models.CharField(max_length=255, default='New Conversation')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-updated_at']
+        verbose_name = 'AI Conversation'
+
+    def __str__(self):
+        return f"{self.user.username} — {self.title}"
+
+
+class AIMessage(models.Model):
+    """Individual message in an AI conversation."""
+    ROLE_CHOICES = [
+        ('user', 'User'),
+        ('assistant', 'Assistant'),
+    ]
+
+    conversation = models.ForeignKey(
+        AIConversation, on_delete=models.CASCADE, related_name='messages'
+    )
+    role = models.CharField(max_length=10, choices=ROLE_CHOICES)
+    content = models.TextField()
+    metadata = models.JSONField(
+        default=dict, blank=True,
+        help_text="Extra data: tokens used, data tables returned, etc."
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['created_at']
+
+    def __str__(self):
+        return f"{self.role}: {self.content[:60]}"
+
+
+class AIDocumentExtraction(models.Model):
+    """
+    Tracks AI-powered data extraction from uploaded documents.
+    Stores the extracted fields and whether the user accepted them.
+    """
+    STATUS_CHOICES = [
+        ('pending', 'Pending Review'),
+        ('accepted', 'Accepted'),
+        ('rejected', 'Rejected'),
+        ('partial', 'Partially Accepted'),
+    ]
+
+    user = models.ForeignKey(
+        'auth.User', on_delete=models.CASCADE, related_name='ai_extractions'
+    )
+    tenant = models.ForeignKey(
+        Tenant, on_delete=models.CASCADE, related_name='ai_extractions'
+    )
+    document_type = models.CharField(
+        max_length=30,
+        help_text="Type of document processed (e.g., bol, pod, rate_confirmation)"
+    )
+    source_filename = models.CharField(max_length=255)
+    extracted_data = models.JSONField(default=dict, help_text="AI-extracted structured fields")
+    confidence_scores = models.JSONField(default=dict, help_text="Per-field confidence 0-1")
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')
+    applied_to_model = models.CharField(
+        max_length=50, blank=True,
+        help_text="Model the data was applied to (e.g., 'Load', 'Trip')"
+    )
+    applied_to_id = models.PositiveIntegerField(null=True, blank=True)
+    processing_time_ms = models.IntegerField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'AI Document Extraction'
+
+    def __str__(self):
+        return f"{self.document_type} — {self.source_filename} ({self.status})"
+
+
 

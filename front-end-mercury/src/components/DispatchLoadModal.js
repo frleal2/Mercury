@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { TruckIcon, XMarkIcon, BuildingOfficeIcon } from '@heroicons/react/24/outline';
+import { SparklesIcon } from '@heroicons/react/24/solid';
 import axios from 'axios';
 import { useSession } from '../providers/SessionProvider';
 import BASE_URL from '../config';
+import AIDispatchRecommend from './AIDispatchRecommend';
 
 const DispatchLoadModal = ({ isOpen, onClose, load, onDispatched }) => {
   const { session, refreshAccessToken } = useSession();
@@ -16,6 +18,7 @@ const DispatchLoadModal = ({ isOpen, onClose, load, onDispatched }) => {
   const [fetchingData, setFetchingData] = useState(true);
   const [error, setError] = useState('');
   const [driverActiveLoads, setDriverActiveLoads] = useState({});
+  const [showAIRecommend, setShowAIRecommend] = useState(false);
 
   // Broker mode: load has a carrier assigned, so driver/truck are the carrier's responsibility
   const isBrokered = !!(load?.carrier || load?.carrier_name);
@@ -214,6 +217,39 @@ const DispatchLoadModal = ({ isOpen, onClose, load, onDispatched }) => {
                   ) : (
                     /* Carrier/self-haul dispatch mode */
                     <>
+                  {/* AI Recommendation Button */}
+                  <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <SparklesIcon className="h-4 w-4 text-blue-600" />
+                        <span className="text-sm font-medium text-blue-800">AI-Powered Recommendations</span>
+                      </div>
+                      <button
+                        onClick={() => setShowAIRecommend(true)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 transition"
+                      >
+                        <SparklesIcon className="h-3.5 w-3.5" />
+                        Get Suggestions
+                      </button>
+                    </div>
+                    <p className="text-xs text-blue-600 mt-1">
+                      AI analyzes HOS, equipment, safety records, and location to rank drivers
+                    </p>
+                  </div>
+
+                  <AIDispatchRecommend
+                    loadId={load?.id}
+                    isOpen={showAIRecommend}
+                    onClose={() => setShowAIRecommend(false)}
+                    onSelectDriver={({ driverId, truckId }) => {
+                      if (driverId) {
+                        setSelectedDriver(driverId.toString());
+                        handleDriverChange(driverId.toString());
+                      }
+                      if (truckId) setSelectedTruck(truckId.toString());
+                    }}
+                  />
+
                   {/* Driver Selection */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">

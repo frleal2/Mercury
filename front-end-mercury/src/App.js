@@ -30,6 +30,7 @@ import DispatchBoard from './Pages/DispatchBoard';
 import RateManagement from './Pages/RateManagement';
 import TrackShipment from './Pages/TrackShipment';
 import Integrations from './Pages/Integrations';
+import AIAssistant from './components/AIAssistant';
 
 function AppContent() {
     const { session } = useSession();
@@ -37,6 +38,8 @@ function AppContent() {
     const userRole = session?.userInfo?.role || 'user';
 
     return (
+        <>
+        {isLoggedIn && userRole !== 'driver' && <AIAssistant />}
         <Routes>
             {isLoggedIn ? (
                 <>
@@ -112,6 +115,7 @@ function AppContent() {
                 </>
             )}
         </Routes>
+        </>
     );
 }
 
