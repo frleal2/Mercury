@@ -134,7 +134,8 @@ def _build_fleet_context(user_companies):
 
     # Maintenance
     open_maintenance = MaintenanceRecord.objects.filter(
-        company__in=user_companies, status__in=['pending', 'in_progress']
+        Q(truck__company__in=user_companies) | Q(trailer__company__in=user_companies),
+        status__in=['scheduled', 'in_progress']
     ).count()
     ctx['open_maintenance'] = open_maintenance
 
@@ -152,15 +153,15 @@ def _build_fleet_context(user_companies):
     )
     ctx['outstanding_invoices_total'] = float(unpaid['total'] or 0)
 
-    # Drivers list (name + status for Q&A)
+    # Drivers list (name + active status for Q&A)
     drivers = Driver.objects.filter(company__in=user_companies).values(
-        'id', 'first_name', 'last_name', 'status'
+        'id', 'first_name', 'last_name', 'active'
     )[:50]
     ctx['drivers'] = list(drivers)
 
     # Trucks list
     trucks = Truck.objects.filter(company__in=user_companies).values(
-        'id', 'unit_number', 'make', 'model', 'year', 'operation_status'
+        'id', 'unit_number', 'make', 'model', 'year', 'active'
     )[:50]
     ctx['trucks'] = list(trucks)
 
@@ -440,7 +441,7 @@ def _get_driver_fitness(driver, user_companies):
     info = {
         'id': driver.id,
         'name': f"{driver.first_name} {driver.last_name}",
-        'status': driver.status,
+        'active': driver.active,
         'company': driver.company.name if driver.company else 'Unknown',
     }
 
@@ -456,22 +457,28 @@ def _get_driver_fitness(driver, user_companies):
     if truck:
         info['truck_id'] = truck.id
         info['truck_unit'] = truck.unit_number
-        info['truck_status'] = truck.operation_status
+        info['truck_active'] = truck.active
         info['truck_make_model'] = f"{truck.make} {truck.model} {truck.year}"
+        # Check VehicleOperationStatus if it exists
+        try:
+            from .models import VehicleOperationStatus
+            vos = VehicleOperationStatus.objects.filter(truck=truck).order_by('-effective_date').first()
+            info['truck_operation_status'] = vos.current_status if vos else 'unknown'
+        except Exception:
+            info['truck_operation_status'] = 'unknown'
     else:
         info['truck_id'] = None
         info['truck_unit'] = None
-        info['truck_status'] = 'no_truck'
+        info['truck_active'] = False
+        info['truck_operation_status'] = 'no_truck'
 
-    # Latest HOS
-    hos = DriverHOS.objects.filter(driver=driver).order_by('-date').first()
+    # Latest HOS (DriverHOS stores duty periods, not remaining hours)
+    hos = DriverHOS.objects.filter(driver=driver).order_by('-duty_date').first()
     if hos:
-        info['hos_driving_remaining'] = float(hos.driving_hours_remaining or 0)
-        info['hos_duty_remaining'] = float(hos.on_duty_hours_remaining or 0)
-        info['hos_cycle_remaining'] = float(hos.cycle_hours_remaining or 0)
-        info['hos_date'] = str(hos.date)
+        info['last_hos_date'] = str(hos.duty_date)
+        info['last_hos_status'] = hos.duty_status
     else:
-        info['hos_driving_remaining'] = 'unknown'
+        info['last_hos_date'] = 'unknown'
 
     # Last known location (from ELD)
     latest_loc = VehicleLocation.objects.filter(
@@ -491,7 +498,7 @@ def _get_driver_fitness(driver, user_companies):
         inspection_date__gte=today - timedelta(days=90),
     )
     total_insp = recent_inspections.count()
-    pass_insp = recent_inspections.filter(overall_result='pass').count()
+    pass_insp = recent_inspections.filter(overall_status='pass').count()
     info['inspection_pass_rate_90d'] = (
         round(pass_insp / total_insp * 100, 1) if total_insp > 0 else None
     )
@@ -499,7 +506,7 @@ def _get_driver_fitness(driver, user_companies):
     # Open maintenance on assigned truck
     if truck:
         open_maint = MaintenanceRecord.objects.filter(
-            truck=truck, status__in=['pending', 'in_progress']
+            truck=truck, status__in=['scheduled', 'in_progress']
         ).count()
         info['truck_open_maintenance'] = open_maint
     else:
@@ -564,7 +571,7 @@ def get_dispatch_recommendations(user, load_id):
     # Get all drivers in the load's company
     drivers = Driver.objects.filter(
         company=load.company,
-        status='active',
+        active=True,
     ).select_related('company')
 
     if not drivers.exists():
