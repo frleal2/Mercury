@@ -983,7 +983,7 @@ class DriverDocumentUploadView(FileUploadView):
                 document_type=document_type,
                 file=file,
                 description=description,
-                expiry_date=expiry_date,
+                expiration_date=expiry_date,
                 file_size=file.size
             )
             
