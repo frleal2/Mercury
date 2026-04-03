@@ -140,31 +140,20 @@ function DispatchMap({ onSelectLoad }) {
             <p className="text-sm text-gray-500">Loading map...</p>
           </div>
         </div>
-      ) : loadsWithLocation.length === 0 ? (
-        <div className="flex items-center justify-center h-full bg-gray-50">
-          <div className="text-center px-4">
-            <svg xmlns="http://www.w3.org/2000/svg" className="mx-auto h-10 w-10 text-gray-300 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
-            </svg>
-            <p className="text-sm font-medium text-gray-500">No GPS data available</p>
-            <p className="text-xs text-gray-400 mt-1">
-              Connect an ELD integration to see live positions, or add check calls with coordinates.
-            </p>
-          </div>
-        </div>
       ) : (
-        <MapContainer
-          center={[39.8283, -98.5795]} // Center of US
-          zoom={5}
-          className="h-full w-full"
-          style={{ height: '100%' }}
-        >
-          <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          />
-          <FitBounds locations={loadsWithLocation} />
-          {loadsWithLocation.map(load => (
+        <div className="relative h-full w-full">
+          <MapContainer
+            center={[39.8283, -98.5795]} // Center of US
+            zoom={5}
+            className="h-full w-full"
+            style={{ height: '100%' }}
+          >
+            <TileLayer
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            />
+            {loadsWithLocation.length > 0 && <FitBounds locations={loadsWithLocation} />}
+            {loadsWithLocation.map(load => (
             <Marker
               key={load.load_id}
               position={[parseFloat(load.latitude), parseFloat(load.longitude)]}
@@ -236,7 +225,18 @@ function DispatchMap({ onSelectLoad }) {
               </Popup>
             </Marker>
           ))}
-        </MapContainer>
+          </MapContainer>
+          {loadsWithLocation.length === 0 && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none" style={{ zIndex: 1000 }}>
+              <div className="bg-white/90 backdrop-blur-sm rounded-lg shadow-md px-6 py-4 text-center pointer-events-auto">
+                <p className="text-sm font-medium text-gray-600">No GPS data available</p>
+                <p className="text-xs text-gray-400 mt-1">
+                  Connect an ELD integration to see live positions, or add check calls with coordinates.
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
